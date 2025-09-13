@@ -6,7 +6,8 @@ import {
   BookOpen,
   Route,
   Target,
-  TrendingUp
+  TrendingUp,
+  HelpCircle
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ const navigation = [
   { id: 'journeys', name: 'User Journeys', icon: Route },
   { id: 'competitive', name: 'Competitive Audit', icon: Target },
   { id: 'insights', name: 'Insight Hub', icon: TrendingUp },
+  { id: 'guide', name: 'SSO Guide', icon: HelpCircle },
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
@@ -48,16 +50,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           );
         })}
       </nav>
-      
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="bg-gradient-to-r from-blue-800 to-teal-600 rounded-lg p-4 text-white">
-          <h3 className="font-semibold text-sm">SSO Pro</h3>
-          <p className="text-xs text-blue-100 mt-1">Unlock advanced analytics</p>
-          <button className="mt-2 bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1 rounded transition-colors">
-            Upgrade
-          </button>
-        </div>
-      </div>
+
     </aside>
   );
 }

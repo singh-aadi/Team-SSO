@@ -8,6 +8,7 @@ import { Glossary } from './components/Glossary';
 import { UserJourney } from './components/UserJourney';
 import { CompetitiveAudit } from './components/CompetitiveAudit';
 import { InsightHub } from './components/InsightHub';
+import { Guide } from './components/Guide';
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard');
@@ -29,6 +30,8 @@ function App() {
         return <CompetitiveAudit />;
       case 'insights':
         return <InsightHub />;
+      case 'guide':
+        return <Guide />;
       default:
         return <Dashboard userType={userType} onNavigate={setActiveView} />;
     }
