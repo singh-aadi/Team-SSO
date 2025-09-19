@@ -9,6 +9,8 @@ import { UserJourney } from './components/UserJourney';
 import { CompetitiveAudit } from './components/CompetitiveAudit';
 import { InsightHub } from './components/InsightHub';
 import { Guide } from './components/Guide';
+import { RiskAnalysis } from './components/RiskAnalysis';
+import { CommunicationAnalysis } from './components/CommunicationAnalysis';
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard');
@@ -32,6 +34,10 @@ function App() {
         return <InsightHub />;
       case 'guide':
         return <Guide />;
+      case 'risk-assessment':
+        return <RiskAnalysis />;
+      case 'communication':
+        return <CommunicationAnalysis />;
       default:
         return <Dashboard userType={userType} onNavigate={setActiveView} />;
     }
@@ -41,7 +47,7 @@ function App() {
     <div className="min-h-screen bg-slate-50">
       <Header userType={userType} onUserTypeChange={setUserType} />
       <div className="flex">
-        <Sidebar activeView={activeView} onViewChange={setActiveView} />
+        <Sidebar activeView={activeView} onViewChange={setActiveView} userType={userType} />
         <main className="flex-1 p-6">
           {renderView()}
         </main>

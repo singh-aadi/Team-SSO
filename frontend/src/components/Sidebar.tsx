@@ -7,26 +7,45 @@ import {
   Route,
   Target,
   TrendingUp,
-  HelpCircle
+  HelpCircle,
+  AlertTriangle,
+  Mail,
+  Phone,
+  TrendingDown,
+  LineChart,
+  Sliders
 } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
+  userType: 'founder' | 'vc';
 }
 
-const navigation = [
+const founderNavigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
   { id: 'decks', name: 'Deck Intelligence', icon: FileText },
   { id: 'benchmarks', name: 'Benchmarks', icon: BarChart3 },
   { id: 'glossary', name: 'SSO Glossary™', icon: BookOpen },
   { id: 'journeys', name: 'User Journeys', icon: Route },
-  { id: 'competitive', name: 'Competitive Audit', icon: Target },
-  { id: 'insights', name: 'Insight Hub', icon: TrendingUp },
   { id: 'guide', name: 'SSO Guide', icon: HelpCircle },
 ];
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+const vcNavigation = [
+  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+  { id: 'decks', name: 'Deck Intelligence', icon: FileText },
+  { id: 'risk-assessment', name: 'Risk Analysis', icon: AlertTriangle },
+  { id: 'communication', name: 'Communication Analysis', icon: Mail },
+  { id: 'calls', name: 'Call Transcripts', icon: Phone },
+  { id: 'competitive', name: 'Market Analysis', icon: Target },
+  { id: 'insights', name: 'Portfolio Insights', icon: TrendingUp },
+  { id: 'benchmarks', name: 'Industry Benchmarks', icon: BarChart3 },
+  { id: 'growth', name: 'Growth Forecast', icon: LineChart },
+  { id: 'weights', name: 'Evaluation Weights', icon: Sliders },
+];
+
+export function Sidebar({ activeView, onViewChange, userType }: SidebarProps) {
+  const navigation = userType === 'founder' ? founderNavigation : vcNavigation;
   return (
     <aside className="w-64 bg-white border-r border-slate-200 min-h-screen">
       <nav className="p-4 space-y-2">
