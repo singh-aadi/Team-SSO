@@ -1,5 +1,6 @@
 import React from 'react';
 import { Compass, TrendingUp } from 'lucide-react';
+import { CompetitiveInfo } from './CompetitiveInfo';
 
 interface HeaderProps {
   userType: 'founder' | 'vc';
@@ -27,6 +28,7 @@ export function Header({ userType, onUserTypeChange }: HeaderProps) {
         </div>
         
         <div className="flex items-center space-x-4">
+          {userType === 'vc' && <CompetitiveInfo />}
           <div className="flex bg-slate-100 rounded-lg p-1">
             <button
               onClick={() => onUserTypeChange('founder')}

@@ -34,14 +34,9 @@ const founderNavigation = [
 const vcNavigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
   { id: 'decks', name: 'Deck Intelligence', icon: FileText },
-  { id: 'risk-assessment', name: 'Risk Analysis', icon: AlertTriangle },
-  { id: 'communication', name: 'Communication Analysis', icon: Mail },
-  { id: 'calls', name: 'Call Transcripts', icon: Phone },
-  { id: 'competitive', name: 'Market Analysis', icon: Target },
-  { id: 'insights', name: 'Portfolio Insights', icon: TrendingUp },
+    { id: 'startup-radar', name: 'Startup Radar', icon: TrendingUp },
   { id: 'benchmarks', name: 'Industry Benchmarks', icon: BarChart3 },
-  { id: 'growth', name: 'Growth Forecast', icon: LineChart },
-  { id: 'weights', name: 'Evaluation Weights', icon: Sliders },
+  { id: 'vc-mode', name: 'VC Mode', icon: Sliders },
 ];
 
 export function Sidebar({ activeView, onViewChange, userType }: SidebarProps) {

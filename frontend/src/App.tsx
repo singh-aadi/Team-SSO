@@ -11,6 +11,8 @@ import { InsightHub } from './components/InsightHub';
 import { Guide } from './components/Guide';
 import { RiskAnalysis } from './components/RiskAnalysis';
 import { CommunicationAnalysis } from './components/CommunicationAnalysis';
+import { VCMode } from './components/VCMode';
+import { StartupRadar } from './components/StartupRadar';
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard');
@@ -30,14 +32,16 @@ function App() {
         return <UserJourney userType={userType} />;
       case 'competitive':
         return <CompetitiveAudit />;
-      case 'insights':
-        return <InsightHub />;
+      case 'startup-radar':
+        return <StartupRadar />;
       case 'guide':
         return <Guide />;
       case 'risk-assessment':
         return <RiskAnalysis />;
       case 'communication':
         return <CommunicationAnalysis />;
+      case 'vc-mode':
+        return <VCMode />;
       default:
         return <Dashboard userType={userType} onNavigate={setActiveView} />;
     }
