@@ -27,16 +27,17 @@ const founderNavigation = [
   { id: 'decks', name: 'Deck Intelligence', icon: FileText },
   { id: 'benchmarks', name: 'Benchmarks', icon: BarChart3 },
   { id: 'glossary', name: 'SSO Glossary™', icon: BookOpen },
-  { id: 'journeys', name: 'User Journeys', icon: Route },
-  { id: 'guide', name: 'SSO Guide', icon: HelpCircle },
+  { id: 'founder-journey', name: 'Founder Journey', icon: Route },
 ];
 
 const vcNavigation = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
   { id: 'decks', name: 'Deck Intelligence', icon: FileText },
-    { id: 'startup-radar', name: 'Startup Radar', icon: TrendingUp },
+  { id: 'vc-journey', name: 'VC Journey', icon: Route },
+  { id: 'startup-radar', name: 'Startup Radar', icon: TrendingUp },
   { id: 'benchmarks', name: 'Industry Benchmarks', icon: BarChart3 },
   { id: 'vc-mode', name: 'VC Mode', icon: Sliders },
+  { id: 'glossary', name: 'SSO Glossary™', icon: BookOpen },
 ];
 
 export function Sidebar({ activeView, onViewChange, userType }: SidebarProps) {

@@ -5,10 +5,11 @@ import { Dashboard } from './components/Dashboard';
 import { DeckIntelligence } from './components/DeckIntelligence';
 import { BenchmarkEngine } from './components/BenchmarkEngine';
 import { Glossary } from './components/Glossary';
-import { UserJourney } from './components/UserJourney';
+import { FounderJourney } from './components/FounderJourney';
+import { VCJourney } from './components/VCJourney';
+import { VCGuide } from './components/VCGuide';
 import { CompetitiveAudit } from './components/CompetitiveAudit';
 import { InsightHub } from './components/InsightHub';
-import { Guide } from './components/Guide';
 import { RiskAnalysis } from './components/RiskAnalysis';
 import { CommunicationAnalysis } from './components/CommunicationAnalysis';
 import { VCMode } from './components/VCMode';
@@ -28,14 +29,14 @@ function App() {
         return <BenchmarkEngine userType={userType} />;
       case 'glossary':
         return <Glossary />;
-      case 'journeys':
-        return <UserJourney userType={userType} />;
+      case 'founder-journey':
+        return <FounderJourney />;
+      case 'vc-journey':
+        return <VCJourney />;
       case 'competitive':
         return <CompetitiveAudit />;
       case 'startup-radar':
         return <StartupRadar />;
-      case 'guide':
-        return <Guide />;
       case 'risk-assessment':
         return <RiskAnalysis />;
       case 'communication':
@@ -53,6 +54,7 @@ function App() {
       <div className="flex">
         <Sidebar activeView={activeView} onViewChange={setActiveView} userType={userType} />
         <main className="flex-1 p-6">
+          {userType === 'vc' && <VCGuide onNavigate={setActiveView} />}
           {renderView()}
         </main>
       </div>

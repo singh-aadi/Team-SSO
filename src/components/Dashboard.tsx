@@ -58,10 +58,10 @@ export function Dashboard({ userType, onNavigate }: DashboardProps) {
       color: 'teal'
     },
     {
-      title: 'Market Insights',
-      description: 'Stay updated on sector trends',
-      icon: TrendingUp,
-      action: () => onNavigate('insights'),
+      title: 'Check Definitions',
+      description: 'Standardize metrics across portfolio',
+      icon: BookOpen,
+      action: () => onNavigate('glossary'),
       color: 'orange'
     }
   ];
@@ -72,7 +72,7 @@ export function Dashboard({ userType, onNavigate }: DashboardProps) {
     { label: 'Decks Analyzed', value: '2,847', icon: FileText, change: '+12%' },
     { label: 'Companies Benchmarked', value: '1,205', icon: Users, change: '+8%' },
     { label: 'Avg SSO Score™', value: '7.2/10', icon: Target, change: '+0.3' },
-    { label: 'Success Rate', value: '34%', icon: TrendingUp, change: '+5%' }
+    { label: 'Term Consistency', value: '92%', icon: BookOpen, change: '+7%' }
   ];
 
   return (

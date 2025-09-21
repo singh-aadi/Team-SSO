@@ -51,18 +51,35 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center hover:border-blue-400 transition-colors">
-          <Upload className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Pitch Deck</h3>
-          <p className="text-slate-600 mb-6">
-            Supported formats: PDF, PPT, PPTX, Notion links
-          </p>
-          <button
-            onClick={handleUpload}
-            className="bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all"
-          >
-            Choose File or Drag Here
-          </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Upload New Deck */}
+          <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center hover:border-blue-400 transition-colors">
+            <Upload className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Pitch Deck</h3>
+            <p className="text-slate-600 mb-6">
+              Supported formats: PDF, PPT, PPTX, Notion links
+            </p>
+            <button
+              onClick={handleUpload}
+              className="bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all"
+            >
+              Choose File or Drag Here
+            </button>
+          </div>
+
+          {/* Compare Reports */}
+          <div className="bg-white rounded-xl border-2 border-slate-200 p-12 text-center hover:border-blue-200 transition-colors">
+            <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Reports</h3>
+            <p className="text-slate-600 mb-6">
+              Compare multiple decks side by side with detailed analysis
+            </p>
+            <button
+              className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
+            >
+              Select Reports to Compare
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -109,10 +126,19 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             <p className="text-3xl font-bold text-blue-800">{ssoScore}/10</p>
             <p className="text-sm text-slate-600">SSO Readiness Score™</p>
           </div>
-          <button className="flex items-center space-x-2 bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors">
-            <Download className="h-4 w-4" />
-            <span>Export Report</span>
-          </button>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => window.location.href = '/benchmarks'}
+              className="flex items-center space-x-2 bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition-colors"
+            >
+              <BarChart className="h-4 w-4" />
+              <span>View Industry Benchmarks</span>
+            </button>
+            <button className="flex items-center space-x-2 bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors">
+              <Download className="h-4 w-4" />
+              <span>Export Report</span>
+            </button>
+          </div>
         </div>
       </div>
 

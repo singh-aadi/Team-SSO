@@ -124,7 +124,7 @@ export function BenchmarkEngine({ userType }: BenchmarkEngineProps) {
 
       {view === 'overview' ? (
         <>
-          {/* Filters */}
+            {/* Filters */}
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h2 className="font-semibold text-slate-900 mb-4">Select Benchmark Parameters</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

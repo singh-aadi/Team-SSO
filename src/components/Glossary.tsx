@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
-import { BookOpen, Search, AlertCircle, CheckCircle, Edit3, Plus } from 'lucide-react';
+import { BookOpen, Search, AlertCircle, CheckCircle, Edit3, Plus, Filter } from 'lucide-react';
 
 export function Glossary() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedIndustry, setSelectedIndustry] = useState('all');
 
   const categories = [
     { id: 'all', name: 'All Terms' },
     { id: 'revenue', name: 'Revenue' },
     { id: 'users', name: 'Users' },
     { id: 'growth', name: 'Growth' },
-    { id: 'valuation', name: 'Valuation' }
+    { id: 'valuation', name: 'Valuation' },
+    { id: 'metrics', name: 'Metrics' }
+  ];
+
+  const industries = [
+    { id: 'all', name: 'All Industries' },
+    { id: 'saas', name: 'SaaS' },
+    { id: 'ecommerce', name: 'E-Commerce' },
+    { id: 'fintech', name: 'FinTech' },
+    { id: 'marketplace', name: 'Marketplace' },
+    { id: 'deeptech', name: 'Deep Tech' }
   ];
 
   const glossaryTerms = [
@@ -18,6 +29,7 @@ export function Glossary() {
       id: 1,
       term: 'Monthly Recurring Revenue (MRR)',
       category: 'revenue',
+      industry: 'saas',
       definition: 'Predictable revenue that a company expects to receive every month from its customers.',
       formula: 'MRR = Average Revenue Per User × Total Monthly Users',
       consistency: 'high',
@@ -28,6 +40,7 @@ export function Glossary() {
       id: 2,
       term: 'Customer Acquisition Cost (CAC)',
       category: 'growth',
+      industry: 'all',
       definition: 'The total cost of acquiring a new customer, including marketing and sales expenses.',
       formula: 'CAC = Total Acquisition Costs / Number of Customers Acquired',
       consistency: 'medium',
@@ -38,6 +51,7 @@ export function Glossary() {
       id: 3,
       term: 'Active User',
       category: 'users',
+      industry: 'all',
       definition: 'A user who has engaged with the product within a specific time period.',
       formula: 'Varies by company definition (Daily, Weekly, Monthly)',
       consistency: 'low',
@@ -48,6 +62,7 @@ export function Glossary() {
       id: 4,
       term: 'Churn Rate',
       category: 'users',
+      industry: 'saas',
       definition: 'The percentage of customers who stop using a product during a given time frame.',
       formula: 'Churn Rate = (Customers Lost / Total Customers at Start) × 100',
       consistency: 'high',
@@ -58,6 +73,7 @@ export function Glossary() {
       id: 5,
       term: 'Lifetime Value (LTV)',
       category: 'revenue',
+      industry: 'all',
       definition: 'The predicted net profit from the entire relationship with a customer.',
       formula: 'LTV = Average Revenue Per User / Churn Rate',
       consistency: 'medium',
@@ -68,11 +84,56 @@ export function Glossary() {
       id: 6,
       term: 'Burn Rate',
       category: 'growth',
+      industry: 'all',
       definition: 'The rate at which a company is spending its available cash.',
       formula: 'Burn Rate = (Starting Cash - Ending Cash) / Number of Months',
       consistency: 'high',
       conflicts: 0,
       lastUpdated: '1 week ago'
+    },
+    {
+      id: 7,
+      term: 'Gross Merchandise Value (GMV)',
+      category: 'metrics',
+      industry: 'marketplace',
+      definition: 'Total value of merchandise sold through a marketplace platform.',
+      formula: 'GMV = Total Items Sold × Average Item Price',
+      consistency: 'high',
+      conflicts: 0,
+      lastUpdated: '1 day ago'
+    },
+    {
+      id: 8,
+      term: 'Take Rate',
+      category: 'revenue',
+      industry: 'marketplace',
+      definition: 'Percentage of transaction value that the platform charges as a fee.',
+      formula: 'Take Rate = Platform Revenue / GMV × 100',
+      consistency: 'high',
+      conflicts: 1,
+      lastUpdated: '3 days ago'
+    },
+    {
+      id: 9,
+      term: 'Net Dollar Retention (NDR)',
+      category: 'growth',
+      industry: 'saas',
+      definition: 'Measure of revenue growth from existing customers, including expansions and contractions.',
+      formula: 'NDR = (Starting Revenue + Expansions - Contractions - Churn) / Starting Revenue × 100',
+      consistency: 'high',
+      conflicts: 0,
+      lastUpdated: '4 days ago'
+    },
+    {
+      id: 10,
+      term: 'Gross Payment Volume (GPV)',
+      category: 'metrics',
+      industry: 'fintech',
+      definition: 'Total value of payments processed through a payment platform.',
+      formula: 'GPV = Sum of All Processed Payments',
+      consistency: 'high',
+      conflicts: 0,
+      lastUpdated: '2 days ago'
     }
   ];
 
@@ -80,7 +141,8 @@ export function Glossary() {
     const matchesSearch = term.term.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          term.definition.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || term.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesIndustry = selectedIndustry === 'all' || term.industry === selectedIndustry || term.industry === 'all';
+    return matchesSearch && matchesCategory && matchesIndustry;
   });
 
   const getConsistencyColor = (consistency: string) => {
@@ -98,6 +160,52 @@ export function Glossary() {
 
   return (
     <div className="space-y-6">
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* Search Input */}
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
+            <input
+              type="text"
+              placeholder="Search terms..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Category Filter */}
+        <div className="w-full md:w-48">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Industry Filter */}
+        <div className="w-full md:w-48">
+          <select
+            value={selectedIndustry}
+            onChange={(e) => setSelectedIndustry(e.target.value)}
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {industries.map(industry => (
+              <option key={industry.id} value={industry.id}>
+                {industry.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">SSO Glossary™</h1>
