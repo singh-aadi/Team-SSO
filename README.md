@@ -1,6 +1,6 @@
 # Team-SSO
 
-## Build Locally
+## Build and deploy the frontend Locally
 
 ```bash
 $ cd frontend/
