@@ -19,7 +19,7 @@ import { CommunicationAnalysis } from './components/CommunicationAnalysis';
 import { VCMode } from './components/VCMode';
 import { StartupRadar } from './components/StartupRadar';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function App() {
   return (
@@ -70,6 +70,8 @@ function MainLayout() {
       </div>
     </div>
   );
+
+
 }
 
 export default App;

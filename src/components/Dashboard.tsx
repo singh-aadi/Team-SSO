@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Upload, 
   BarChart3, 
@@ -14,30 +15,30 @@ import {
 
 interface DashboardProps {
   userType: 'founder' | 'vc';
-  onNavigate: (view: string) => void;
 }
 
-export function Dashboard({ userType, onNavigate }: DashboardProps) {
+export function Dashboard({ userType }: DashboardProps) {
+  const navigate = useNavigate();
   const founderActions = [
     {
       title: 'Upload Pitch Deck',
       description: 'Get instant feedback and SSO Readiness Score™',
       icon: Upload,
-      action: () => onNavigate('decks'),
+      action: () => navigate('/decks'),
       color: 'blue'
     },
     {
       title: 'Benchmark Metrics',
       description: 'Compare your KPIs against industry standards',
       icon: BarChart3,
-      action: () => onNavigate('benchmarks'),
+      action: () => navigate('/benchmarks'),
       color: 'teal'
     },
     {
       title: 'Check Definitions',
       description: 'Ensure consistent metric definitions',
       icon: BookOpen,
-      action: () => onNavigate('glossary'),
+      action: () => navigate('/glossary'),
       color: 'orange'
     }
   ];
@@ -47,21 +48,21 @@ export function Dashboard({ userType, onNavigate }: DashboardProps) {
       title: 'Analyze Deals',
       description: 'Compare multiple decks side-by-side',
       icon: FileText,
-      action: () => onNavigate('decks'),
+      action: () => navigate('/decks'),
       color: 'blue'
     },
     {
       title: 'Due Diligence',
       description: 'Benchmark portfolio companies',
       icon: Target,
-      action: () => onNavigate('benchmarks'),
+      action: () => navigate('/benchmarks'),
       color: 'teal'
     },
     {
       title: 'Check Definitions',
       description: 'Standardize metrics across portfolio',
       icon: BookOpen,
-      action: () => onNavigate('glossary'),
+      action: () => navigate('/glossary'),
       color: 'orange'
     }
   ];

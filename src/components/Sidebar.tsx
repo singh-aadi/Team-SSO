@@ -1,4 +1,5 @@
-import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   FileText,
@@ -13,59 +14,72 @@ import {
   Phone,
   TrendingDown,
   LineChart,
-  Sliders
+  Sliders,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
-  activeView: string;
-  onViewChange: (view: string) => void;
   userType: 'founder' | 'vc';
 }
 
 const founderNavigation = [
-  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-  { id: 'decks', name: 'Deck Intelligence', icon: FileText },
-  { id: 'benchmarks', name: 'Benchmarks', icon: BarChart3 },
-  { id: 'glossary', name: 'SSO Glossary™', icon: BookOpen },
-  { id: 'founder-journey', name: 'Founder Journey', icon: Route },
+  { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
+  { path: '/decks', name: 'Deck Intelligence', icon: FileText },
+  { path: '/benchmarks', name: 'Benchmarks', icon: BarChart3 },
+  { path: '/glossary', name: 'SSO Glossary™', icon: BookOpen },
+  { path: '/founder-journey', name: 'Founder Journey', icon: Route },
 ];
 
 const vcNavigation = [
-  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-  { id: 'decks', name: 'Deck Intelligence', icon: FileText },
-  { id: 'vc-journey', name: 'VC Journey', icon: Route },
-  { id: 'startup-radar', name: 'Startup Radar', icon: TrendingUp },
-  { id: 'benchmarks', name: 'Industry Benchmarks', icon: BarChart3 },
-  { id: 'vc-mode', name: 'VC Mode', icon: Sliders },
-  { id: 'glossary', name: 'SSO Glossary™', icon: BookOpen },
+  { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
+  { path: '/decks', name: 'Deck Intelligence', icon: FileText },
+  { path: '/vc-journey', name: 'VC Journey', icon: Route },
+  { path: '/startup-radar', name: 'Startup Radar', icon: TrendingUp },
+  { path: '/benchmarks', name: 'Industry Benchmarks', icon: BarChart3 },
+  { path: '/vc-mode', name: 'VC Mode', icon: Sliders },
+  { path: '/glossary', name: 'SSO Glossary™', icon: BookOpen },
 ];
 
-export function Sidebar({ activeView, onViewChange, userType }: SidebarProps) {
+export function Sidebar({ userType }: SidebarProps) {
+  const { pathname } = useLocation();
+  const { logout } = useAuth();
   const navigation = userType === 'founder' ? founderNavigation : vcNavigation;
+
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen">
-      <nav className="p-4 space-y-2">
+    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen flex flex-col">
+      <nav className="flex-1 p-4 space-y-2">
         {navigation.map((item) => {
           const Icon = item.icon;
-          const isActive = activeView === item.id;
+          const isActive = pathname === item.path;
           
           return (
-            <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-all ${
-                isActive
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) => `
+                w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-all
+                ${isActive
                   ? 'bg-blue-50 text-blue-800 border border-blue-200'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
+                }
+              `}
             >
               <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
               <span className="font-medium">{item.name}</span>
-            </button>
+            </NavLink>
           );
         })}
       </nav>
 
+      <div className="p-4 border-t border-slate-200">
+        <button
+          onClick={logout}
+          className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left text-red-600 hover:bg-red-50 transition-colors"
+        >
+          <LogOut className="h-5 w-5" />
+          <span className="font-medium">Sign Out</span>
+        </button>
+      </div>
     </aside>
   );
 }
