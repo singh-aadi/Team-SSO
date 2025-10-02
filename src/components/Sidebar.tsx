@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,

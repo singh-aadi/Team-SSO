@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { ArrowRight, BarChart3, Target, TrendingUp, Users, Shield, Zap, LineChart, Search } from 'lucide-react';
 
 export function LandingPage() {

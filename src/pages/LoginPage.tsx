@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { jwtDecode } from 'jwt-decode';
 
 export function LoginPage() {
