@@ -1,16 +1,11 @@
-import React from 'react';
 import { useNavigate } from 'react-router';
 import { 
   Upload, 
   BarChart3, 
   BookOpen, 
-  Route, 
   FileText,
-  TrendingUp,
-  Users,
-  DollarSign,
   Target,
-  AlertCircle
+  Users
 } from 'lucide-react';
 
 interface DashboardProps {

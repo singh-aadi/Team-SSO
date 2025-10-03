@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   FileText,
   Route,
   Search,
-  Target,
   BarChart3,
   Sliders,
   BookOpen,

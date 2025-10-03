@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router';
-import { GoogleOAuthProvider } from '@react-oauth/google';
-import { AuthProvider } from './context/AuthContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { LoginPage } from './pages/LoginPage';
+// TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH
+// import { GoogleOAuthProvider } from '@react-oauth/google';
+// import { AuthProvider } from './context/AuthContext';
+// import { ProtectedRoute } from './components/ProtectedRoute';
+// import { LoginPage } from './pages/LoginPage';
 import { LandingPage } from './pages/LandingPage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -19,27 +20,32 @@ import { CommunicationAnalysis } from './components/CommunicationAnalysis';
 import { VCMode } from './components/VCMode';
 import { StartupRadar } from './components/StartupRadar';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+// TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH
+// const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function App() {
   return (
     <Router>
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <AuthProvider>
+      {/* TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH */}
+      {/* <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <AuthProvider> */}
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
+            {/* TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH */}
+            {/* <Route path="/login" element={<LoginPage />} /> */}
             <Route
               path="/*"
               element={
-                <ProtectedRoute>
+                // TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH
+                // <ProtectedRoute>
                   <MainLayout />
-                </ProtectedRoute>
+                // </ProtectedRoute>
               }
             />
           </Routes>
-        </AuthProvider>
-      </GoogleOAuthProvider>
+        {/* TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH */}
+        {/* </AuthProvider>
+      </GoogleOAuthProvider> */}
     </Router>
   );
 }

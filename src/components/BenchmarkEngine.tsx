@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -7,8 +7,7 @@ import {
   Activity,
   ArrowUpRight,
   ArrowDownRight,
-  Target,
-  Settings
+  Target
 } from 'lucide-react';
 import { VerticalBenchmarks } from './VerticalBenchmarks';
 

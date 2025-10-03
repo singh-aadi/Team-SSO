@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Upload,
   FileText,
   CheckCircle,
   AlertTriangle,
   BarChart,
-  Users,
   Target,
   TrendingUp,
   Download
@@ -17,11 +16,9 @@ interface DeckIntelligenceProps {
 
 export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [uploadedDeck, setUploadedDeck] = useState(false);
-  const [analysisComplete, setAnalysisComplete] = useState(false);
 
   const handleUpload = () => {
     setUploadedDeck(true);
-    setTimeout(() => setAnalysisComplete(true), 2000);
   };
 
   const deckSections = [

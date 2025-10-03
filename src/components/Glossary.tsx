@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BookOpen, Search, AlertCircle, CheckCircle, Edit3, Plus, Filter } from 'lucide-react';
+import { useState } from 'react';
+import { BookOpen, Search, AlertCircle, CheckCircle, Edit3, Plus } from 'lucide-react';
 
 export function Glossary() {
   const [searchTerm, setSearchTerm] = useState('');
