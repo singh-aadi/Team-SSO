@@ -1,0 +1,31 @@
+steps:
+  # Build the Docker image using the Dockerfile located in server/
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/startup-scout-server:$COMMIT_SHA', '.']
+
+  # Push the image to Container Registry (or Artifact Registry if configured)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/startup-scout-server:$COMMIT_SHA']
+
+  # Deploy to Cloud Run. Set region and service name via substitutions or edit here.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'startup-scout-server'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/startup-scout-server:$COMMIT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/startup-scout-server:$COMMIT_SHA'
+
+substitutions:
+  _REGION: 'us-central1'
+
+timeout: '1200s'
