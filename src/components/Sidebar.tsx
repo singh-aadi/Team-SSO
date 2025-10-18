@@ -1,6 +1,5 @@
 import { NavLink, useLocation } from 'react-router';
-// TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH
-// import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   FileText,
@@ -8,9 +7,8 @@ import {
   BookOpen,
   Route,
   TrendingUp,
-  Sliders
-  // TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH
-  // LogOut
+  Sliders,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -37,8 +35,7 @@ const vcNavigation = [
 
 export function Sidebar({ userType }: SidebarProps) {
   const { pathname } = useLocation();
-  // TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH
-  // const { logout } = useAuth();
+  const { logout } = useAuth();
   const navigation = userType === 'founder' ? founderNavigation : vcNavigation;
 
   return (
@@ -67,8 +64,6 @@ export function Sidebar({ userType }: SidebarProps) {
         })}
       </nav>
 
-      {/* TEMPORARILY DISABLED FOR DEMO - UNCOMMENT TO RE-ENABLE AUTH */}
-      {/* 
       <div className="p-4 border-t border-slate-200">
         <button
           onClick={logout}
@@ -78,7 +73,6 @@ export function Sidebar({ userType }: SidebarProps) {
           <span className="font-medium">Sign Out</span>
         </button>
       </div>
-      */}
     </aside>
   );
 }
