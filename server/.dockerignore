@@ -1,4 +1,17 @@
 node_modules
+dist
+.env
+.env.*
+.git
+.gitignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage
+uploads
+*.log
+Dockerfile
+node_modules
 npm-debug.log
 .env
 .env.local

@@ -1,3 +1,39 @@
+### Multi-stage Dockerfile for the Startup Scout server
+### Builder stage: install deps and compile TypeScript
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Install build tools
+RUN apk add --no-cache python3 make g++
+
+# Copy package manifests and install all dependencies (including dev for tsc)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+### Runner stage: smaller image for production
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Install only production dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
+
+# Copy compiled output and static assets
+COPY --from=builder /app/dist ./dist
+# uploads are served from runtime storage or Cloud Storage; don't bake uploads into image
+
+EXPOSE 3000
+
+# Use a non-root user for better security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+CMD ["node", "dist/index.js"]
 # Use official Node.js LTS image
 FROM node:18-alpine
 
