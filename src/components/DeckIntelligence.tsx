@@ -30,6 +30,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [analysisProgress, setAnalysisProgress] = useState(0); // Track polling attempts
 
   useEffect(() => {
     loadCompanies();
@@ -121,11 +122,12 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   };
 
   const pollForAnalysis = async (deckId: string) => {
-    const maxAttempts = 60; // 60 seconds max (increased for AI processing)
+    const maxAttempts = 300; // 300 attempts = 10 minutes max (AI analysis can be slow)
     let attempts = 0;
 
     const poll = setInterval(async () => {
       attempts++;
+      setAnalysisProgress(attempts); // Update progress
       
       try {
         const deck = await api.getDeck(deckId);
@@ -279,7 +281,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   {uploading ? (
                     <span className="flex items-center justify-center">
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      {analyzing ? 'AI analyzing visuals + checklist...' : 'Uploading...'}
+                      {analyzing ? (
+                        <span>AI analyzing visuals + checklist... ({Math.round((analysisProgress / 300) * 100)}% • {Math.floor(analysisProgress * 2 / 60)}:{String(Math.floor((analysisProgress * 2) % 60)).padStart(2, '0')})</span>
+                      ) : 'Uploading...'}
                     </span>
                   ) : (
                     <span className="flex items-center justify-center">
