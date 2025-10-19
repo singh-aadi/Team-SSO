@@ -8,9 +8,7 @@ import {
   Target,
   TrendingUp,
   Download,
-  Loader2,
-  XCircle,
-  FileDown
+  Loader2
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
@@ -29,6 +27,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [currentDeck, setCurrentDeck] = useState<PitchDeck | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedIndustry, setSelectedIndustry] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [analysisProgress, setAnalysisProgress] = useState(0); // Track polling attempts
 
@@ -94,8 +94,14 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   };
 
   const handleUpload = async () => {
-    if (!deckFile || !checklistFile || !selectedCompany) {
-      setError('Please select both pitch deck PDF, checklist PDF, and company');
+    // Enhanced validation with stage and industry
+    if (!deckFile || !checklistFile) {
+      setError('Please select both pitch deck PDF and checklist PDF');
+      return;
+    }
+
+    if (!selectedStage || !selectedIndustry) {
+      setError('Please select both funding stage and industry vertical');
       return;
     }
 
@@ -106,8 +112,26 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       // Generate a valid UUID v4 for demo user
       const userId = crypto.randomUUID();
       
+      // Find matching company or use first available
+      // This maintains backward compatibility with existing API
+      let companyId = selectedCompany;
+      
+      // Try to find a company matching the selected stage and industry
+      if (!companyId && companies.length > 0) {
+        const matchingCompany = companies.find(
+          c => c.stage === selectedStage && c.industry === selectedIndustry
+        );
+        companyId = matchingCompany?.id || companies[0].id;
+      }
+      
+      // Fallback to first company if still not set
+      if (!companyId && companies.length > 0) {
+        companyId = companies[0].id;
+      }
+      
       console.log('Uploading dual PDFs:', deckFile.name, checklistFile.name);
-      const deck = await api.uploadDualDeck(deckFile, checklistFile, selectedCompany, userId);
+      console.log('Context: Stage:', selectedStage, '| Industry:', selectedIndustry);
+      const deck = await api.uploadDualDeck(deckFile, checklistFile, companyId, userId);
       
       setCurrentDeck(deck);
       setAnalyzing(true);
@@ -198,23 +222,114 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   </div>
                 )}
                 
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Select Company
-                  </label>
-                  <select
-                    value={selectedCompany}
-                    onChange={(e) => setSelectedCompany(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Choose company...</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name} - {company.industry} ({company.stage})
-                      </option>
-                    ))}
-                  </select>
+                {/* Enhanced Company Context Selection */}
+                <div className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                  <div className="flex items-start mb-4">
+                    <div className="flex-shrink-0 bg-blue-600 rounded-full p-2 mr-3">
+                      <Target className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-800 mb-1">
+                        Industry Context & Benchmarking
+                      </h3>
+                      <p className="text-sm text-slate-600 leading-relaxed">
+                        Help our AI provide <strong>industry-specific insights</strong> and compare your deck against 
+                        <strong> relevant benchmarks</strong>. Different industries and funding stages have unique 
+                        metrics that VCs evaluate differently.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Two-Column Selection */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Funding Stage Dropdown */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                        <TrendingUp className="h-4 w-4 mr-2 text-blue-600" />
+                        Funding Stage <span className="text-red-500 ml-1">*</span>
+                      </label>
+                      <select
+                        value={selectedStage}
+                        onChange={(e) => setSelectedStage(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-800 font-medium transition-all"
+                      >
+                        <option value="">Select funding stage...</option>
+                        <option value="Pre-Seed">Pre-Seed (Idea Stage)</option>
+                        <option value="Seed">Seed ($500K - $2M)</option>
+                        <option value="Series A">Series A ($2M - $15M)</option>
+                        <option value="Series B">Series B ($15M - $50M)</option>
+                        <option value="Series C">Series C ($50M - $100M)</option>
+                        <option value="Series D+">Series D+ ($100M+)</option>
+                      </select>
+                      <p className="mt-1 text-xs text-slate-500 italic">
+                        VCs expect different metrics at each stage
+                      </p>
+                    </div>
+
+                    {/* Industry Dropdown */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                        <BarChart className="h-4 w-4 mr-2 text-blue-600" />
+                        Industry Vertical <span className="text-red-500 ml-1">*</span>
+                      </label>
+                      <select
+                        value={selectedIndustry}
+                        onChange={(e) => setSelectedIndustry(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-800 font-medium transition-all"
+                      >
+                        <option value="">Select industry...</option>
+                        <option value="Artificial Intelligence">🤖 Artificial Intelligence & ML</option>
+                        <option value="HealthTech">🏥 HealthTech & Biotech</option>
+                        <option value="FinTech">💰 FinTech & Payments</option>
+                        <option value="CleanTech">🌱 CleanTech & Sustainability</option>
+                        <option value="EdTech">📚 EdTech & Learning</option>
+                        <option value="Food Tech">🍽️ Food Tech & AgTech</option>
+                        <option value="SaaS B2B">💼 SaaS & Enterprise B2B</option>
+                        <option value="E-commerce">🛒 E-commerce & Retail</option>
+                        <option value="Mobility">🚗 Mobility & Transportation</option>
+                        <option value="PropTech">🏠 PropTech & Real Estate</option>
+                        <option value="Cybersecurity">🔒 Cybersecurity</option>
+                        <option value="Web3">⛓️ Web3 & Blockchain</option>
+                        <option value="Other">🔧 Other / General Tech</option>
+                      </select>
+                      <p className="mt-1 text-xs text-slate-500 italic">
+                        Each industry has unique KPIs & metrics
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Why This Matters - Expandable Info */}
+                  <div className="mt-4 bg-white border border-blue-200 rounded-lg p-4">
+                    <details className="cursor-pointer">
+                      <summary className="text-sm font-medium text-blue-700 hover:text-blue-800 flex items-center">
+                        <span className="mr-2">💡</span>
+                        Why do we need this information?
+                      </summary>
+                      <div className="mt-3 text-xs text-slate-600 space-y-2 pl-6">
+                        <p>
+                          <strong className="text-slate-800">🎯 Industry Benchmarking:</strong> HealthTech requires FDA approvals, 
+                          FinTech needs regulatory compliance, CleanTech focuses on environmental impact. We compare your metrics 
+                          against similar companies.
+                        </p>
+                        <p>
+                          <strong className="text-slate-800">📊 Stage-Appropriate Expectations:</strong> Seed stage focuses on 
+                          MVP & early traction, Series A on growth & unit economics, Series B on scaling & profitability.
+                        </p>
+                        <p>
+                          <strong className="text-slate-800">💼 VC-Specific Insights:</strong> Different VCs specialize in 
+                          different sectors. Our analysis tailors recommendations to what investors in YOUR industry look for.
+                        </p>
+                      </div>
+                    </details>
+                  </div>
                 </div>
+
+                {/* Legacy Company Selector - Hidden but functional for backward compatibility */}
+                <input 
+                  type="hidden" 
+                  value={selectedCompany}
+                  onChange={(e) => setSelectedCompany(e.target.value)}
+                />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   {/* Pitch Deck Upload */}
@@ -275,20 +390,20 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 
                 <button
                   onClick={handleUpload}
-                  disabled={uploading || !deckFile || !checklistFile || !selectedCompany}
-                  className="w-full bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-4 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={uploading || !deckFile || !checklistFile || !selectedStage || !selectedIndustry}
+                  className="w-full bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-4 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {uploading ? (
                     <span className="flex items-center justify-center">
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                       {analyzing ? (
-                        <span>AI analyzing visuals + checklist... ({Math.round((analysisProgress / 300) * 100)}% • {Math.floor(analysisProgress * 2 / 60)}:{String(Math.floor((analysisProgress * 2) % 60)).padStart(2, '0')})</span>
+                        <span>AI analyzing {selectedIndustry} deck ({selectedStage})... ({Math.round((analysisProgress / 300) * 100)}% • {Math.floor(analysisProgress * 2 / 60)}:{String(Math.floor((analysisProgress * 2) % 60)).padStart(2, '0')})</span>
                       ) : 'Uploading...'}
                     </span>
                   ) : (
                     <span className="flex items-center justify-center">
                       <Upload className="h-5 w-5 mr-2" />
-                      Upload & Analyze Both Documents
+                      Upload & Analyze with Industry Benchmarks
                     </span>
                   )}
                 </button>
@@ -381,6 +496,123 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   <FileText className="h-4 w-4" />
                   <span>Download as TXT</span>
                 </a>
+                <a
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/md`}
+                  download
+                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Download as Markdown</span>
+                </a>
+                <a
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/pdf`}
+                  download
+                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50 last:rounded-b-lg"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Download as PDF</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Industry Benchmark Context Card */}
+      <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="bg-indigo-600 rounded-lg p-3">
+              <Target className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Industry Context & Benchmarks</h2>
+              <p className="text-sm text-slate-600">Your deck was analyzed against {selectedStage} {selectedIndustry} standards</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Funding Stage Context */}
+          <div className="bg-white rounded-lg p-4 border border-indigo-200">
+            <div className="flex items-center mb-2">
+              <TrendingUp className="h-5 w-5 text-indigo-600 mr-2" />
+              <h3 className="font-semibold text-slate-800">Funding Stage</h3>
+            </div>
+            <p className="text-2xl font-bold text-indigo-700 mb-1">{selectedStage}</p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {selectedStage === 'Seed' && 'VCs expect: MVP, early traction, 10-50K MRR, 3-6 month runway'}
+              {selectedStage === 'Series A' && 'VCs expect: Product-market fit, $1M+ ARR, proven unit economics, 12-18 month runway'}
+              {selectedStage === 'Series B' && 'VCs expect: Scaling metrics, $10M+ ARR, clear path to profitability, strong retention'}
+              {selectedStage === 'Series C' && 'VCs expect: Market leadership, $50M+ ARR, proven profitability or clear path, expansion ready'}
+              {selectedStage === 'Pre-Seed' && 'VCs expect: Strong team, clear problem-solution fit, early prototypes or beta users'}
+              {selectedStage === 'Series D+' && 'VCs expect: Market dominance, $100M+ ARR, international expansion, acquisition targets'}
+            </p>
+          </div>
+
+          {/* Industry Vertical Context */}
+          <div className="bg-white rounded-lg p-4 border border-indigo-200">
+            <div className="flex items-center mb-2">
+              <BarChart className="h-5 w-5 text-purple-600 mr-2" />
+              <h3 className="font-semibold text-slate-800">Industry Vertical</h3>
+            </div>
+            <p className="text-2xl font-bold text-purple-700 mb-1">{selectedIndustry}</p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {selectedIndustry === 'HealthTech' && 'Key metrics: Patient acquisition cost, clinical validation, FDA/regulatory timeline'}
+              {selectedIndustry === 'FinTech' && 'Key metrics: Transaction volume, AUM, regulatory compliance, fraud prevention'}
+              {selectedIndustry === 'CleanTech' && 'Key metrics: Carbon impact, sustainability ROI, environmental certifications, ESG scores'}
+              {selectedIndustry === 'Artificial Intelligence' && 'Key metrics: Model accuracy, training costs, inference speed, data quality'}
+              {selectedIndustry === 'SaaS B2B' && 'Key metrics: MRR/ARR, churn rate, CAC/LTV ratio, net revenue retention'}
+              {selectedIndustry === 'EdTech' && 'Key metrics: User engagement, learning outcomes, retention rates, content quality'}
+              {selectedIndustry === 'Food Tech' && 'Key metrics: Unit economics, supply chain efficiency, food safety, sustainability'}
+              {selectedIndustry === 'E-commerce' && 'Key metrics: GMV, average order value, customer acquisition cost, repeat purchase rate'}
+              {selectedIndustry === 'Mobility' && 'Key metrics: Rides/shipments per day, unit economics, network effects, regulatory compliance'}
+              {selectedIndustry === 'PropTech' && 'Key metrics: Properties listed, transaction volume, commission rates, market penetration'}
+              {selectedIndustry === 'Cybersecurity' && 'Key metrics: Threat detection rate, false positives, compliance certifications, enterprise contracts'}
+              {selectedIndustry === 'Web3' && 'Key metrics: Active wallets, transaction volume, TVL (Total Value Locked), community growth'}
+              {selectedIndustry === 'Other' && 'Key metrics: Revenue growth, customer acquisition, retention rates, unit economics'}
+            </p>
+          </div>
+
+          {/* VC Expectations */}
+          <div className="bg-white rounded-lg p-4 border border-indigo-200">
+            <div className="flex items-center mb-2">
+              <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+              <h3 className="font-semibold text-slate-800">What VCs Want</h3>
+            </div>
+            <ul className="text-xs text-slate-700 space-y-2">
+              <li className="flex items-start">
+                <span className="text-green-600 mr-2">✓</span>
+                <span>Clear market opportunity & TAM sizing</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-600 mr-2">✓</span>
+                <span>Strong founding team with domain expertise</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-600 mr-2">✓</span>
+                <span>Proven traction or early validation</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-600 mr-2">✓</span>
+                <span>Competitive moat & differentiation</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-600 mr-2">✓</span>
+                <span>Realistic financial projections</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-4 bg-white rounded-lg p-4 border border-indigo-200">
+          <p className="text-xs text-slate-600">
+            <strong className="text-indigo-700">💡 Pro Tip:</strong> Your analysis has been tailored specifically for <strong>{selectedStage} {selectedIndustry}</strong> companies. 
+            The feedback below compares your deck against successful companies in your sector and stage, 
+            helping you meet investor expectations for your specific vertical.
+          </p>
+        </div>
+      </div>
                 <a
                   href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/md`}
                   download

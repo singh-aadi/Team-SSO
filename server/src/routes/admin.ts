@@ -24,6 +24,26 @@ router.post('/migrate', async (req: Request, res: Response) => {
       // Run the companies fix migration
       const migrationPath = path.join(__dirname, '../../migrations/004_add_more_companies_with_stages.sql');
       sql = fs.readFileSync(migrationPath, 'utf8');
+    } else if (migration === 'add-all-companies') {
+      // Add 12 new companies covering all stages
+      sql = `
+        -- Add Pre-Seed companies
+        INSERT INTO companies (name, description, website_url, industry, stage, founded_year, employee_count, location, created_at)
+        VALUES
+          ('NanoBot Labs', 'Microscopic robotics for medical procedures', 'https://nanobotlabs.io', 'HealthTech', 'Pre-Seed', 2024, 3, 'Cambridge, MA', NOW()),
+          ('CryptoGuard', 'Blockchain security and auditing platform', 'https://cryptoguard.tech', 'Cybersecurity', 'Pre-Seed', 2024, 4, 'Remote', NOW()),
+          ('CleanAir Tech', 'Carbon capture technology', 'https://cleanairtech.com', 'CleanTech', 'Seed', 2023, 10, 'Portland, OR', NOW()),
+          ('PropVision', 'AI-powered property valuation', 'https://propvision.ai', 'PropTech', 'Seed', 2023, 8, 'Miami, FL', NOW()),
+          ('SecureNet AI', 'Enterprise cybersecurity platform', 'https://securenet.ai', 'Cybersecurity', 'Series A', 2022, 35, 'Austin, TX', NOW()),
+          ('LearnFast', 'Personalized learning management', 'https://learnfast.edu', 'EdTech', 'Series A', 2022, 28, 'Chicago, IL', NOW()),
+          ('PayFlow Global', 'International payment processing', 'https://payflow.global', 'FinTech', 'Series B', 2021, 50, 'New York, NY', NOW()),
+          ('FreshFarm Direct', 'Farm-to-table food delivery', 'https://freshfarmdirect.com', 'Food Tech', 'Series B', 2021, 42, 'Denver, CO', NOW()),
+          ('RideShare Pro', 'B2B ride-sharing platform', 'https://ridesharepro.com', 'Mobility', 'Series C', 2020, 120, 'San Francisco, CA', NOW()),
+          ('ShopAI', 'AI-powered e-commerce', 'https://shopai.com', 'E-commerce', 'Series C', 2020, 85, 'Seattle, WA', NOW()),
+          ('DataCore Enterprise', 'Enterprise SaaS platform', 'https://datacore.io', 'SaaS', 'Growth', 2019, 200, 'Palo Alto, CA', NOW()),
+          ('ChainLink Finance', 'DeFi infrastructure', 'https://chainlinkfi.com', 'Web3', 'Growth', 2019, 150, 'Singapore', NOW())
+        ON CONFLICT (name) DO NOTHING;
+      `;
     } else if (migration === 'quick-fix') {
       // Quick fix for existing companies
       sql = `
