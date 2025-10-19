@@ -518,19 +518,20 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         </div>
       </div>
 
-      {/* Industry Benchmark Context Card */}
-      <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="bg-indigo-600 rounded-lg p-3">
-              <Target className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Industry Context & Benchmarks</h2>
-              <p className="text-sm text-slate-600">Your deck was analyzed against {selectedStage} {selectedIndustry} standards</p>
+      {/* Industry Benchmark Context Card - Separate Section */}
+      {selectedStage && selectedIndustry && (
+        <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-indigo-600 rounded-lg p-3">
+                <Target className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Industry Context & Benchmarks</h2>
+                <p className="text-sm text-slate-600">Your deck was analyzed against {selectedStage} {selectedIndustry} standards</p>
+              </div>
             </div>
           </div>
-        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Funding Stage Context */}
@@ -612,28 +613,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             helping you meet investor expectations for your specific vertical.
           </p>
         </div>
-      </div>
-                <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/md`}
-                  download
-                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Download as Markdown</span>
-                </a>
-                <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/pdf`}
-                  download
-                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50 last:rounded-b-lg"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Download as PDF</span>
-                </a>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
+      )}
 
       {/* Visual Analytics Dashboard */}
       {overall && (
