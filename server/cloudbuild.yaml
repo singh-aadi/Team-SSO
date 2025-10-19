@@ -4,19 +4,12 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/team-sso-backend:$COMMIT_SHA'
-      - '-t'
       - 'gcr.io/$PROJECT_ID/team-sso-backend:latest'
       - '-f'
-      - 'server/Dockerfile'
-      - './server'
+      - 'Dockerfile'
+      - '.'
     
   # Step 2: Push the Docker image
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'gcr.io/$PROJECT_ID/team-sso-backend:$COMMIT_SHA'
-      
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
@@ -28,13 +21,13 @@ steps:
       - 'run'
       - 'deploy'
       - 'team-sso-backend'
-      - '--image=gcr.io/$PROJECT_ID/team-sso-backend:$COMMIT_SHA'
+      - '--image=gcr.io/$PROJECT_ID/team-sso-backend:latest'
       - '--region=us-central1'
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--port=8080'
       - '--add-cloudsql-instances=projectsso-473108:us-central1:team-sso-db'
-      - '--update-env-vars=NODE_ENV=production,PORT=8080,CLOUD_SQL_CONNECTION_NAME=projectsso-473108:us-central1:team-sso-db,INSTANCE_UNIX_SOCKET=/cloudsql/projectsso-473108:us-central1:team-sso-db,DB_NAME=teamsso_db,DB_USER=postgres,GCS_BUCKET_NAME=projectsso-pitch-decks,FRONTEND_URL=https://team-sso.vercel.app'
+      - '--update-env-vars=NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=projectsso-473108:us-central1:team-sso-db,INSTANCE_UNIX_SOCKET=/cloudsql/projectsso-473108:us-central1:team-sso-db,DB_NAME=teamsso_db,DB_USER=postgres,FRONTEND_URL=https://team-sso.vercel.app'
       - '--update-secrets=DB_PASSWORD=DB_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest'
       - '--max-instances=10'
       - '--min-instances=0'
@@ -45,7 +38,6 @@ steps:
 
 # Store images in Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/team-sso-backend:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/team-sso-backend:latest'
 
 # Build configuration
