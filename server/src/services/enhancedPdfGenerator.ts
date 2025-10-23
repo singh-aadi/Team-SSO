@@ -9,6 +9,19 @@ interface EnhancedPDFOptions {
   selectedStage: string;
   selectedIndustry: string;
   companyName?: string;
+  // 🌐 NEW: Web enrichment data from Vertex AI Grounding
+  webEnrichment?: {
+    validatedMetrics: any;
+    additionalCompetitors: any[];
+    industryBenchmarks: any;
+    factChecks: any;
+    dataSources: any;
+    confidence: any;
+  };
+  groundingMetadata?: {
+    webSearchQueries: string[];
+    webSources: any[];
+  };
 }
 
 // Premium Color System for Investor-Grade Reports
@@ -252,6 +265,33 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
       // PAGE: Recommendations & Action Items
       doc.addPage();
       addRecommendations(doc, analysis, selectedStage, selectedIndustry);
+
+      // 🌐 NEW: WEB ENRICHMENT PAGES (if available)
+      if (options.webEnrichment) {
+        console.log('✓ Adding web enrichment pages...');
+
+        // Data Sources Breakdown
+        if (options.webEnrichment.dataSources) {
+          renderDataSourcesBreakdown(doc, options.webEnrichment.dataSources);
+        }
+
+        // Web-Validated Metrics
+        if (options.webEnrichment.validatedMetrics && Object.keys(options.webEnrichment.validatedMetrics).length > 0) {
+          renderWebValidatedMetrics(doc, options.webEnrichment.validatedMetrics);
+        }
+
+        // Industry Benchmarks
+        if (options.webEnrichment.industryBenchmarks && Object.keys(options.webEnrichment.industryBenchmarks).length > 0) {
+          renderIndustryBenchmarks(doc, options.webEnrichment.industryBenchmarks);
+        }
+
+        // Fact-Check Summary
+        if (options.webEnrichment.factChecks) {
+          renderFactCheckSummary(doc, options.webEnrichment.factChecks);
+        }
+
+        console.log('✓ Web enrichment pages added!');
+      }
 
       // PAGE: Appendix
       doc.addPage();
@@ -2087,6 +2127,403 @@ function addAppendix(doc: PDFKit.PDFDocument, industry: string, stage: string) {
        doc.page.height - 80,
        { width: doc.page.width - 100, align: 'center' }
      );
+}
+
+// ============================================================================
+// 🌐 WEB ENRICHMENT SECTIONS (NEW - VERTEX AI GROUNDING)
+// ============================================================================
+
+/**
+ * Render Data Sources Breakdown
+ * Shows what percentage of data came from PDF vs Web
+ */
+function renderDataSourcesBreakdown(
+  doc: PDFKit.PDFDocument,
+  dataSources: any
+): void {
+  doc.addPage();
+  
+  // Title
+  doc.fontSize(24)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.primary)
+     .text('📊 Data Sources', 50, 50);
+
+  doc.fontSize(12)
+     .font('Helvetica')
+     .fillColor(COLORS.medium)
+     .text('Where the analysis data came from', 50, 85);
+
+  let currentY = 120;
+
+  // Visual breakdown box
+  const boxWidth = doc.page.width - 100;
+  const boxHeight = 150;
+
+  doc.rect(50, currentY, boxWidth, boxHeight)
+     .fillColor(COLORS.background)
+     .fill();
+  
+  doc.rect(50, currentY, boxWidth, boxHeight)
+     .strokeColor(COLORS.light)
+     .lineWidth(2)
+     .stroke();
+
+  // PDF percentage
+  const pdfBarWidth = (boxWidth - 40) * (dataSources.fromPDF / 100);
+  doc.rect(60, currentY + 20, pdfBarWidth, 40)
+     .fillColor(COLORS.primary)
+     .fill();
+
+  doc.fontSize(16)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.white)
+     .text(`📄 ${dataSources.fromPDF}%`, 70, currentY + 28);
+
+  doc.fontSize(10)
+     .font('Helvetica')
+     .fillColor(COLORS.dark)
+     .text('From Pitch Deck', 60, currentY + 70);
+
+  // Web percentage
+  const webBarWidth = (boxWidth - 40) * (dataSources.fromWeb / 100);
+  doc.rect(60, currentY + 90, webBarWidth, 40)
+     .fillColor(COLORS.teal)
+     .fill();
+
+  doc.fontSize(16)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.white)
+     .text(`🌐 ${dataSources.fromWeb}%`, 70, currentY + 98);
+
+  doc.fontSize(10)
+     .font('Helvetica')
+     .fillColor(COLORS.dark)
+     .text('From Web Search', 60, currentY + 140);
+
+  currentY += boxHeight + 30;
+
+  // Statistics
+  doc.fontSize(14)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.dark)
+     .text('Analysis Statistics', 50, currentY);
+
+  currentY += 25;
+
+  const stats = [
+    { label: 'Total Metrics Analyzed', value: dataSources.totalMetrics.toString() },
+    { label: 'Discrepancies Found', value: dataSources.discrepanciesFound.toString() },
+  ];
+
+  stats.forEach(({ label, value }) => {
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor(COLORS.mediumDark)
+       .text(label, 60, currentY);
+
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.primary)
+       .text(value, doc.page.width - 150, currentY, { width: 100, align: 'right' });
+
+    currentY += 30;
+  });
+}
+
+/**
+ * Render Fact-Check Summary
+ * Shows verified claims, discrepancies, and unverified items
+ */
+function renderFactCheckSummary(
+  doc: PDFKit.PDFDocument,
+  factChecks: any
+): void {
+  doc.addPage();
+  
+  // Title
+  doc.fontSize(24)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.primary)
+     .text('✅ Fact-Check Summary', 50, 50);
+
+  doc.fontSize(12)
+     .font('Helvetica')
+     .fillColor(COLORS.medium)
+     .text('Web-validated claims from your pitch deck', 50, 85);
+
+  let currentY = 120;
+
+  // ✅ VERIFIED CLAIMS
+  if (factChecks.verified && factChecks.verified.length > 0) {
+    doc.fontSize(16)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.success)
+       .text(`✅ VERIFIED CLAIMS (${factChecks.verified.length})`, 50, currentY);
+
+    currentY += 25;
+
+    factChecks.verified.slice(0, 5).forEach((fc: any) => {
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor(COLORS.dark)
+         .text(`• ${fc.claim}`, 60, currentY, { width: doc.page.width - 120 });
+
+      currentY = doc.y + 8;
+    });
+
+    currentY += 20;
+  }
+
+  // ⚠️ DISCREPANCIES
+  if (factChecks.discrepancies && factChecks.discrepancies.length > 0) {
+    doc.fontSize(16)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.warning)
+       .text(`⚠️ DISCREPANCIES (${factChecks.discrepancies.length})`, 50, currentY);
+
+    currentY += 25;
+
+    factChecks.discrepancies.forEach((fc: any) => {
+      // Claim
+      doc.fontSize(10)
+         .font('Helvetica-Bold')
+         .fillColor(COLORS.dark)
+         .text(`• ${fc.claim}`, 60, currentY, { width: doc.page.width - 120 });
+
+      currentY = doc.y + 3;
+
+      // PDF vs Web
+      doc.fontSize(9)
+         .font('Helvetica')
+         .fillColor(COLORS.mediumDark)
+         .text(`  📄 Deck: ${fc.pdfSource}`, 70, currentY, { width: doc.page.width - 130 });
+
+      currentY = doc.y + 2;
+
+      doc.fontSize(9)
+         .font('Helvetica')
+         .fillColor(COLORS.mediumDark)
+         .text(`  🌐 Web: ${fc.webValidation}`, 70, currentY, { width: doc.page.width - 130 });
+
+      currentY = doc.y + 12;
+
+      // Add page break if needed
+      if (currentY > doc.page.height - 100) {
+        doc.addPage();
+        currentY = 50;
+      }
+    });
+
+    currentY += 20;
+  }
+
+  // ❓ UNVERIFIED
+  if (factChecks.unverified && factChecks.unverified.length > 0) {
+    doc.fontSize(16)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.medium)
+       .text(`❓ UNVERIFIED (${factChecks.unverified.length})`, 50, currentY);
+
+    currentY += 25;
+
+    factChecks.unverified.slice(0, 5).forEach((fc: any) => {
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor(COLORS.mediumDark)
+         .text(`• ${fc.claim} (no public data available)`, 60, currentY, { width: doc.page.width - 120 });
+
+      currentY = doc.y + 8;
+    });
+  }
+}
+
+/**
+ * Render Web-Validated Metrics
+ * Shows PDF claims vs Web findings with indicators
+ */
+function renderWebValidatedMetrics(
+  doc: PDFKit.PDFDocument,
+  validatedMetrics: any
+): void {
+  if (!validatedMetrics || Object.keys(validatedMetrics).length === 0) {
+    return; // Skip if no validated metrics
+  }
+
+  doc.addPage();
+  
+  // Title
+  doc.fontSize(24)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.primary)
+     .text('🔍 Web-Validated Metrics', 50, 50);
+
+  doc.fontSize(12)
+     .font('Helvetica')
+     .fillColor(COLORS.medium)
+     .text('Cross-checking your claims against web sources', 50, 85);
+
+  let currentY = 120;
+
+  for (const [metric, validation] of Object.entries(validatedMetrics)) {
+    if (currentY > doc.page.height - 150) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    const val = validation as any;
+
+    // Metric name
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.dark)
+       .text(metric.toUpperCase(), 50, currentY);
+
+    currentY += 25;
+
+    // PDF value
+    doc.fontSize(11)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.primary)
+       .text('📄 Pitch Deck:', 60, currentY);
+
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor(COLORS.dark)
+       .text(val.pdfValue, 160, currentY, { width: doc.page.width - 220 });
+
+    currentY += 20;
+
+    // Web value
+    doc.fontSize(11)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.teal)
+       .text('🌐 Web Sources:', 60, currentY);
+
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor(COLORS.dark)
+       .text(val.webValue, 160, currentY, { width: doc.page.width - 220 });
+
+    currentY += 20;
+
+    // Match indicator
+    const matchColor = val.match ? COLORS.success : COLORS.warning;
+    const matchText = val.match ? '✅ VERIFIED' : '⚠️ DISCREPANCY';
+
+    doc.fontSize(10)
+       .font('Helvetica-Bold')
+       .fillColor(matchColor)
+       .text(matchText, 60, currentY);
+
+    doc.fontSize(10)
+       .font('Helvetica')
+       .fillColor(COLORS.medium)
+       .text(`Confidence: ${val.confidence}`, doc.page.width - 200, currentY, { width: 150, align: 'right' });
+
+    currentY += 25;
+
+    // Separator
+    doc.moveTo(50, currentY)
+       .lineTo(doc.page.width - 50, currentY)
+       .strokeColor(COLORS.lighter)
+       .lineWidth(1)
+       .stroke();
+
+    currentY += 20;
+  }
+}
+
+/**
+ * Render Industry Benchmarks
+ * Compares company metrics against industry averages
+ */
+function renderIndustryBenchmarks(
+  doc: PDFKit.PDFDocument,
+  benchmarks: any
+): void {
+  if (!benchmarks || Object.keys(benchmarks).length === 0) {
+    return; // Skip if no benchmarks
+  }
+
+  doc.addPage();
+  
+  // Title
+  doc.fontSize(24)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.primary)
+     .text('📊 Industry Benchmarks', 50, 50);
+
+  doc.fontSize(12)
+     .font('Helvetica')
+     .fillColor(COLORS.medium)
+     .text('How you compare to industry averages', 50, 85);
+
+  let currentY = 120;
+
+  for (const [metric, benchmark] of Object.entries(benchmarks)) {
+    if (currentY > doc.page.height - 150) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    const bench = benchmark as any;
+
+    // Metric name
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.dark)
+       .text(metric.toUpperCase(), 50, currentY);
+
+    currentY += 25;
+
+    // Company value
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor(COLORS.mediumDark)
+       .text('Your Company:', 60, currentY);
+
+    doc.fontSize(12)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.primary)
+       .text(bench.companyValue, 160, currentY);
+
+    currentY += 20;
+
+    // Industry average
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor(COLORS.mediumDark)
+       .text('Industry Average:', 60, currentY);
+
+    doc.fontSize(12)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.teal)
+       .text(bench.industryAverage, 160, currentY);
+
+    currentY += 20;
+
+    // Performance
+    const isGood = bench.performance.includes('better');
+    const perfColor = isGood ? COLORS.success : COLORS.warning;
+    const perfIcon = isGood ? '🚀' : '⚠️';
+
+    doc.fontSize(11)
+       .font('Helvetica-Bold')
+       .fillColor(perfColor)
+       .text(`${perfIcon} ${bench.performance}`, 60, currentY);
+
+    currentY += 30;
+
+    // Separator
+    doc.moveTo(50, currentY)
+       .lineTo(doc.page.width - 50, currentY)
+       .strokeColor(COLORS.lighter)
+       .lineWidth(1)
+       .stroke();
+
+    currentY += 20;
+  }
 }
 
 // ============================================================================

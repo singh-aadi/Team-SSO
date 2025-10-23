@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
-import { analyzeDualPDFs, analyzePitchDeckFromPDF } from '../services/ai-enhanced';
+import { analyzeDualPDFs, analyzePitchDeckFromPDF, analyzePitchDeckWithGrounding } from '../services/ai-enhanced';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -150,12 +150,41 @@ router.post('/upload-dual', upload.fields([
         const fullDeckPath = path.join(__dirname, '../../', deck.deck_file_path);
         const fullChecklistPath = path.join(__dirname, '../../', deck.checklist_file_path);
 
-        console.log('📊 Analyzing pitch deck visuals, checklist requirements...');
-        const { analysis, sections, checklistItems } = await analyzeDualPDFs(
-          fullDeckPath,
-          fullChecklistPath,
-          deck.company_name || 'the company'
-        );
+        console.log('📊 Analyzing pitch deck with Vertex AI + Grounding...');
+        
+        // 🌐 NEW: Use Vertex AI with Grounding for web-validated analysis
+        const useGrounding = true; // Enable grounding by default
+        const industry = deck.industry || 'Technology'; // Get from deck or default
+        
+        let analysis, sections, checklistItems, webEnrichment, groundingMetadata;
+        
+        if (useGrounding) {
+          const result = await analyzePitchDeckWithGrounding(
+            fullDeckPath,
+            fullChecklistPath,
+            deck.company_name || 'the company',
+            industry
+          );
+          analysis = result.analysis;
+          sections = result.sections;
+          checklistItems = result.checklistItems;
+          webEnrichment = result.webEnrichment;
+          groundingMetadata = result.groundingMetadata;
+          
+          console.log('✅ Analysis with Grounding complete!');
+          console.log(`   Web sources used: ${groundingMetadata?.webSources?.length || 0}`);
+          console.log(`   Fact-checks: ${webEnrichment?.factChecks?.verified?.length || 0} verified, ${webEnrichment?.factChecks?.discrepancies?.length || 0} discrepancies`);
+        } else {
+          // Fallback to standard analysis
+          const result = await analyzeDualPDFs(
+            fullDeckPath,
+            fullChecklistPath,
+            deck.company_name || 'the company'
+          );
+          analysis = result.analysis;
+          sections = result.sections;
+          checklistItems = result.checklistItems;
+        }
 
         console.log('💾 Storing analysis results...');
 
@@ -183,22 +212,52 @@ router.post('/upload-dual', upload.fields([
         }
 
         // Store the COMPLETE overallAnalysis in dual_pdf_analysis JSONB column
-        await query(`
-          UPDATE pitch_decks 
-          SET analysis_status = 'completed', 
-              sso_score = $1, 
-              dual_pdf_analysis = $2,
-              analyzed_at = CURRENT_TIMESTAMP
-          WHERE id = $3
-        `, [
-          analysis.overallScore / 100, 
-          JSON.stringify(analysis), // Store full overallAnalysis object
-          deckId
-        ]);
+        // 🌐 NEW: Also store web enrichment data if available
+        if (webEnrichment) {
+          await query(`
+            UPDATE pitch_decks 
+            SET analysis_status = 'completed', 
+                sso_score = $1, 
+                dual_pdf_analysis = $2,
+                web_enrichment = $3,
+                analyzed_at = CURRENT_TIMESTAMP
+            WHERE id = $4
+          `, [
+            analysis.overallScore / 100, 
+            JSON.stringify(analysis), // Store full overallAnalysis object
+            JSON.stringify({
+              validatedMetrics: webEnrichment.validatedMetrics,
+              additionalCompetitors: webEnrichment.additionalCompetitors,
+              industryBenchmarks: webEnrichment.industryBenchmarks,
+              factChecks: webEnrichment.factChecks,
+              dataSources: webEnrichment.dataSources,
+              confidence: webEnrichment.confidence,
+              groundingMetadata: groundingMetadata
+            }),
+            deckId
+          ]);
 
-        console.log(`✅ DUAL PDF Analysis complete for deck ${deckId}!`);
-        console.log(`   Overall Score: ${analysis.overallScore}/100`);
-        console.log(`   Checklist Items Verified: ${analysis.checklistVerification.verifiedItems.length}`);
+          console.log(`✅ DUAL PDF Analysis with Grounding complete for deck ${deckId}!`);
+          console.log(`   Overall Score: ${analysis.overallScore}/100`);
+          console.log(`   Confidence: ${webEnrichment.confidence.overall}`);
+          console.log(`   Web sources: ${groundingMetadata?.webSources?.length || 0}`);
+        } else {
+          await query(`
+            UPDATE pitch_decks 
+            SET analysis_status = 'completed', 
+                sso_score = $1, 
+                dual_pdf_analysis = $2,
+                analyzed_at = CURRENT_TIMESTAMP
+            WHERE id = $3
+          `, [
+            analysis.overallScore / 100, 
+            JSON.stringify(analysis), // Store full overallAnalysis object
+            deckId
+          ]);
+
+          console.log(`✅ DUAL PDF Analysis complete for deck ${deckId}!`);
+          console.log(`   Overall Score: ${analysis.overallScore}/100`);
+        }        console.log(`   Checklist Items Verified: ${analysis.checklistVerification.verifiedItems.length}`);
         console.log(`   Recommendation: ${analysis.recommendation}`);
       } catch (error) {
         console.error(`❌ Dual PDF Analysis failed for deck ${deckId}:`, error);
@@ -543,7 +602,10 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
       analysis: analysisData,
       selectedStage: stage as string,
       selectedIndustry: industry as string,
-      companyName: deck.company_name
+      companyName: deck.company_name,
+      // 🌐 NEW: Include web enrichment data if available
+      webEnrichment: deck.web_enrichment || undefined,
+      groundingMetadata: deck.web_enrichment?.groundingMetadata || undefined
     });
 
     console.log(`✓ Enhanced PDF generated: ${pdfPath}`);

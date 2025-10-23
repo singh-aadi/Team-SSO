@@ -4,6 +4,10 @@ import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import * as fs from 'fs';
 import * as path from 'path';
+// 🌐 NEW: Vertex AI with Grounding for web-validated analysis
+import { analyzeWithGrounding } from './vertex-ai';
+import { enrichWithWebSearch, extractMetricsFromText } from './grounding';
+import { mergeSourcesAndValidate, formatForPDF } from './dual-source-analyzer';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -435,3 +439,174 @@ Provide analysis in JSON format with overallAnalysis and sections arrays.`;
     throw error;
   }
 }
+
+// 🌐 NEW: ENHANCED ANALYSIS WITH VERTEX AI + GROUNDING
+/**
+ * Analyzes pitch deck using Vertex AI with Google Search Grounding
+ * for web-validated metrics, competitor research, and fact-checking.
+ * 
+ * @param deckPath - Path to pitch deck PDF
+ * @param checklistPath - Path to checklist document (optional)
+ * @param companyName - Name of the company
+ * @param industry - Industry vertical (for targeted web searches)
+ * @returns Combined analysis with PDF + web sources, fact-checks, and citations
+ */
+export async function analyzePitchDeckWithGrounding(
+  deckPath: string,
+  checklistPath: string | null,
+  companyName: string,
+  industry: string
+): Promise<{
+  analysis: AnalysisResult;
+  sections: SectionAnalysis[];
+  checklistItems: ChecklistItem[];
+  webEnrichment: {
+    validatedMetrics: any;
+    additionalCompetitors: any[];
+    industryBenchmarks: any;
+    factChecks: any;
+    dataSources: any;
+    confidence: any;
+  };
+  groundingMetadata?: {
+    webSearchQueries: string[];
+    webSources: any[];
+  };
+}> {
+  try {
+    console.log(`🌐 [Enhanced Analysis] Starting with Grounding for ${companyName} (${industry})...`);
+
+    // Step 1: Extract text from deck
+    console.log('📄 Extracting text from pitch deck...');
+    const deckText = await extractTextFromDocument(deckPath);
+    
+    if (!deckText || deckText.length < 100) {
+      throw new Error('Insufficient text content extracted from pitch deck');
+    }
+
+    // Step 2: Extract metrics from PDF
+    console.log('📊 Extracting metrics from PDF...');
+    const pdfMetrics = extractMetricsFromText(deckText);
+
+    // Step 3: Run standard analysis (existing logic)
+    console.log('🔍 Running standard PDF analysis...');
+    let standardAnalysis;
+    if (checklistPath) {
+      standardAnalysis = await analyzeDualPDFs(deckPath, checklistPath, companyName);
+    } else {
+      standardAnalysis = await analyzePitchDeckFromPDF(deckPath, companyName);
+    }
+
+    // Step 4: Enrich with web search (Vertex AI + Grounding)
+    console.log('🌐 Enriching with web search and grounding...');
+    const webEnrichment = await enrichWithWebSearch(
+      pdfMetrics,
+      industry,
+      companyName,
+      deckText
+    );
+
+    console.log(`✅ Web enrichment complete:`);
+    console.log(`   Sources found: ${webEnrichment.sources.length}`);
+    console.log(`   Discrepancies: ${webEnrichment.discrepancies.length}`);
+
+    // Step 5: Merge PDF + Web data
+    console.log('🔄 Merging PDF and web data...');
+    const pdfAnalysis = {
+      summary: standardAnalysis.analysis.keyInsights?.join('. ') || 'Analysis complete',
+      strengths: standardAnalysis.analysis.strengths || [],
+      weaknesses: standardAnalysis.analysis.weaknesses || [],
+      opportunities: [],
+      threats: [],
+      competitiveAdvantage: 'See analysis',
+      marketOpportunity: {
+        tam: pdfMetrics.tam,
+        sam: pdfMetrics.sam,
+        som: pdfMetrics.som,
+      },
+      team: {},
+      financials: {
+        revenue: pdfMetrics.revenue,
+        mrr: pdfMetrics.mrr,
+        arr: pdfMetrics.arr,
+        cac: pdfMetrics.cac,
+        ltv: pdfMetrics.ltv,
+      },
+      product: {},
+      traction: {
+        users: pdfMetrics.users,
+      },
+      scores: {
+        overall: standardAnalysis.analysis.overallScore,
+        problem: standardAnalysis.analysis.problemScore,
+        solution: standardAnalysis.analysis.solutionScore,
+        market: standardAnalysis.analysis.marketScore,
+        team: standardAnalysis.analysis.teamScore,
+        traction: standardAnalysis.analysis.tractionScore,
+        financials: standardAnalysis.analysis.financialsScore,
+      },
+    };
+
+    const combined = await mergeSourcesAndValidate(pdfAnalysis, webEnrichment);
+
+    console.log('✅ [Enhanced Analysis] Complete with Grounding!');
+    console.log(`   Overall confidence: ${combined.confidence.overall}`);
+    console.log(`   Verified claims: ${combined.factChecks.verified.length}`);
+    console.log(`   Discrepancies: ${combined.factChecks.discrepancies.length}`);
+
+    // Return enhanced analysis with web enrichment
+    return {
+      analysis: standardAnalysis.analysis,
+      sections: standardAnalysis.sections,
+      checklistItems: 'checklistItems' in standardAnalysis ? (standardAnalysis.checklistItems as ChecklistItem[]) : [],
+      webEnrichment: {
+        validatedMetrics: combined.webEnrichment.validatedMetrics,
+        additionalCompetitors: combined.webEnrichment.additionalCompetitors,
+        industryBenchmarks: combined.webEnrichment.industryBenchmarks,
+        factChecks: combined.factChecks,
+        dataSources: combined.dataSourceBreakdown,
+        confidence: combined.confidence,
+      },
+      groundingMetadata: {
+        webSearchQueries: webEnrichment.enrichedMetrics.webValidation
+          ? Object.keys(webEnrichment.enrichedMetrics.webValidation)
+          : [],
+        webSources: webEnrichment.sources,
+      },
+    };
+  } catch (error) {
+    console.error('❌ [Enhanced Analysis] Failed:', error);
+    // Fallback to standard analysis if grounding fails
+    console.warn('⚠️ Falling back to standard analysis without grounding...');
+    
+    if (checklistPath) {
+      const fallback = await analyzeDualPDFs(deckPath, checklistPath, companyName);
+      return {
+        ...fallback,
+        webEnrichment: {
+          validatedMetrics: {},
+          additionalCompetitors: [],
+          industryBenchmarks: {},
+          factChecks: { verified: [], discrepancies: [], unverified: [] },
+          dataSources: { fromPDF: 100, fromWeb: 0, totalMetrics: 0, discrepanciesFound: 0 },
+          confidence: { overall: 'MEDIUM', reasons: ['Grounding unavailable - using PDF only'] },
+        },
+      };
+    } else {
+      const fallback = await analyzePitchDeckFromPDF(deckPath, companyName);
+      return {
+        ...fallback,
+        checklistItems: [],
+        webEnrichment: {
+          validatedMetrics: {},
+          additionalCompetitors: [],
+          industryBenchmarks: {},
+          factChecks: { verified: [], discrepancies: [], unverified: [] },
+          dataSources: { fromPDF: 100, fromWeb: 0, totalMetrics: 0, discrepanciesFound: 0 },
+          confidence: { overall: 'MEDIUM', reasons: ['Grounding unavailable - using PDF only'] },
+        },
+      };
+    }
+  }
+}
+
