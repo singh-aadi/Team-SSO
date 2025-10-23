@@ -487,11 +487,25 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 <span>Export Report</span>
               </button>
               {/* Dropdown menu */}
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                {/* Enhanced PDF Option (Premium) */}
+                <a
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/enhanced?stage=${encodeURIComponent(selectedStage)}&industry=${encodeURIComponent(selectedIndustry)}`}
+                  download
+                  className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 first:rounded-t-lg border-b border-slate-100"
+                >
+                  <div className="flex items-center space-x-2">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span className="font-semibold">Enhanced PDF</span>
+                  </div>
+                  <span className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-0.5 rounded">NEW</span>
+                </a>
+                
+                {/* Standard Export Options */}
                 <a
                   href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/txt`}
                   download
-                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50 first:rounded-t-lg"
+                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
                 >
                   <FileText className="h-4 w-4" />
                   <span>Download as TXT</span>

@@ -468,6 +468,127 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/decks/:id/report/enhanced - Download ENHANCED PDF report with industry benchmarks
+router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { stage, industry } = req.query;
+
+    // Validate required parameters
+    if (!stage || !industry) {
+      return res.status(400).json({ 
+        error: 'Missing required parameters: stage and industry' 
+      });
+    }
+
+    // Get deck with full analysis
+    const deckResult = await query(`
+      SELECT d.*, c.name as company_name, c.stage, c.industry
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1
+    `, [id]);
+
+    if (deckResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Deck not found' });
+    }
+
+    const deck = deckResult.rows[0];
+
+    if (!deck.dual_pdf_analysis || deck.analysis_status !== 'completed') {
+      return res.status(400).json({ 
+        error: 'Analysis not completed for this deck' 
+      });
+    }
+
+    console.log(`\n📊 Generating enhanced PDF for deck ${id}...`);
+    console.log(`   Company: ${deck.company_name || 'NOT SET'}`);
+    console.log(`   Stage: ${stage}, Industry: ${industry}`);
+    console.log(`   Analysis status: ${deck.analysis_status}`);
+
+    // Get sections from database (same as normal PDF!)
+    const sectionsResult = await query(`
+      SELECT * FROM deck_analysis WHERE deck_id = $1 ORDER BY section_name
+    `, [id]);
+
+    const sections = sectionsResult.rows.map(row => ({
+      sectionName: row.section_name,
+      sectionScore: row.section_score * 100, // Convert to 0-100 scale
+      feedback: row.feedback,
+      strengths: row.strengths,
+      improvements: row.improvements
+    }));
+
+    console.log(`   Sections found: ${sections.length}`);
+    console.log(`   Overall analysis:`, !!deck.dual_pdf_analysis);
+
+    // Build analysis structure (SAME as normal PDF + GET /api/decks/:id)
+    const analysisData = {
+      sso_score: deck.sso_score,
+      analysis: {
+        overall: deck.dual_pdf_analysis, // Full Gemini analysis
+        sections: sections                // Database sections
+      }
+    };
+
+    // Generate enhanced PDF
+    const generateEnhancedPDF = (await import('../services/enhancedPdfGenerator')).default;
+    
+    const pdfPath = await generateEnhancedPDF({
+      deck: {
+        id: deck.id,
+        file_name: deck.filename,
+        company_name: deck.company_name
+      },
+      analysis: analysisData,
+      selectedStage: stage as string,
+      selectedIndustry: industry as string,
+      companyName: deck.company_name
+    });
+
+    console.log(`✓ Enhanced PDF generated: ${pdfPath}`);
+
+    // Create a clean filename from company name
+    const companyFileName = (deck.company_name || 'Startup')
+      .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .substring(0, 50); // Limit length
+
+    console.log(`📄 Download filename: ${companyFileName}_Enhanced_Report.pdf`);
+
+    // Send PDF file
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${companyFileName}_Enhanced_Report.pdf"`);
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+    
+    fileStream.on('end', () => {
+      // Clean up temp file after sending
+      try {
+        fs.unlinkSync(pdfPath);
+        console.log(`✓ Temp PDF cleaned up: ${pdfPath}`);
+      } catch (err) {
+        console.error('Error cleaning up temp PDF:', err);
+      }
+    });
+
+    fileStream.on('error', (error) => {
+      console.error('Error streaming PDF:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream PDF' });
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error generating enhanced PDF report:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate enhanced PDF report',
+      details: error.message 
+    });
+  }
+});
+
 // GET /api/decks/:id/report/:format - Download report in specified format (txt, md, pdf)
 router.get('/:id/report/:format', async (req: Request, res: Response) => {
   try {
@@ -522,17 +643,23 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
 
     const { generateTextReport, generateMarkdownReport, generatePDFReport } = await import('../services/report-generator');
 
+    // Create a clean filename from company name
+    const companyFileName = (deck.company_name || 'Startup')
+      .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .substring(0, 50); // Limit length
+
     if (format === 'txt') {
       const txtReport = generateTextReport(reportData);
       res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Content-Disposition', `attachment; filename="${deck.company_name}_analysis_report.txt"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${companyFileName}_Analysis_Report.txt"`);
       return res.send(txtReport);
     }
 
     if (format === 'md') {
       const mdReport = generateMarkdownReport(reportData);
       res.setHeader('Content-Type', 'text/markdown');
-      res.setHeader('Content-Disposition', `attachment; filename="${deck.company_name}_analysis_report.md"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${companyFileName}_Analysis_Report.md"`);
       return res.send(mdReport);
     }
 
@@ -540,7 +667,7 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
       const pdfPath = path.join(__dirname, '../../uploads', `${id}_report.pdf`);
       await generatePDFReport(reportData, pdfPath);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${deck.company_name}_analysis_report.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${companyFileName}_Analysis_Report.pdf"`);
       const fileStream = fs.createReadStream(pdfPath);
       fileStream.pipe(res);
       fileStream.on('end', () => {

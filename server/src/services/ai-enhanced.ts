@@ -223,7 +223,7 @@ export async function analyzeDualPDFs(
     const checklistItems = await parseChecklist(checklistText);
 
     // Step 4: Comprehensive analysis using Gemini 2.0 Flash
-    console.log('Performing comprehensive investment analysis...');
+    console.log('Performing comprehensive AI analysis...');
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
     const comprehensivePrompt = `You are a senior VC partner making an investment decision. You have received:
