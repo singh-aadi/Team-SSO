@@ -4,6 +4,8 @@ import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import * as fs from 'fs';
 import * as path from 'path';
+// @ts-ignore - pptx2json doesn't have TypeScript definitions
+import pptx2json from 'pptx2json';
 // 🌐 NEW: Vertex AI with Grounding for web-validated analysis
 import { analyzeWithGrounding } from './vertex-ai';
 import { enrichWithWebSearch, extractMetricsFromText } from './grounding';
@@ -75,7 +77,50 @@ export async function extractTextFromWord(docxPath: string): Promise<string> {
   }
 }
 
-// Universal text extractor - handles both PDF and Word documents
+// Extract text from PowerPoint (.ppt, .pptx)
+export async function extractTextFromPowerPoint(pptPath: string): Promise<string> {
+  try {
+    console.log(`📊 Extracting text from PowerPoint: ${path.basename(pptPath)}`);
+    
+    // Parse PowerPoint to JSON
+    const slides = await pptx2json(pptPath);
+    
+    let extractedText = '';
+    
+    // Extract text from each slide
+    if (Array.isArray(slides)) {
+      slides.forEach((slide: any, index: number) => {
+        extractedText += `\n\n--- SLIDE ${index + 1} ---\n`;
+        
+        // Extract text from shapes
+        if (slide.shapes && Array.isArray(slide.shapes)) {
+          slide.shapes.forEach((shape: any) => {
+            if (shape.text) {
+              extractedText += shape.text + '\n';
+            }
+          });
+        }
+        
+        // Extract text from content
+        if (slide.content) {
+          extractedText += slide.content + '\n';
+        }
+      });
+    }
+    
+    if (!extractedText.trim()) {
+      throw new Error('No text content found in PowerPoint file');
+    }
+    
+    console.log(`✅ Extracted ${extractedText.length} characters from PowerPoint`);
+    return extractedText;
+  } catch (error: any) {
+    console.error('Error extracting text from PowerPoint:', error);
+    throw new Error(`Failed to extract text from PowerPoint: ${error.message}`);
+  }
+}
+
+// Universal text extractor - handles PDF, Word, and PowerPoint documents
 export async function extractTextFromDocument(filePath: string): Promise<string> {
   const ext = path.extname(filePath).toLowerCase();
   
@@ -83,6 +128,8 @@ export async function extractTextFromDocument(filePath: string): Promise<string>
     return extractTextFromPDF(filePath);
   } else if (ext === '.docx' || ext === '.doc') {
     return extractTextFromWord(filePath);
+  } else if (ext === '.ppt' || ext === '.pptx') {
+    return extractTextFromPowerPoint(filePath);
   } else {
     throw new Error(`Unsupported file type: ${ext}`);
   }
@@ -449,13 +496,15 @@ Provide analysis in JSON format with overallAnalysis and sections arrays.`;
  * @param checklistPath - Path to checklist document (optional)
  * @param companyName - Name of the company
  * @param industry - Industry vertical (for targeted web searches)
+ * @param additionalContext - Optional VC context from notes/meetings
  * @returns Combined analysis with PDF + web sources, fact-checks, and citations
  */
 export async function analyzePitchDeckWithGrounding(
   deckPath: string,
   checklistPath: string | null,
   companyName: string,
-  industry: string
+  industry: string,
+  additionalContext?: any
 ): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
@@ -475,6 +524,14 @@ export async function analyzePitchDeckWithGrounding(
 }> {
   try {
     console.log(`🌐 [Enhanced Analysis] Starting with Grounding for ${companyName} (${industry})...`);
+    
+    if (additionalContext) {
+      console.log(`📝 [Additional Context] Using VC context:`, {
+        companyName: additionalContext.companyName,
+        documents: additionalContext.itemCount,
+        hasExecutiveSummary: !!additionalContext.summary?.executiveSummary
+      });
+    }
 
     // Step 1: Extract text from deck
     console.log('📄 Extracting text from pitch deck...');
@@ -483,10 +540,27 @@ export async function analyzePitchDeckWithGrounding(
     if (!deckText || deckText.length < 100) {
       throw new Error('Insufficient text content extracted from pitch deck');
     }
+    
+    // Append VC context to deck text for enhanced analysis
+    let enrichedDeckText = deckText;
+    if (additionalContext?.summary?.executiveSummary) {
+      enrichedDeckText += `\n\n=== ADDITIONAL VC CONTEXT ===\n`;
+      enrichedDeckText += `Based on ${additionalContext.itemCount} documents (meeting notes, emails, etc.):\n\n`;
+      enrichedDeckText += `${additionalContext.summary.executiveSummary}\n`;
+      
+      if (additionalContext.summary.keyInsights?.length > 0) {
+        enrichedDeckText += `\nKey Insights from VC Interactions:\n`;
+        additionalContext.summary.keyInsights.forEach((insight: string, idx: number) => {
+          enrichedDeckText += `${idx + 1}. ${insight}\n`;
+        });
+      }
+      
+      console.log(`✨ Enhanced deck text with VC context (+${enrichedDeckText.length - deckText.length} characters)`);
+    }
 
     // Step 2: Extract metrics from PDF
     console.log('📊 Extracting metrics from PDF...');
-    const pdfMetrics = extractMetricsFromText(deckText);
+    const pdfMetrics = extractMetricsFromText(enrichedDeckText);
 
     // Step 3: Run standard analysis (existing logic)
     console.log('🔍 Running standard PDF analysis...');
@@ -503,7 +577,7 @@ export async function analyzePitchDeckWithGrounding(
       pdfMetrics,
       industry,
       companyName,
-      deckText
+      enrichedDeckText // Use enriched text with VC context
     );
 
     console.log(`✅ Web enrichment complete:`);

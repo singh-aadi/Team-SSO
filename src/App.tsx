@@ -18,6 +18,7 @@ import { RiskAnalysis } from './components/RiskAnalysis';
 import { CommunicationAnalysis } from './components/CommunicationAnalysis';
 import { VCMode } from './components/VCMode';
 import { StartupRadar } from './components/StartupRadar';
+import { VCContextManager } from './components/VCContextManager';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -60,6 +61,7 @@ function MainLayout() {
             <Route path="/glossary" element={<Glossary />} />
             <Route path="/founder-journey" element={<FounderJourney />} />
             <Route path="/vc-journey" element={<VCJourney />} />
+            <Route path="/vc-context/:deckId" element={<VCContextManager />} />
             <Route path="/competitive" element={<CompetitiveAudit />} />
             <Route path="/startup-radar" element={<StartupRadar />} />
             <Route path="/risk-assessment" element={<RiskAnalysis />} />

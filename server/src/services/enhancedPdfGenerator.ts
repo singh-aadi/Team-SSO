@@ -2,6 +2,9 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { getIndustryMetrics } from '../config/industryMetrics';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 interface EnhancedPDFOptions {
   deck: any;
@@ -107,6 +110,231 @@ function drawScoreBar(
      .stroke();
 }
 
+// ============================================================================
+// UTILITY: Extract company name from analysis or filename
+// ============================================================================
+function extractCompanyName(deck: any, analysis: any, providedName?: string): string {
+  // Priority 1: Provided company name (from route)
+  if (providedName && providedName.trim()) {
+    console.log(`✅ Using provided company name: "${providedName}"`);
+    return providedName.trim();
+  }
+
+  // Priority 2: Extract from filename FIRST (most reliable source)
+  if (deck.file_name) {
+    const cleaned = deck.file_name
+      .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '') // Remove extensions
+      .replace(/[-_()]/g, ' ') // Replace special chars with spaces
+      .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd|may|june|july|aug|sep|oct|nov|dec|\d{4})\b/gi, '') // Remove common words + dates
+      .trim()
+      .replace(/\s+/g, ' '); // Normalize spaces
+    
+    if (cleaned.length > 2) {
+      console.log(`✅ Extracted from filename: "${cleaned}"`);
+      return cleaned;
+    }
+  }
+
+  // Priority 3: Database company name (ONLY if filename extraction failed)
+  if (deck.company_name && deck.company_name.trim()) {
+    console.log(`⚠️ Using database company name (filename extraction failed): "${deck.company_name}"`);
+    return deck.company_name.trim();
+  }
+
+  // Priority 4: Try to extract from analysis recommendation text
+  const overall = analysis?.analysis?.overall || {};
+  if (overall.recommendation) {
+    // Look for patterns like "Company X is..." or "The company X..."
+    const match = overall.recommendation.match(/\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})\s+(?:is|offers|provides|delivers)/);
+    if (match && match[1] && match[1].length > 3 && match[1].length < 50) {
+      console.log(`⚠️ Extracted from analysis: "${match[1]}"`);
+      return match[1];
+    }
+  }
+
+  // Fallback
+  console.warn(`❌ No company name found, using fallback: "Startup Company"`);
+  return 'Startup Company';
+}
+
+// ============================================================================
+// UTILITY: Generate AI-powered company introduction
+// ============================================================================
+async function generateCompanyIntroduction(
+  companyName: string,
+  analysis: any,
+  stage: string,
+  industry: string
+): Promise<string> {
+  try {
+    const overall = analysis?.analysis?.overall || {};
+    const sections = analysis?.analysis?.sections || [];
+
+    // Extract relevant context from analysis
+    const problemSolution = sections.find((s: any) => 
+      s.sectionName?.toLowerCase().includes('problem') || 
+      s.sectionName?.toLowerCase().includes('solution')
+    );
+    const market = sections.find((s: any) => 
+      s.sectionName?.toLowerCase().includes('market')
+    );
+    const traction = sections.find((s: any) => 
+      s.sectionName?.toLowerCase().includes('traction') || 
+      s.sectionName?.toLowerCase().includes('growth')
+    );
+    const business = sections.find((s: any) => 
+      s.sectionName?.toLowerCase().includes('business') || 
+      s.sectionName?.toLowerCase().includes('unit') ||
+      s.sectionName?.toLowerCase().includes('economics')
+    );
+    const team = sections.find((s: any) => 
+      s.sectionName?.toLowerCase().includes('team') || 
+      s.sectionName?.toLowerCase().includes('execution')
+    );
+
+    // Build detailed context for AI - extract MORE specific details
+    const contextParts = [];
+    
+    // Add strengths for specific details
+    if (overall.strengths && Array.isArray(overall.strengths)) {
+      contextParts.push(`Key Strengths:\n${overall.strengths.slice(0, 3).map((s: string) => `- ${s}`).join('\n')}`);
+    }
+    
+    // Add key insights for metrics
+    if (overall.keyInsights && Array.isArray(overall.keyInsights)) {
+      contextParts.push(`Key Insights:\n${overall.keyInsights.slice(0, 3).map((s: string) => `- ${s}`).join('\n')}`);
+    }
+
+    if (problemSolution?.feedback) {
+      contextParts.push(`Problem/Solution Analysis:\n${problemSolution.feedback.substring(0, 300)}`);
+    }
+    if (market?.feedback) {
+      contextParts.push(`Market Analysis:\n${market.feedback.substring(0, 300)}`);
+    }
+    if (traction?.feedback) {
+      contextParts.push(`Traction Metrics:\n${traction.feedback.substring(0, 300)}`);
+    }
+    if (business?.feedback) {
+      contextParts.push(`Business Model:\n${business.feedback.substring(0, 250)}`);
+    }
+    if (team?.feedback) {
+      contextParts.push(`Team & Execution:\n${team.feedback.substring(0, 200)}`);
+    }
+
+    const analysisContext = contextParts.join('\n\n');
+
+    // 🔍 DEBUG: Log what we're sending to AI
+    console.log('\n🤖 === AI INTRODUCTION GENERATION ===');
+    console.log('📊 Analysis context length:', analysisContext.length, 'chars');
+    console.log('📋 Context parts:', contextParts.length, 'sections');
+    if (analysisContext.length < 100) {
+      console.warn('⚠️  WARNING: Very little analysis data available!');
+      console.warn('   Context:', analysisContext);
+    } else {
+      console.log('✅ Sufficient analysis data available');
+      console.log('📝 Preview:', analysisContext.substring(0, 200) + '...');
+    }
+
+    const prompt = `You are an investment analyst writing a detailed company introduction. 
+
+CRITICAL INSTRUCTION: You MUST write a SPECIFIC introduction with real details. DO NOT write generic template text.
+
+COMPANY NAME TO USE:
+${companyName}
+
+COMPANY DETAILS:
+- Industry: ${industry}
+- Stage: ${stage}
+
+ANALYSIS DATA TO EXTRACT SPECIFICS FROM:
+${analysisContext}
+
+YOUR TASK:
+Write a detailed, SPECIFIC company introduction for ${companyName} based on the analysis data above.
+
+MANDATORY REQUIREMENTS - YOU MUST:
+1. START with "${companyName} is a [type] company that [specific product/service description]"
+2. EXTRACT and MENTION specific details from the analysis:
+   - Product/service (what exactly they offer)
+   - Problem they solve (specific pain point)
+   - Target customer (who uses it)
+   - Traction numbers (users, revenue, growth %) if mentioned in analysis
+   - Market size or opportunity if mentioned
+   - Competitive advantage or differentiation
+   - Team background if mentioned
+3. Use ACTUAL data from the analysis - do NOT invent numbers
+4. Make it 180-220 words across 2-3 paragraphs
+5. Sound like a professional investment memo, not marketing copy
+
+FORBIDDEN - DO NOT:
+- Use phrases like "seeking investment" or "demonstrated clear value"
+- Write generic sentences that could apply to any company
+- Make up numbers or facts not in the analysis
+- Start with "The company" - use the company name "${companyName}"
+
+STRUCTURE:
+Paragraph 1 (80 words): "${companyName} is a [exact product type] that [what it does] for [target customer]. The platform/product addresses [specific problem] by [how they solve it]. [Unique differentiator or technology]."
+
+Paragraph 2 (70 words): "[Traction metrics from analysis]. [Growth data]. [Market opportunity with size if available]. [Competitive positioning]."
+
+Paragraph 3 (50 words): "[Team background if available]. [Key milestones]. [Strategic positioning for growth]."
+
+If analysis data is LIMITED, still be SPECIFIC about what you DO know. Infer product type from industry and what little data exists, but make it sound concrete.
+
+Write the introduction now. Use "${companyName}" as the company name. Make it SPECIFIC.`;
+
+    console.log('📤 Sending to Gemini...');
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let introduction = response.text().trim();
+
+    // Clean up any markdown or formatting
+    introduction = introduction.replace(/```/g, '').replace(/\*\*/g, '').trim();
+
+    console.log(`✅ Generated AI introduction: ${introduction.length} chars`);
+    console.log(`📝 Full introduction:\n${introduction}`);
+    console.log('=====================================\n');
+    
+    // ⚠️ VALIDATION: Check if it's still generic
+    const genericPhrases = ['seeking investment', 'demonstrated clear value', 'identified a significant market'];
+    const isGeneric = genericPhrases.some(phrase => introduction.toLowerCase().includes(phrase));
+    if (isGeneric) {
+      console.warn('⚠️  WARNING: AI generated generic text! Re-prompting with stricter instructions...');
+      
+      // RETRY with even more aggressive prompt
+      const retryPrompt = `The previous introduction was too generic. Write a NEW introduction for ${companyName} that is HIGHLY SPECIFIC.
+
+Use this EXACT structure and fill in with REAL details from the analysis:
+
+"${companyName} operates as a ${industry} platform that provides [SPECIFIC PRODUCT/SERVICE from analysis] to [SPECIFIC TARGET CUSTOMER from analysis]. The company solves [SPECIFIC PROBLEM from analysis] through [SPECIFIC SOLUTION APPROACH from analysis].
+
+[EXTRACT ANY NUMBERS: users, revenue, growth rate from analysis]. The company serves [SPECIFIC MARKET SEGMENT] within the [MARKET SIZE if mentioned] market.
+
+[TEAM BACKGROUND from analysis if available]. The company has achieved [SPECIFIC MILESTONE from analysis]."
+
+NOW write the introduction using ONLY the specific details from this analysis data:
+${analysisContext}
+
+Make it factual, specific, and data-driven. If a detail isn't in the analysis, infer a reasonable specific instead of using generic language.`;
+
+      const retryResult = await model.generateContent(retryPrompt);
+      const retryResponse = await retryResult.response;
+      introduction = retryResponse.text().trim().replace(/```/g, '').replace(/\*\*/g, '');
+      console.log(`🔄 Retry generated: ${introduction.length} chars`);
+      console.log(`📝 Retry introduction:\n${introduction}\n`);
+    }
+
+    return introduction;
+
+  } catch (error) {
+    console.error('❌ Error generating AI introduction:', error);
+    
+    // Fallback to template-based introduction
+    return `${companyName} is a ${stage.toLowerCase()}-stage ${industry.toLowerCase()} company seeking investment to scale operations and capture market share. Based on pitch deck analysis, the company has demonstrated a clear value proposition and identified a significant market opportunity. This report provides a comprehensive investment readiness assessment across key dimensions including problem-solution fit, market size, traction metrics, team capabilities, and financial projections.`;
+  }
+}
+
 // Circular Score Gauge (for cover page)
 function drawCircularScore(
   doc: PDFKit.PDFDocument,
@@ -144,7 +372,20 @@ function drawCircularScore(
 }
 
 export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<string> {
-  const { deck, analysis, selectedStage, selectedIndustry, companyName } = options;
+  const { deck, analysis, selectedStage, selectedIndustry, companyName: providedCompanyName } = options;
+  
+  // ✅ STEP 1: Extract proper company name
+  const companyName = extractCompanyName(deck, analysis, providedCompanyName);
+  console.log(`\n🏢 Final company name: "${companyName}"\n`);
+  
+  // ✅ STEP 2: Generate AI introduction (async - will complete before rendering)
+  console.log('🤖 Generating AI-powered company introduction...');
+  const aiIntroduction = await generateCompanyIntroduction(
+    companyName,
+    analysis,
+    selectedStage,
+    selectedIndustry
+  );
   
   const tempDir = path.join(__dirname, '../../temp');
   if (!fs.existsSync(tempDir)) {
@@ -160,7 +401,7 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
         margins: { top: 50, bottom: 50, left: 50, right: 50 },
         bufferPages: true,
         info: {
-          Title: `${companyName || deck.company_name || 'Startup'} - Investment Readiness Report`,
+          Title: `${companyName} - Investment Readiness Report`,
           Author: 'Team SSO Intelligence Engine',
           Subject: 'Pitch Deck Analysis with Industry Benchmarks',
           Keywords: `${selectedIndustry}, ${selectedStage}, pitch deck, investment readiness`
@@ -226,9 +467,9 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
       // PAGE 1: Professional Cover Page
       addCoverPage(doc, deck, analysis, selectedStage, selectedIndustry, companyName);
 
-      // PAGE 2: Company Introduction & Overview
+      // PAGE 2: Company Introduction & Overview (with AI-generated intro)
       doc.addPage();
-      addCompanyIntroduction(doc, deck, analysis, selectedStage, selectedIndustry, companyName);
+      addCompanyIntroduction(doc, deck, analysis, selectedStage, selectedIndustry, companyName, aiIntroduction);
 
       // PAGE 3: Executive Summary
       doc.addPage();
@@ -331,7 +572,7 @@ function addCoverPage(
   analysis: any,
   stage: string,
   industry: string,
-  companyName?: string
+  companyName: string
 ) {
   // FIX: Convert 0-1 scale to 0-100 scale
   const ssoScore = parseFloat(((analysis?.sso_score || 0) * 100).toFixed(1));
@@ -365,11 +606,10 @@ function addCoverPage(
   // ==============================
   // COMPANY INFORMATION SECTION
   // ==============================
-  const displayName = companyName || deck.company_name || deck.file_name || 'Startup Company';
   doc.fontSize(30)
      .font('Helvetica-Bold')
      .fillColor(COLORS.dark)
-     .text(displayName, 50, 210, { align: 'center', width: doc.page.width - 100 });
+     .text(companyName, 50, 210, { align: 'center', width: doc.page.width - 100 });
 
   // Industry & Stage Badges (side-by-side)
   const badgeY = 255;
@@ -504,9 +744,10 @@ function addCompanyIntroduction(
   analysis: any,
   stage: string,
   industry: string,
-  companyName?: string
+  companyName: string,
+  aiIntroduction: string
 ) {
-  const displayName = companyName || deck.company_name || deck.file_name || 'Startup Company';
+  const displayName = companyName;
   const sections = analysis?.analysis?.sections || [];
 
   // ==============================
@@ -564,7 +805,7 @@ function addCompanyIntroduction(
   currentY += headerBoxHeight + 25;
 
   // ==============================
-  // COMPANY DESCRIPTION (Extract from analysis)
+  // AI-GENERATED COMPANY INTRODUCTION
   // ==============================
   doc.fontSize(16)
      .font('Helvetica-Bold')
@@ -573,73 +814,17 @@ function addCompanyIntroduction(
 
   currentY = doc.y + 12;
 
-  // 🔍 DEBUG LOGGING - Verify real Gemini data usage
-  console.log('\n📄 === COMPANY INTRODUCTION PAGE - DATA SOURCE DEBUG ===');
-  console.log('   Analysis object exists:', !!analysis);
-  console.log('   Analysis.analysis exists:', !!analysis?.analysis);
-  console.log('   Sections count:', sections.length);
-  console.log('   Section names:', sections.map((s: any) => s.sectionName).join(', '));
-  
-  const overall = analysis?.analysis?.overall || {};
-  console.log('   Overall object keys:', Object.keys(overall).join(', '));
-  console.log('   Has recommendation:', !!overall.recommendation);
-  if (overall.recommendation) {
-    console.log('   Recommendation length:', overall.recommendation.length, 'chars');
-    console.log('   Recommendation preview:', overall.recommendation.substring(0, 100) + '...');
-  }
-  console.log('   Has keyInsights:', Array.isArray(overall.keyInsights));
-  if (overall.keyInsights) {
-    console.log('   Key insights count:', overall.keyInsights.length);
-  }
-
-  // IMPROVED: Extract company description from MULTIPLE Gemini AI sources
-  // Priority order: 1) recommendation 2) key insights 3) section feedback 4) fallback
-  let companyDescription = '';
-  let dataSource = '';
-  
-  // Try 1: Use overall recommendation (most comprehensive Gemini output)
-  if (overall.recommendation && overall.recommendation.length > 100) {
-    companyDescription = overall.recommendation.substring(0, 450);
-    if (overall.recommendation.length > 450) companyDescription += '...';
-    dataSource = '✅ GEMINI_RECOMMENDATION (Real AI Analysis)';
-  }
-  // Try 2: Use first key insight from Gemini
-  else if (overall.keyInsights && overall.keyInsights.length > 0 && overall.keyInsights[0].length > 50) {
-    companyDescription = overall.keyInsights[0];
-    if (companyDescription.length > 450) {
-      companyDescription = companyDescription.substring(0, 450) + '...';
-    }
-    dataSource = '✅ GEMINI_KEY_INSIGHT (Real AI Analysis)';
-  }
-  // Try 3: Use Problem/Solution section feedback from Gemini
-  else {
-    const problemSection = sections.find((s: any) => 
-      s.sectionName?.toLowerCase().includes('problem') || 
-      s.sectionName?.toLowerCase().includes('solution') ||
-      s.sectionName?.toLowerCase().includes('overview')
-    );
-    
-    if (problemSection?.feedback && problemSection.feedback.length > 50) {
-      companyDescription = `Based on the pitch deck analysis: ${problemSection.feedback.substring(0, 400)}`;
-      if (problemSection.feedback.length > 400) companyDescription += '...';
-      dataSource = '✅ GEMINI_SECTION_FEEDBACK (Real AI Analysis)';
-    } else {
-      // Only use generic fallback if ALL Gemini AI sources failed
-      companyDescription = `${displayName} is a ${industry} company at the ${stage} stage. This pitch deck presents their value proposition, market opportunity, business model, and growth strategy. The company is seeking investment to scale operations and capture market share in their target industry.`;
-      dataSource = '⚠️  GENERIC_FALLBACK (No Gemini data available!)';
-      console.warn('\n⚠️  WARNING: Using generic fallback - Gemini analysis may be empty or incomplete!');
-    }
-  }
-
-  console.log('   📌 Data source used:', dataSource);
-  console.log('   📏 Description length:', companyDescription.length, 'chars');
-  console.log('   📝 Description preview:', companyDescription.substring(0, 100) + '...');
-  console.log('   ====================================================\n');
+  // Use the AI-generated introduction passed to this function
+  console.log('\n📄 === COMPANY INTRODUCTION PAGE ===');
+  console.log('   ✅ Using AI-generated introduction');
+  console.log('   � Introduction length:', aiIntroduction.length, 'chars');
+  console.log('   📝 Preview:', aiIntroduction.substring(0, 150) + '...');
+  console.log('   ====================================\n');
 
   doc.fontSize(11)
      .font('Helvetica')
      .fillColor(COLORS.mediumDark)
-     .text(companyDescription, 50, currentY, { 
+     .text(aiIntroduction, 50, currentY, { 
        width: doc.page.width - 100, 
        align: 'justify',
        lineGap: 3

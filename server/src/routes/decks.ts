@@ -25,14 +25,14 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit per file
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit per file
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.pdf', '.docx', '.doc'];
+    const allowedTypes = ['.pdf', '.docx', '.doc', '.ppt', '.pptx'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF and Word documents (.docx, .doc) are allowed'));
+      cb(new Error('Invalid file type. Only PDF, Word (.docx, .doc), and PowerPoint (.ppt, .pptx) files are allowed'));
     }
   }
 });
@@ -102,7 +102,22 @@ router.post('/upload-dual', upload.fields([
 
     const deckFile = files.deck[0];
     const checklistFile = files.checklist[0];
-    const { company_id, uploaded_by } = req.body;
+    const { company_id, uploaded_by, additional_context } = req.body;
+    
+    // Parse additional context if provided
+    let parsedContext = null;
+    if (additional_context) {
+      try {
+        parsedContext = JSON.parse(additional_context);
+        console.log('📝 Additional context received:', {
+          companyName: parsedContext.companyName,
+          itemCount: parsedContext.itemCount,
+          hasExecutiveSummary: !!parsedContext.summary?.executiveSummary
+        });
+      } catch (err) {
+        console.error('Failed to parse additional context:', err);
+      }
+    }
     
     const deckPath = `/uploads/${deckFile.filename}`;
     const checklistPath = `/uploads/${checklistFile.filename}`;
@@ -163,7 +178,8 @@ router.post('/upload-dual', upload.fields([
             fullDeckPath,
             fullChecklistPath,
             deck.company_name || 'the company',
-            industry
+            industry,
+            parsedContext // Pass the VC context here
           );
           analysis = result.analysis;
           sections = result.sections;
@@ -172,6 +188,9 @@ router.post('/upload-dual', upload.fields([
           groundingMetadata = result.groundingMetadata;
           
           console.log('✅ Analysis with Grounding complete!');
+          if (parsedContext) {
+            console.log(`✅ Analysis included additional VC context from ${parsedContext.itemCount} documents`);
+          }
           console.log(`   Web sources used: ${groundingMetadata?.webSources?.length || 0}`);
           console.log(`   Fact-checks: ${webEnrichment?.factChecks?.verified?.length || 0} verified, ${webEnrichment?.factChecks?.discrepancies?.length || 0} discrepancies`);
         } else {
@@ -602,7 +621,7 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
       analysis: analysisData,
       selectedStage: stage as string,
       selectedIndustry: industry as string,
-      companyName: deck.company_name,
+      companyName: undefined, // Let PDF generator extract from filename or analysis
       // 🌐 NEW: Include web enrichment data if available
       webEnrichment: deck.web_enrichment || undefined,
       groundingMetadata: deck.web_enrichment?.groundingMetadata || undefined
@@ -610,11 +629,17 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
 
     console.log(`✓ Enhanced PDF generated: ${pdfPath}`);
 
-    // Create a clean filename from company name
-    const companyFileName = (deck.company_name || 'Startup')
+    // Create a clean filename - extract from deck filename, not database
+    const extractedName = deck.filename
+      .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '') // Remove extensions
+      .replace(/[-_()]/g, ' ') // Replace special chars with spaces
+      .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd)\b/gi, '') // Remove common words
+      .trim()
+      .substring(0, 50);
+    
+    const companyFileName = (extractedName || deck.company_name || 'Startup')
       .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '_') // Replace spaces with underscores
-      .substring(0, 50); // Limit length
+      .replace(/\s+/g, '_'); // Replace spaces with underscores
 
     console.log(`📄 Download filename: ${companyFileName}_Enhanced_Report.pdf`);
 
@@ -691,11 +716,29 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
       improvements: row.improvements
     }));
 
+    // ✅ EXTRACT COMPANY NAME FROM FILENAME (don't trust database company_name)
+    const extractedCompanyName = deck.filename
+      .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '') // Remove extensions
+      .replace(/[-_()]/g, ' ') // Replace special chars with spaces
+      .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd|may|june|july|aug|sep|oct|nov|dec|\d{4})\b/gi, '') // Remove common words
+      .trim();
+    
+    // Use extracted name if valid, otherwise fallback to database then default
+    const finalCompanyName = (extractedCompanyName && extractedCompanyName.length > 2) 
+      ? extractedCompanyName 
+      : (deck.company_name || 'Startup Company');
+
+    console.log(`\n📊 Regular Report - Company Name Extraction:`);
+    console.log(`   Filename: "${deck.filename}"`);
+    console.log(`   Database name: "${deck.company_name || 'NULL'}"`);
+    console.log(`   Extracted name: "${extractedCompanyName}"`);
+    console.log(`   ✅ Final name: "${finalCompanyName}"\n`);
+
     const reportData = {
       deck: {
         id: deck.id,
         file_name: deck.filename,
-        company_name: deck.company_name,
+        company_name: finalCompanyName,  // ✅ Use extracted name
         uploaded_at: deck.created_at,
         analyzed_at: deck.analyzed_at
       },
@@ -705,11 +748,10 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
 
     const { generateTextReport, generateMarkdownReport, generatePDFReport } = await import('../services/report-generator');
 
-    // Create a clean filename from company name
-    const companyFileName = (deck.company_name || 'Startup')
+    // Create a clean filename - use the extracted company name
+    const companyFileName = finalCompanyName
       .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '_') // Replace spaces with underscores
-      .substring(0, 50); // Limit length
+      .replace(/\s+/g, '_'); // Replace spaces with underscores
 
     if (format === 'txt') {
       const txtReport = generateTextReport(reportData);

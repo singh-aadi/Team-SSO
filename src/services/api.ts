@@ -65,7 +65,7 @@ class ApiService {
   // Companies
   async getCompanies(): Promise<Company[]> {
     try {
-      const response = await fetch(`${API_URL}/api/companies`, {
+      const response = await fetch(`${API_URL}/companies`, {
         headers: this.getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to fetch companies');
@@ -133,7 +133,8 @@ class ApiService {
     deckFile: File, 
     checklistFile: File, 
     companyId: string, 
-    userId: string
+    userId: string,
+    additionalContext?: any
   ): Promise<PitchDeck> {
     console.log('📤 Uploading dual PDFs:', {
       deckName: deckFile.name,
@@ -141,7 +142,8 @@ class ApiService {
       checklistName: checklistFile.name,
       checklistSize: checklistFile.size,
       companyId,
-      userId
+      userId,
+      hasContext: !!additionalContext
     });
 
     const formData = new FormData();
@@ -149,9 +151,15 @@ class ApiService {
     formData.append('checklist', checklistFile);
     formData.append('company_id', companyId);
     formData.append('uploaded_by', userId);
+    
+    // Include additional context if provided
+    if (additionalContext) {
+      formData.append('additional_context', JSON.stringify(additionalContext));
+      console.log('📝 Including additional context:', additionalContext);
+    }
 
     try {
-      const response = await fetch(`${API_URL}/api/decks/upload-dual`, {
+      const response = await fetch(`${API_URL}/decks/upload-dual`, {
         method: 'POST',
         // Don't set Content-Type header - let browser set it with boundary for multipart/form-data
         body: formData,
@@ -197,7 +205,7 @@ class ApiService {
     formData.append('uploaded_by', userId);
     formData.append('version', version);
 
-    const response = await fetch(`${API_URL}/api/decks/upload`, {
+    const response = await fetch(`${API_URL}/decks/upload`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: formData,
@@ -213,7 +221,7 @@ class ApiService {
   }
 
   async getDeck(deckId: string): Promise<PitchDeck> {
-    const response = await fetch(`${API_URL}/api/decks/${deckId}`, {
+    const response = await fetch(`${API_URL}/decks/${deckId}`, {
       headers: this.getAuthHeaders(),
     });
 
@@ -245,7 +253,7 @@ class ApiService {
     if (companyId) params.append('company_id', companyId);
     if (status) params.append('status', status);
 
-    const response = await fetch(`${API_URL}/api/decks?${params.toString()}`, {
+    const response = await fetch(`${API_URL}/decks?${params.toString()}`, {
       headers: this.getAuthHeaders(),
     });
 
@@ -255,7 +263,7 @@ class ApiService {
   }
 
   async analyzeDeck(deckId: string): Promise<DeckAnalysis> {
-    const response = await fetch(`${API_URL}/api/decks/${deckId}/analyze`, {
+    const response = await fetch(`${API_URL}/decks/${deckId}/analyze`, {
       method: 'POST',
       headers: {
         ...this.getAuthHeaders(),

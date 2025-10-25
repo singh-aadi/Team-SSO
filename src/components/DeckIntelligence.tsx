@@ -8,7 +8,11 @@ import {
   Target,
   TrendingUp,
   Download,
-  Loader2
+  Loader2,
+  X,
+  BookOpen,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
@@ -31,10 +35,36 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [selectedIndustry, setSelectedIndustry] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [analysisProgress, setAnalysisProgress] = useState(0); // Track polling attempts
+  const [analysisStage, setAnalysisStage] = useState<string>('Initializing...');
+  const [confidence, setConfidence] = useState<number>(0);
+
+  // Imported Context State
+  const [importedContext, setImportedContext] = useState<any>(null);
+  const [showContextDetails, setShowContextDetails] = useState(false);
 
   useEffect(() => {
     loadCompanies();
+    loadImportedContext();
   }, []);
+
+  const loadImportedContext = () => {
+    try {
+      const contextStr = localStorage.getItem('importedContext');
+      if (contextStr) {
+        const context = JSON.parse(contextStr);
+        console.log('✅ Loaded imported context:', context);
+        setImportedContext(context);
+      }
+    } catch (err) {
+      console.error('Failed to load imported context:', err);
+    }
+  };
+
+  const clearImportedContext = () => {
+    localStorage.removeItem('importedContext');
+    setImportedContext(null);
+    console.log('🗑️ Cleared imported context');
+  };
 
   const loadCompanies = async () => {
     try {
@@ -131,7 +161,15 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       
       console.log('Uploading dual PDFs:', deckFile.name, checklistFile.name);
       console.log('Context: Stage:', selectedStage, '| Industry:', selectedIndustry);
-      const deck = await api.uploadDualDeck(deckFile, checklistFile, companyId, userId);
+      
+      // Pass imported context if available
+      const deck = await api.uploadDualDeck(
+        deckFile, 
+        checklistFile, 
+        companyId, 
+        userId,
+        importedContext // Pass the context here
+      );
       
       setCurrentDeck(deck);
       setAnalyzing(true);
@@ -153,6 +191,33 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       attempts++;
       setAnalysisProgress(attempts); // Update progress
       
+      // Update stage and confidence based on progress
+      if (attempts <= 5) {
+        setAnalysisStage('📤 Uploading files...');
+        setConfidence(10);
+      } else if (attempts <= 15) {
+        setAnalysisStage('📄 Extracting text from documents...');
+        setConfidence(25);
+      } else if (attempts <= 30) {
+        setAnalysisStage('🔍 Analyzing pitch deck structure...');
+        setConfidence(40);
+      } else if (attempts <= 60) {
+        setAnalysisStage('🧠 AI evaluating market opportunity...');
+        setConfidence(55);
+      } else if (attempts <= 90) {
+        setAnalysisStage('📊 Calculating traction metrics...');
+        setConfidence(70);
+      } else if (attempts <= 120) {
+        setAnalysisStage('💰 Analyzing unit economics...');
+        setConfidence(80);
+      } else if (attempts <= 180) {
+        setAnalysisStage('🌐 Web grounding & fact-checking...');
+        setConfidence(90);
+      } else {
+        setAnalysisStage('✨ Finalizing comprehensive analysis...');
+        setConfidence(95);
+      }
+      
       try {
         const deck = await api.getDeck(deckId);
         console.log(`[Poll ${attempts}] Deck status:`, deck.status, 'Has analysis:', !!deck.analysis);
@@ -165,6 +230,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           clearInterval(poll);
           setUploading(false);
           setAnalyzing(false);
+          setConfidence(100);
+          setAnalysisStage('✅ Complete!');
           
           if (deck.status === 'failed') {
             setError('Analysis failed. Please try again.');
@@ -204,6 +271,63 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               : 'Analyze multiple decks and compare them side-by-side'}
           </p>
         </div>
+
+        {/* Imported Context Badge */}
+        {importedContext && (
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <BookOpen className="h-5 w-5 text-blue-600" />
+                <h3 className="font-semibold text-slate-900">
+                  Using Context from: {importedContext.companyName}
+                </h3>
+              </div>
+              <button
+                onClick={clearImportedContext}
+                className="p-1 hover:bg-white rounded transition-colors"
+                title="Clear context"
+              >
+                <X className="h-4 w-4 text-slate-600" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-600 mb-3">
+              {importedContext.itemCount} documents • Exported {new Date(importedContext.exportedAt).toLocaleString()}
+            </p>
+
+            <button
+              onClick={() => setShowContextDetails(!showContextDetails)}
+              className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              <span>{showContextDetails ? 'Hide' : 'Show'} Context Details</span>
+              {showContextDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+
+            {showContextDetails && (
+              <div className="mt-4 space-y-3 border-t border-blue-200 pt-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-700 uppercase mb-1">Executive Summary</p>
+                  <p className="text-sm text-slate-600">{importedContext.summary.executiveSummary}</p>
+                </div>
+                
+                <div>
+                  <p className="text-xs font-semibold text-slate-700 uppercase mb-1">Source Documents</p>
+                  <div className="space-y-1">
+                    {importedContext.items.slice(0, 5).map((item: any, idx: number) => (
+                      <div key={idx} className="text-sm text-slate-600 flex items-center space-x-2">
+                        <FileText className="h-3 w-3 text-blue-600" />
+                        <span>{item.fileName}</span>
+                      </div>
+                    ))}
+                    {importedContext.items.length > 5 && (
+                      <p className="text-xs text-slate-500">+ {importedContext.items.length - 5} more</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6">
           {/* Dual PDF Upload */}
@@ -335,11 +459,11 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   {/* Pitch Deck Upload */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      1. Pitch Deck PDF <span className="text-red-500">*</span>
+                      1. Pitch Deck (PDF/PPT/DOCX) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="file"
-                      accept=".pdf"
+                      accept=".pdf,.ppt,.pptx,.docx,.doc"
                       onChange={handleDeckFileSelect}
                       className="hidden"
                       id="deck-upload"
@@ -357,16 +481,19 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                         {deckFile.name}
                       </div>
                     )}
+                    <p className="mt-1 text-xs text-slate-500">
+                      Max 100MB • Supports PDF, PowerPoint, Word
+                    </p>
                   </div>
                   
                   {/* Checklist Upload */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      2. Checklist (PDF or Word) <span className="text-red-500">*</span>
+                      2. Checklist (PDF/PPT/DOCX) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="file"
-                      accept=".pdf,.docx,.doc"
+                      accept=".pdf,.ppt,.pptx,.docx,.doc"
                       onChange={handleChecklistFileSelect}
                       className="hidden"
                       id="checklist-upload"
@@ -384,7 +511,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                         {checklistFile.name}
                       </div>
                     )}
-                    <p className="mt-1 text-xs text-slate-500">PDF or Word document (.docx, .doc)</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Max 100MB • Supports PDF, PowerPoint, Word
+                    </p>
                   </div>
                 </div>
                 
@@ -396,9 +525,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   {uploading ? (
                     <span className="flex items-center justify-center">
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      {analyzing ? (
-                        <span>AI analyzing {selectedIndustry} deck ({selectedStage})... ({Math.round((analysisProgress / 300) * 100)}% • {Math.floor(analysisProgress * 2 / 60)}:{String(Math.floor((analysisProgress * 2) % 60)).padStart(2, '0')})</span>
-                      ) : 'Uploading...'}
+                      {analyzing ? 'Analyzing...' : 'Uploading...'}
                     </span>
                   ) : (
                     <span className="flex items-center justify-center">
@@ -407,6 +534,90 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                     </span>
                   )}
                 </button>
+
+                {/* Enhanced Progress Indicator */}
+                {uploading && analyzing && (
+                  <div className="mt-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+                    <div className="space-y-4">
+                      {/* Progress Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="relative">
+                            <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                            <div className="absolute inset-0 bg-blue-400 blur-sm opacity-30 animate-pulse"></div>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900">{analysisStage}</h3>
+                            <p className="text-xs text-slate-600">
+                              {selectedIndustry} • {selectedStage}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-600">{confidence}%</div>
+                          <div className="text-xs text-slate-500">Confidence</div>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="relative">
+                        <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-teal-500 transition-all duration-500 ease-out relative"
+                            style={{ width: `${confidence}%` }}
+                          >
+                            <div className="absolute inset-0 bg-white opacity-30 animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between mt-2 text-xs text-slate-500">
+                          <span>Started</span>
+                          <span className="font-medium text-slate-700">
+                            {Math.floor(analysisProgress * 2 / 60)}:{String(Math.floor((analysisProgress * 2) % 60)).padStart(2, '0')} elapsed
+                          </span>
+                          <span>Complete</span>
+                        </div>
+                      </div>
+
+                      {/* Analysis Steps */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        <div className={`p-2 rounded-lg border ${confidence >= 10 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {confidence >= 10 ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Upload</span>
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${confidence >= 40 ? 'bg-green-50 border-green-200 text-green-700' : confidence >= 25 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {confidence >= 40 ? <CheckCircle className="h-3 w-3" /> : confidence >= 25 ? <Loader2 className="h-3 w-3 animate-spin" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Extract</span>
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${confidence >= 80 ? 'bg-green-50 border-green-200 text-green-700' : confidence >= 40 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {confidence >= 80 ? <CheckCircle className="h-3 w-3" /> : confidence >= 40 ? <Loader2 className="h-3 w-3 animate-spin" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">AI Analysis</span>
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${confidence >= 95 ? 'bg-green-50 border-green-200 text-green-700' : confidence >= 90 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {confidence >= 95 ? <CheckCircle className="h-3 w-3" /> : confidence >= 90 ? <Loader2 className="h-3 w-3 animate-spin" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Finalize</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fun Facts */}
+                      <div className="pt-3 border-t border-slate-200">
+                        <div className="flex items-start space-x-2 text-xs text-slate-600">
+                          <Target className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-500" />
+                          <p>
+                            <strong className="text-slate-700">Did you know?</strong> Our AI analyzes {confidence < 50 ? 'market size, TAM/SAM/SOM' : confidence < 70 ? 'traction metrics, burn rate, runway' : confidence < 90 ? 'unit economics, CAC, LTV, payback period' : 'web grounding, competitive landscape & defensibility'} to give you institutional-grade insights.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -462,7 +673,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Deck Analysis Complete</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {analyzing ? 'Analyzing Your Deck...' : 'Deck Analysis Complete'}
+          </h1>
           <p className="text-slate-600 mt-1">
             Analysis for: "{currentDeck.file_name}" 
             {currentDeck.company_name && ` - ${currentDeck.company_name}`}
@@ -473,6 +686,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             <p className="text-3xl font-bold text-blue-800">{ssoScore}/10</p>
             <p className="text-sm text-slate-600">SSO Readiness Score™</p>
           </div>
+
           <div className="flex space-x-2">
             <button 
               onClick={() => window.location.href = '/benchmarks'}
@@ -490,7 +704,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                 {/* Enhanced PDF Option (Premium) */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/enhanced?stage=${encodeURIComponent(selectedStage)}&industry=${encodeURIComponent(selectedIndustry)}`}
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/enhanced?stage=${encodeURIComponent(selectedStage)}&industry=${encodeURIComponent(selectedIndustry)}`}
                   download
                   className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 first:rounded-t-lg border-b border-slate-100"
                 >
@@ -503,7 +717,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 
                 {/* Standard Export Options */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/txt`}
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/txt`}
                   download
                   className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
                 >
@@ -511,7 +725,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   <span>Download as TXT</span>
                 </a>
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/md`}
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/md`}
                   download
                   className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
                 >
@@ -519,7 +733,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   <span>Download as Markdown</span>
                 </a>
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/decks/${currentDeck.id}/report/pdf`}
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/pdf`}
                   download
                   className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50 last:rounded-b-lg"
                 >
@@ -715,7 +929,25 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
 
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h3 className="font-semibold text-slate-900 mb-4">Recommendation</h3>
-            <p className="text-sm text-slate-700">{overall?.recommendation || 'Analysis pending...'}</p>
+            {analyzing ? (
+              <div className="flex items-center space-x-3">
+                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-700">{analysisStage}</span>
+                    <span className="text-sm font-bold text-blue-600">{confidence}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${confidence}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-700">{overall?.recommendation || 'Analysis pending...'}</p>
+            )}
           </div>
         </div>
       </div>
