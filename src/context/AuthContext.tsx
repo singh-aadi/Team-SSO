@@ -13,6 +13,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (response: any) => void;
+  loginWithEmail: (email: string, password: string) => boolean;
   logout: () => void;
 }
 
@@ -26,6 +27,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Dummy test accounts - ONLY FOR DEVELOPMENT
+  const testAccounts = [
+    {
+      email: 'demo@startup-scout.com',
+      password: 'demo123',
+      name: 'Demo User',
+      id: 'demo-001'
+    },
+    {
+      email: 'admin@startup-scout.com',
+      password: 'admin123',
+      name: 'Admin User',
+      id: 'admin-001'
+    },
+    {
+      email: 'vc@startup-scout.com',
+      password: 'vc123',
+      name: 'VC Partner',
+      id: 'vc-001'
+    }
+  ];
 
   useEffect(() => {
     // Check if user data exists in localStorage
@@ -49,6 +72,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     navigate('/dashboard'); // Redirect to dashboard after login
   };
 
+  const loginWithEmail = (email: string, password: string): boolean => {
+    // Check if credentials match any test account
+    const account = testAccounts.find(
+      acc => acc.email.toLowerCase() === email.toLowerCase() && acc.password === password
+    );
+
+    if (account) {
+      const userData: User = {
+        id: account.id,
+        name: account.name,
+        email: account.email,
+      };
+      
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      navigate('/dashboard');
+      return true;
+    }
+    
+    return false;
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
@@ -62,6 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginWithEmail,
         logout,
       }}
     >
