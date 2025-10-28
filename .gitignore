@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+server/check-preferences.js
+server/migrate-008.js
+server/save-current-user-prefs.js
+server/test-connection.js
+server/migrate-vc-preferences.js

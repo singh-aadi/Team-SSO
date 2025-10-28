@@ -53,6 +53,219 @@ interface ChecklistItem {
   details: string;
 }
 
+interface VCPreferences {
+  criteria: Array<{
+    id: string;
+    name: string;
+    weight: number;
+    subcriteria: Array<{
+      id: string;
+      name: string;
+      weight: number;
+    }>;
+  }>;
+}
+
+// Helper function to build weighted evaluation instructions based on VC preferences
+function buildWeightedEvaluationInstructions(preferences?: VCPreferences): string {
+  if (!preferences || !preferences.criteria || preferences.criteria.length === 0) {
+    // Default equal weighting
+    return `Use standard VC evaluation criteria with balanced weighting across all dimensions.
+
+**SCORING METHODOLOGY:**
+Calculate the overall score as an average of all section scores (Team, Market, Product, Traction, etc.).`;
+  }
+
+  let instructions = `**═══════════════════════════════════════════════════════════**\n`;
+  instructions += `**MANDATORY WEIGHTED SCORING - READ CAREFULLY**\n`;
+  instructions += `**═══════════════════════════════════════════════════════════**\n\n`;
+  
+  instructions += `⚠️ THE VC HAS SET CUSTOM WEIGHTS. YOU MUST USE THESE EXACT VALUES:\n\n`;
+  
+  // Build the criteria map and formula
+  const criteriaMap: { [key: string]: { weight: number; field: string } } = {};
+  const formulaParts: string[] = [];
+  let totalWeight = 0;
+  
+  // First pass: Show weights prominently with field mapping
+  preferences.criteria.forEach(criterion => {
+    const weight = criterion.weight;
+    const field = mapCriteriaToScoreField(criterion.name);
+    const decimal = (weight / 100).toFixed(2);
+    
+    instructions += `   ${criterion.name.toUpperCase()}: ${weight}% (use ${decimal} as multiplier for ${field})\n`;
+    
+    totalWeight += weight;
+    criteriaMap[criterion.name] = { weight, field };
+    
+    if (weight > 0) {
+      formulaParts.push(`(${field} × ${decimal})`);
+    }
+  });
+  
+  instructions += `\n🔍 Weight verification: Total = ${totalWeight}% (must equal 100%)\n\n`;
+  
+  // Second pass: Show subcriteria (optional detail)
+  preferences.criteria.forEach(criterion => {
+    if (criterion.subcriteria && criterion.subcriteria.length > 0) {
+      instructions += `   ${criterion.name} breakdown:\n`;
+      criterion.subcriteria.forEach(sub => {
+        instructions += `      • ${sub.name}: ${sub.weight}%\n`;
+      });
+      instructions += `\n`;
+    }
+  });
+
+  instructions += `\n**═══════════════════════════════════════════════════════════**\n`;
+  instructions += `**CRITICAL: EXACT CALCULATION FORMULA**\n`;
+  instructions += `**═══════════════════════════════════════════════════════════**\n\n`;
+  
+  instructions += `You MUST calculate overallScore using this EXACT formula:\n\n`;
+  instructions += `overallScore = ${formulaParts.join(' + ')}\n\n`;
+  
+  instructions += `**IMPORTANT:** The weights above are ALREADY IN DECIMAL FORM (0.00 to 1.00).\n`;
+  instructions += `DO NOT use percentages in your calculation. Use the decimal weights shown above.\n\n`;
+  
+  instructions += `**STEP-BY-STEP EXAMPLE:**\n`;
+  instructions += `Given weights: `;
+  preferences.criteria.forEach((c, i) => {
+    instructions += `${c.name}=${c.weight}% (which is ${(c.weight / 100).toFixed(2)} as a decimal)`;
+    if (i < preferences.criteria.length - 1) instructions += ', ';
+  });
+  instructions += `\n`;
+  
+  instructions += `If section scores are: `;
+  preferences.criteria.forEach((c, i) => {
+    const exampleScore = 70 + (i * 5);
+    instructions += `${mapCriteriaToScoreField(c.name)}=${exampleScore}`;
+    if (i < preferences.criteria.length - 1) instructions += ', ';
+  });
+  instructions += `\n`;
+  
+  instructions += `Correct calculation using DECIMALS: `;
+  preferences.criteria.forEach((c, i) => {
+    const exampleScore = 70 + (i * 5);
+    const decimalWeight = (c.weight / 100).toFixed(2);
+    const contribution = (exampleScore * c.weight / 100).toFixed(1);
+    instructions += `(${exampleScore} × ${decimalWeight})`;
+    if (i < preferences.criteria.length - 1) instructions += ' + ';
+  });
+  
+  let exampleTotal = 0;
+  preferences.criteria.forEach((c, i) => {
+    const exampleScore = 70 + (i * 5);
+    exampleTotal += (exampleScore * c.weight / 100);
+  });
+  instructions += ` = ${exampleTotal.toFixed(1)}\n\n`;
+  
+  instructions += `When reporting your calculation in scoreCalculation, use this format:\n`;
+  instructions += `"(score1 × decimal_weight1) + (score2 × decimal_weight2) + ... = result"\n`;
+  instructions += `Example: "(70 × 0.40) + (75 × 0.30) + (80 × 0.30) = 74.5"\n\n`;
+
+  // Special case for extreme weights
+  const hasExtremeWeight = preferences.criteria.some(c => c.weight === 100);
+  if (hasExtremeWeight) {
+    const dominantCriterion = preferences.criteria.find(c => c.weight === 100);
+    instructions += `⚠️ **SPECIAL CASE DETECTED:**\n`;
+    instructions += `${dominantCriterion?.name} has 100% weight!\n`;
+    instructions += `This means: overallScore = ${mapCriteriaToScoreField(dominantCriterion!.name)} (exactly)\n`;
+    instructions += `All other scores are informational only and DO NOT affect the overall score.\n\n`;
+  }
+
+  const zeroWeights = preferences.criteria.filter(c => c.weight === 0);
+  if (zeroWeights.length > 0) {
+    instructions += `⚠️ **NOTE:** The following criteria have 0% weight:\n`;
+    zeroWeights.forEach(c => {
+      instructions += `• ${c.name} - Evaluate this for completeness, but it has ZERO impact on overallScore\n`;
+    });
+    instructions += `\n`;
+  }
+
+  instructions += `**═══════════════════════════════════════════════════════════**\n`;
+  instructions += `**MANDATORY REQUIREMENTS - NO EXCEPTIONS**\n`;
+  instructions += `**═══════════════════════════════════════════════════════════**\n\n`;
+  instructions += `1. ✓ Use the EXACT formula above to calculate overallScore\n`;
+  instructions += `2. ✓ Show your calculation in the "scoreCalculation" field\n`;
+  instructions += `3. ✓ Round the final overallScore to 1 decimal place\n`;
+  instructions += `4. ✓ If a weight is 0%, that score has ZERO impact\n`;
+  instructions += `5. ✓ If a weight is 100%, overallScore = that section's score exactly\n`;
+  instructions += `6. ✓ Double-check your math before responding\n\n`;
+
+  return instructions;
+}
+
+// Helper function to map criteria names to score field names
+function mapCriteriaToScoreField(criteriaName: string): string {
+  const name = criteriaName.toLowerCase();
+  if (name.includes('team')) return 'teamScore';
+  if (name.includes('market')) return 'marketScore';
+  if (name.includes('product') || name.includes('technology')) {
+    // Product & Technology encompasses problem, solution, and traction
+    return 'productScore';
+  }
+  if (name.includes('traction') || name.includes('metric')) return 'tractionScore';
+  if (name.includes('financial') || name.includes('finance')) return 'financialsScore';
+  return criteriaName.toLowerCase().replace(/\s+/g, '') + 'Score';
+}
+
+// Function to validate and correct overall score based on VC preferences
+function validateAndCorrectScore(analysis: AnalysisResult, preferences?: VCPreferences): void {
+  if (!preferences || !preferences.criteria || preferences.criteria.length === 0) {
+    console.log('ℹ️ No VC preferences - keeping AI calculated score');
+    return;
+  }
+
+  // Calculate the correct weighted score
+  let calculatedScore = 0;
+  const scoreMap: { [key: string]: number } = {
+    'teamScore': analysis.teamScore,
+    'marketScore': analysis.marketScore,
+    'productScore': (analysis.problemScore + analysis.solutionScore) / 2, // Average of problem + solution
+    'tractionScore': analysis.tractionScore,
+    'financialsScore': analysis.financialsScore,
+  };
+
+  console.log('📊 Score mapping for validation:');
+  console.log('   teamScore:', analysis.teamScore);
+  console.log('   marketScore:', analysis.marketScore);
+  console.log('   productScore (problem+solution avg):', scoreMap['productScore']);
+  console.log('   tractionScore:', analysis.tractionScore);
+  console.log('   financialsScore:', analysis.financialsScore);
+
+  preferences.criteria.forEach(criterion => {
+    const field = mapCriteriaToScoreField(criterion.name);
+    const score = scoreMap[field];
+    const weight = criterion.weight / 100;
+    
+    if (score !== undefined) {
+      calculatedScore += score * weight;
+      console.log(`📊 ${criterion.name}: ${score} × ${weight} = ${(score * weight).toFixed(2)}`);
+    }
+  });
+
+  const aiScore = analysis.overallScore;
+  const difference = Math.abs(aiScore - calculatedScore);
+  
+  console.log(`\n🔍 Score Validation:`);
+  console.log(`   AI calculated: ${aiScore}`);
+  console.log(`   Should be: ${calculatedScore.toFixed(1)}`);
+  console.log(`   Difference: ${difference.toFixed(1)}`);
+
+  // If difference is significant (>2 points), correct it
+  if (difference > 2) {
+    console.log(`⚠️ Correcting score from ${aiScore} to ${calculatedScore.toFixed(1)}`);
+    analysis.overallScore = Math.round(calculatedScore * 10) / 10; // Round to 1 decimal
+    
+    // Add a note to the analysis
+    if (!analysis.keyInsights) analysis.keyInsights = [];
+    analysis.keyInsights.unshift(
+      `Note: Overall score corrected to reflect custom VC weights (${calculatedScore.toFixed(1)}) based on weighted formula.`
+    );
+  } else {
+    console.log(`✓ Score is within acceptable range`);
+  }
+}
+
 // Extract text from PDF
 export async function extractTextFromPDF(pdfPath: string): Promise<string> {
   try {
@@ -245,11 +458,13 @@ Be thorough - extract ALL requirements mentioned in the checklist.`;
 export async function analyzeDualPDFs(
   deckPath: string,
   checklistPath: string,
-  companyName: string = 'the company'
+  companyName: string = 'the company',
+  vcPreferences?: VCPreferences
 ): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
   checklistItems: ChecklistItem[];
+  vcPreferencesUsed?: VCPreferences;
 }> {
   try {
     console.log(`Starting dual PDF analysis for ${companyName}...`);
@@ -277,6 +492,20 @@ export async function analyzeDualPDFs(
     console.log('Performing comprehensive AI analysis...');
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
+    const weightedInstructions = buildWeightedEvaluationInstructions(vcPreferences);
+
+    // 📝 LOG: Verify weighted instructions are included
+    console.log('\n' + '='.repeat(80));
+    console.log('🎯 DUAL PDF ANALYSIS - WEIGHTED PROMPT VERIFICATION');
+    console.log('='.repeat(80));
+    console.log('📊 VC Preferences:', vcPreferences ? 'Custom weights provided' : 'None (using defaults)');
+    console.log('📝 Weighted Instructions Length:', weightedInstructions.length, 'characters');
+    console.log('🔍 Formula Check:', weightedInstructions.includes('overallScore =') ? '✅ FOUND' : '❌ MISSING');
+    console.log('-'.repeat(80));
+    console.log('📜 WEIGHTED INSTRUCTIONS PREVIEW (first 800 chars):');
+    console.log(weightedInstructions.substring(0, 800));
+    console.log('='.repeat(80) + '\n');
+
     const comprehensivePrompt = `You are a senior VC partner making an investment decision. You have received:
 
 1. **PITCH DECK TEXT**:
@@ -291,11 +520,16 @@ ${checklistText}
 4. **PARSED CHECKLIST ITEMS** (${checklistItems.length} requirements identified):
 ${JSON.stringify(checklistItems, null, 2)}
 
+${weightedInstructions}
+
 Your task: Perform a comprehensive due diligence analysis by:
 - Analyzing the pitch deck content (text + visual data)
 - Verifying each checklist requirement against the pitch deck
 - Cross-referencing claims in the deck with checklist evidence
 - Identifying gaps, red flags, and strong signals
+- **CRITICAL: Calculate the overall score using the EXACT weighted formula specified above**
+
+⚠️ BEFORE YOU RESPOND: Verify your overallScore calculation matches the weighted formula!
 
 Provide your analysis in JSON format:
 
@@ -307,7 +541,8 @@ Provide your analysis in JSON format:
     "tractionScore": <0-100, based on visual metrics AND checklist verification>,
     "teamScore": <0-100, founder backgrounds and expertise>,
     "financialsScore": <0-100, unit economics, growth, burn rate from checklist>,
-    "overallScore": <0-100, weighted average>,
+    "overallScore": <0-100, MANDATORY: Use ONLY the weighted formula above. Do NOT use default 15/15/15/15/15/25 weights!>,
+    "scoreCalculation": "<MANDATORY: Show exact calculation with DECIMAL weights from formula above, e.g., '(teamScore × 0.40) + (marketScore × 0.30) + ... = 76.5'>",
     "strengths": ["List 3-5 key strengths with specific evidence from deck or checklist"],
     "weaknesses": ["List 3-5 concerns or gaps"],
     "keyInsights": ["List 3-5 critical observations that would inform investment decision"],
@@ -368,14 +603,17 @@ Provide your analysis in JSON format:
   ]
 }
 
-**CRITICAL**: 
+**CRITICAL REQUIREMENTS**: 
 - Cross-reference the pitch deck with checklist requirements
 - Call out any discrepancies or missing checklist items
 - Use visual data (metrics from charts) to validate claims
 - Be specific with numbers and evidence
+- **MANDATORY: Use the weighted scoring formula provided in the custom weights section**
+- **MANDATORY: Show your score calculation in the scoreCalculation field**
+- If a criterion has 0% weight, evaluate it but ensure it has minimal/no impact on overall score
 - Your analysis will directly inform a multi-million dollar investment decision
 
-**IMPORTANT**: Return ONLY valid JSON, no markdown, no code blocks, no extra text. Start with { and end with }.`;
+**IMPORTANT**: Return ONLY valid JSON, no markdown, no code blocks, no extra text. Start with { and end with }. Ensure overallScore matches your weighted calculation.`;
 
     const result = await model.generateContent(comprehensivePrompt);
     const response = await result.response;
@@ -430,12 +668,20 @@ Provide your analysis in JSON format:
       throw new Error('Invalid AI response structure');
     }
 
+    // Validate and correct the overall score based on VC preferences
+    console.log('🔍 Validating score with preferences:', vcPreferences ? 'YES' : 'NO');
+    if (vcPreferences) {
+      console.log('   Criteria count:', vcPreferences.criteria?.length || 0);
+    }
+    validateAndCorrectScore(parsedResponse.overallAnalysis, vcPreferences);
+
     console.log('Analysis complete!');
 
     return {
       analysis: parsedResponse.overallAnalysis,
       sections: parsedResponse.sections,
       checklistItems: checklistItems,
+      vcPreferencesUsed: vcPreferences,
     };
   } catch (error) {
     console.error('Error in dual PDF analysis:', error);
@@ -444,9 +690,14 @@ Provide your analysis in JSON format:
 }
 
 // Backward compatibility: single PDF analysis
-export async function analyzePitchDeckFromPDF(pdfPath: string, companyName: string = 'the company'): Promise<{
+export async function analyzePitchDeckFromPDF(
+  pdfPath: string, 
+  companyName: string = 'the company',
+  vcPreferences?: VCPreferences
+): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
+  vcPreferencesUsed?: VCPreferences;
 }> {
   try {
     const text = await extractTextFromPDF(pdfPath);
@@ -459,13 +710,29 @@ export async function analyzePitchDeckFromPDF(pdfPath: string, companyName: stri
     const visualAnalysis = await analyzePDFImages(pdfPath);
     
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    
+    const weightedInstructions = buildWeightedEvaluationInstructions(vcPreferences);
+    
     const prompt = `Analyze this pitch deck for ${companyName}.
 
 DECK TEXT: ${text}
 
 VISUAL ANALYSIS: ${visualAnalysis}
 
-Provide analysis in JSON format with overallAnalysis and sections arrays.`;
+${weightedInstructions}
+
+⚠️ CRITICAL REMINDER: The weighted formula above is MANDATORY. Do NOT use default equal weights!
+
+Provide analysis in JSON format with overallAnalysis and sections arrays. 
+
+**SCORING REQUIREMENTS**: 
+- Calculate overallScore using ONLY the weighted formula specified above with DECIMAL weights
+- If the formula says (teamScore × 0.40) + (marketScore × 0.60), use those EXACT decimals
+- Do NOT use 0.15, 0.15, 0.15, 0.15, 0.15, 0.25 unless those are the specified weights
+- Include "scoreCalculation" field showing your calculation with decimal weights
+- Example: If Team=100%, Market=0%, and teamScore=85, then overallScore must be 85
+
+Return valid JSON only, no markdown.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -477,9 +744,16 @@ Provide analysis in JSON format with overallAnalysis and sections arrays.`;
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
+    
+    // Validate and correct the overall score based on VC preferences
+    if (parsed.overallAnalysis) {
+      validateAndCorrectScore(parsed.overallAnalysis, vcPreferences);
+    }
+    
     return {
       analysis: parsed.overallAnalysis,
       sections: parsed.sections,
+      vcPreferencesUsed: vcPreferences,
     };
   } catch (error) {
     console.error('Error in single PDF analysis:', error);
@@ -497,6 +771,7 @@ Provide analysis in JSON format with overallAnalysis and sections arrays.`;
  * @param companyName - Name of the company
  * @param industry - Industry vertical (for targeted web searches)
  * @param additionalContext - Optional VC context from notes/meetings
+ * @param vcPreferences - Optional VC evaluation criteria weights
  * @returns Combined analysis with PDF + web sources, fact-checks, and citations
  */
 export async function analyzePitchDeckWithGrounding(
@@ -504,7 +779,8 @@ export async function analyzePitchDeckWithGrounding(
   checklistPath: string | null,
   companyName: string,
   industry: string,
-  additionalContext?: any
+  additionalContext?: any,
+  vcPreferences?: VCPreferences
 ): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
@@ -521,6 +797,7 @@ export async function analyzePitchDeckWithGrounding(
     webSearchQueries: string[];
     webSources: any[];
   };
+  vcPreferencesUsed?: VCPreferences;
 }> {
   try {
     console.log(`🌐 [Enhanced Analysis] Starting with Grounding for ${companyName} (${industry})...`);
@@ -562,13 +839,13 @@ export async function analyzePitchDeckWithGrounding(
     console.log('📊 Extracting metrics from PDF...');
     const pdfMetrics = extractMetricsFromText(enrichedDeckText);
 
-    // Step 3: Run standard analysis (existing logic)
+    // Step 3: Run standard analysis (existing logic) with VC preferences
     console.log('🔍 Running standard PDF analysis...');
     let standardAnalysis;
     if (checklistPath) {
-      standardAnalysis = await analyzeDualPDFs(deckPath, checklistPath, companyName);
+      standardAnalysis = await analyzeDualPDFs(deckPath, checklistPath, companyName, vcPreferences);
     } else {
-      standardAnalysis = await analyzePitchDeckFromPDF(deckPath, companyName);
+      standardAnalysis = await analyzePitchDeckFromPDF(deckPath, companyName, vcPreferences);
     }
 
     // Step 4: Enrich with web search (Vertex AI + Grounding)
@@ -647,6 +924,7 @@ export async function analyzePitchDeckWithGrounding(
           : [],
         webSources: webEnrichment.sources,
       },
+      vcPreferencesUsed: vcPreferences,
     };
   } catch (error) {
     console.error('❌ [Enhanced Analysis] Failed:', error);
@@ -654,7 +932,7 @@ export async function analyzePitchDeckWithGrounding(
     console.warn('⚠️ Falling back to standard analysis without grounding...');
     
     if (checklistPath) {
-      const fallback = await analyzeDualPDFs(deckPath, checklistPath, companyName);
+      const fallback = await analyzeDualPDFs(deckPath, checklistPath, companyName, vcPreferences);
       return {
         ...fallback,
         webEnrichment: {
@@ -667,7 +945,7 @@ export async function analyzePitchDeckWithGrounding(
         },
       };
     } else {
-      const fallback = await analyzePitchDeckFromPDF(deckPath, companyName);
+      const fallback = await analyzePitchDeckFromPDF(deckPath, companyName, vcPreferences);
       return {
         ...fallback,
         checklistItems: [],

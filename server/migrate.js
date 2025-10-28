@@ -15,21 +15,44 @@ async function runMigration() {
 
   try {
     console.log('🔄 Connecting to database...');
-    const client = await pool.connect();
-    console.log('✅ Connected!');
+
+    // Retry loop: sometimes connections fail transiently (ECONNRESET) when the proxy or network is unstable.
+    const maxAttempts = 4;
+    let attempt = 0;
+    let client;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        client = await pool.connect();
+        console.log(`✅ Connected on attempt ${attempt}!`);
+        break;
+      } catch (connErr) {
+        console.error(`⚠️ Connection attempt ${attempt} failed:`, connErr && connErr.message ? connErr.message : connErr);
+        if (attempt >= maxAttempts) {
+          throw connErr;
+        }
+        // Wait before retrying (exponential backoff)
+        const backoffMs = 500 * Math.pow(2, attempt - 1);
+        console.log(`⏳ Waiting ${backoffMs}ms before retrying...`);
+        await new Promise(r => setTimeout(r, backoffMs));
+      }
+    }
 
     const schemaSQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     
     console.log('🔄 Running migrations...');
+    // Run within a single query so errors are surfaced clearly
     await client.query(schemaSQL);
     console.log('✅ Schema created successfully!');
 
     client.release();
     await pool.end();
-    
+
     console.log('\n✅ Migration complete!');
   } catch (error) {
-    console.error('❌ Migration failed:', error.message);
+    // Print full stack for debugging (not just message)
+    console.error('❌ Migration failed:', error && error.stack ? error.stack : error);
     process.exit(1);
   }
 }

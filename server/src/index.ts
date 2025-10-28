@@ -14,6 +14,7 @@ import benchmarksRoutes from './routes/benchmarks';
 import vcRoutes from './routes/vc';
 import adminRoutes from './routes/admin';
 import vcContextRoutes from './routes/vc-context';
+import vcPreferencesRoutes from './routes/vc-preferences';
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -60,6 +61,7 @@ app.use('/api/decks', decksRoutes);
 app.use('/api/benchmarks', benchmarksRoutes);
 app.use('/api/vc', vcRoutes);
 app.use('/api/vc-context', vcContextRoutes);
+app.use('/api/vc-preferences', vcPreferencesRoutes);
 app.use('/api/admin', adminRoutes);
 
 // 404 handler

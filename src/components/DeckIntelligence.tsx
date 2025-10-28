@@ -16,12 +16,15 @@ import {
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
+import { useAuth } from '../context/AuthContext';
 
 interface DeckIntelligenceProps {
   userType: 'founder' | 'vc';
 }
 
 export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
+  const { user } = useAuth(); // Get the logged-in user
+  
   // Dual PDF Upload State
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [checklistFile, setChecklistFile] = useState<File | null>(null);
@@ -139,8 +142,10 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     setError('');
 
     try {
-      // Generate a valid UUID v4 for demo user
-      const userId = crypto.randomUUID();
+      // Use the actual logged-in user's ID
+      const userId = user?.id || crypto.randomUUID(); // Fallback to random UUID only if not logged in
+      
+      console.log('📤 Upload initiated by user:', userId, user?.email);
       
       // Find matching company or use first available
       // This maintains backward compatibility with existing API

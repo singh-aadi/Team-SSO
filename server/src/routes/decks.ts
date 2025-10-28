@@ -171,6 +171,45 @@ router.post('/upload-dual', upload.fields([
         const useGrounding = true; // Enable grounding by default
         const industry = deck.industry || 'Technology'; // Get from deck or default
         
+        // 🎯 Fetch VC preferences if uploaded_by is available
+        let vcPreferences: { preferencesName: string; industry: string; criteria: any[] } | undefined;
+        if (uploaded_by) {
+          try {
+            console.log(`🎯 Fetching VC preferences for user: "${uploaded_by}"...`);
+            const prefResult = await query(
+              `SELECT preferences_name, industry, criteria 
+               FROM vc_preferences 
+               WHERE user_id = $1 
+               ORDER BY updated_at DESC 
+               LIMIT 1`,
+              [uploaded_by]
+            );
+            
+            console.log(`   Query returned ${prefResult.rows.length} rows`);
+            
+            if (prefResult.rows.length > 0) {
+              // Format preferences to match VCPreferences interface (just criteria array)
+              vcPreferences = {
+                preferencesName: prefResult.rows[0].preferences_name,
+                industry: prefResult.rows[0].industry,
+                criteria: prefResult.rows[0].criteria
+              };
+              console.log(`✅ Loaded VC preferences: "${vcPreferences.preferencesName}"`);
+              console.log(`   Criteria count: ${vcPreferences.criteria?.length || 0}`);
+              if (vcPreferences.criteria?.length > 0) {
+                console.log(`   Weights: ${vcPreferences.criteria.map(c => `${c.name}=${c.weight}%`).join(', ')}`);
+              }
+            } else {
+              console.log('ℹ️ No VC preferences found for this user, using defaults');
+            }
+          } catch (err) {
+            console.error('⚠️ Failed to fetch VC preferences:', err);
+            // Continue without preferences
+          }
+        } else {
+          console.log('ℹ️ No uploaded_by user ID - cannot load preferences');
+        }
+        
         let analysis, sections, checklistItems, webEnrichment, groundingMetadata;
         
         if (useGrounding) {
@@ -179,7 +218,8 @@ router.post('/upload-dual', upload.fields([
             fullChecklistPath,
             deck.company_name || 'the company',
             industry,
-            parsedContext // Pass the VC context here
+            parsedContext, // Pass the VC context here
+            vcPreferences // Pass VC preferences to influence analysis
           );
           analysis = result.analysis;
           sections = result.sections;
@@ -191,6 +231,9 @@ router.post('/upload-dual', upload.fields([
           if (parsedContext) {
             console.log(`✅ Analysis included additional VC context from ${parsedContext.itemCount} documents`);
           }
+          if (vcPreferences) {
+            console.log(`🎯 Analysis used custom VC evaluation weights from "${vcPreferences.preferencesName}"`);
+          }
           console.log(`   Web sources used: ${groundingMetadata?.webSources?.length || 0}`);
           console.log(`   Fact-checks: ${webEnrichment?.factChecks?.verified?.length || 0} verified, ${webEnrichment?.factChecks?.discrepancies?.length || 0} discrepancies`);
         } else {
@@ -198,7 +241,8 @@ router.post('/upload-dual', upload.fields([
           const result = await analyzeDualPDFs(
             fullDeckPath,
             fullChecklistPath,
-            deck.company_name || 'the company'
+            deck.company_name || 'the company',
+            vcPreferences // Pass VC preferences here too
           );
           analysis = result.analysis;
           sections = result.sections;
@@ -239,8 +283,9 @@ router.post('/upload-dual', upload.fields([
                 sso_score = $1, 
                 dual_pdf_analysis = $2,
                 web_enrichment = $3,
+                vc_preferences_used = $4,
                 analyzed_at = CURRENT_TIMESTAMP
-            WHERE id = $4
+            WHERE id = $5
           `, [
             analysis.overallScore / 100, 
             JSON.stringify(analysis), // Store full overallAnalysis object
@@ -253,6 +298,7 @@ router.post('/upload-dual', upload.fields([
               confidence: webEnrichment.confidence,
               groundingMetadata: groundingMetadata
             }),
+            vcPreferences ? JSON.stringify(vcPreferences) : null,
             deckId
           ]);
 
@@ -260,22 +306,30 @@ router.post('/upload-dual', upload.fields([
           console.log(`   Overall Score: ${analysis.overallScore}/100`);
           console.log(`   Confidence: ${webEnrichment.confidence.overall}`);
           console.log(`   Web sources: ${groundingMetadata?.webSources?.length || 0}`);
+          if (vcPreferences) {
+            console.log(`   🎯 VC Preferences: "${vcPreferences.preferencesName}" (${vcPreferences.industry})`);
+          }
         } else {
           await query(`
             UPDATE pitch_decks 
             SET analysis_status = 'completed', 
                 sso_score = $1, 
                 dual_pdf_analysis = $2,
+                vc_preferences_used = $3,
                 analyzed_at = CURRENT_TIMESTAMP
-            WHERE id = $3
+            WHERE id = $4
           `, [
             analysis.overallScore / 100, 
             JSON.stringify(analysis), // Store full overallAnalysis object
+            vcPreferences ? JSON.stringify(vcPreferences) : null,
             deckId
           ]);
 
           console.log(`✅ DUAL PDF Analysis complete for deck ${deckId}!`);
           console.log(`   Overall Score: ${analysis.overallScore}/100`);
+          if (vcPreferences) {
+            console.log(`   🎯 VC Preferences: "${vcPreferences.preferencesName}" (${vcPreferences.industry})`);
+          }
         }        console.log(`   Checklist Items Verified: ${analysis.checklistVerification.verifiedItems.length}`);
         console.log(`   Recommendation: ${analysis.recommendation}`);
       } catch (error) {
@@ -344,8 +398,35 @@ router.post('/upload', upload.single('deck'), async (req: Request, res: Response
         
         await query(`UPDATE pitch_decks SET analysis_status = 'processing' WHERE id = $1`, [deckId]);
 
+        // 🎯 Fetch VC preferences if uploaded_by is available
+        let vcPreferences: { preferencesName: string; industry: string; criteria: any[] } | undefined;
+        if (deck.uploaded_by) {
+          try {
+            console.log(`🎯 Fetching VC preferences for user ${deck.uploaded_by}...`);
+            const prefResult = await query(
+              `SELECT preferences_name, industry, criteria 
+               FROM vc_preferences 
+               WHERE user_id = $1 
+               ORDER BY updated_at DESC 
+               LIMIT 1`,
+              [deck.uploaded_by]
+            );
+            
+            if (prefResult.rows.length > 0) {
+              vcPreferences = {
+                preferencesName: prefResult.rows[0].preferences_name,
+                industry: prefResult.rows[0].industry,
+                criteria: prefResult.rows[0].criteria
+              };
+              console.log(`✅ Loaded VC preferences: "${vcPreferences.preferencesName}"`);
+            }
+          } catch (err) {
+            console.error('⚠️ Failed to fetch VC preferences:', err);
+          }
+        }
+
         const pdfPath = path.join(__dirname, '../../', deck.file_url);
-        const { analysis, sections } = await analyzePitchDeckFromPDF(pdfPath, deck.company_name);
+        const { analysis, sections } = await analyzePitchDeckFromPDF(pdfPath, deck.company_name, vcPreferences);
 
         for (const section of sections) {
           await query(`
@@ -357,11 +438,17 @@ router.post('/upload', upload.single('deck'), async (req: Request, res: Response
 
         await query(`
           UPDATE pitch_decks 
-          SET analysis_status = 'completed', sso_score = $1, analyzed_at = CURRENT_TIMESTAMP
-          WHERE id = $2
-        `, [analysis.overallScore / 100, deckId]);
+          SET analysis_status = 'completed', 
+              sso_score = $1, 
+              vc_preferences_used = $2,
+              analyzed_at = CURRENT_TIMESTAMP
+          WHERE id = $3
+        `, [analysis.overallScore / 100, vcPreferences ? JSON.stringify(vcPreferences) : null, deckId]);
 
         console.log(`✅ AI Analysis complete for deck ${deckId}! Score: ${analysis.overallScore}`);
+        if (vcPreferences) {
+          console.log(`   🎯 VC Preferences: "${vcPreferences.preferencesName}"`);
+        }
       } catch (error) {
         console.error(`❌ AI Analysis failed for deck ${deckId}:`, error);
         await query(`UPDATE pitch_decks SET analysis_status = 'failed' WHERE id = $1`, [deckId]);
@@ -444,7 +531,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       deck: {
         ...deck,
         status: deck.analysis_status, // Map analysis_status to status for frontend
-        analysis: analysis
+        analysis: analysis,
+        vcPreferencesUsed: deck.vc_preferences_used || null
       }
     });
   } catch (error) {
@@ -483,11 +571,39 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
       // Read PDF file path
       const filePath = path.join(__dirname, '../../', deck.file_url);
 
+      // 🎯 Fetch VC preferences if uploaded_by is available
+      let vcPreferences: { preferencesName: string; industry: string; criteria: any[] } | undefined;
+      if (deck.uploaded_by) {
+        try {
+          console.log(`🎯 Fetching VC preferences for user ${deck.uploaded_by}...`);
+          const prefResult = await query(
+            `SELECT preferences_name, industry, criteria 
+             FROM vc_preferences 
+             WHERE user_id = $1 
+             ORDER BY updated_at DESC 
+             LIMIT 1`,
+            [deck.uploaded_by]
+          );
+          
+          if (prefResult.rows.length > 0) {
+            vcPreferences = {
+              preferencesName: prefResult.rows[0].preferences_name,
+              industry: prefResult.rows[0].industry,
+              criteria: prefResult.rows[0].criteria
+            };
+            console.log(`✅ Loaded VC preferences: "${vcPreferences.preferencesName}"`);
+          }
+        } catch (err) {
+          console.error('⚠️ Failed to fetch VC preferences:', err);
+        }
+      }
+
       // Analyze with REAL AI
       console.log(`🤖 Analyzing deck for ${deck.company_name || 'company'} with Gemini AI...`);
       const { analysis, sections } = await analyzePitchDeckFromPDF(
         filePath, 
-        deck.company_name || 'the company'
+        deck.company_name || 'the company',
+        vcPreferences
       );
 
       console.log(`✅ AI Analysis complete! Overall score: ${analysis.overallScore}`);
@@ -513,9 +629,10 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
         UPDATE pitch_decks 
         SET analysis_status = 'completed',
             sso_score = $1,
+            vc_preferences_used = $2,
             analyzed_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-      `, [analysis.overallScore / 100, id]); // Convert to 0-1 scale
+        WHERE id = $3
+      `, [analysis.overallScore / 100, vcPreferences ? JSON.stringify(vcPreferences) : null, id]); // Convert to 0-1 scale
 
       res.json({
         message: 'AI Analysis completed successfully!',
@@ -523,7 +640,8 @@ router.post('/:id/analyze', async (req: Request, res: Response) => {
         analysis: {
           overall: analysis,
           sections: sections
-        }
+        },
+        vcPreferencesUsed: vcPreferences || null
       });
     } catch (analysisError: any) {
       console.error('AI Analysis error:', analysisError);
@@ -624,7 +742,9 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
       companyName: undefined, // Let PDF generator extract from filename or analysis
       // 🌐 NEW: Include web enrichment data if available
       webEnrichment: deck.web_enrichment || undefined,
-      groundingMetadata: deck.web_enrichment?.groundingMetadata || undefined
+      groundingMetadata: deck.web_enrichment?.groundingMetadata || undefined,
+      // 🎯 NEW: Include VC preferences used for this analysis
+      vcPreferencesUsed: deck.vc_preferences_used || undefined
     });
 
     console.log(`✓ Enhanced PDF generated: ${pdfPath}`);

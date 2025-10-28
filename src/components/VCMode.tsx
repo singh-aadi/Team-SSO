@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Sliders, BarChart2, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Sliders, BarChart2, TrendingUp, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface Subcriteria {
   id: string;
@@ -11,56 +12,57 @@ interface EvaluationCriteria {
   id: string;
   name: string;
   weight: number;
+  description: string; // NEW: 2-line explanation
   subcriteria: Subcriteria[];
   industry?: string;
   customizable?: boolean;
 }
 
 export function VCMode() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'evaluation' | 'forecast' | 'customize'>('evaluation');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
   const [customCriteria, setCustomCriteria] = useState<string>('');
   const [customSubcriteria, setCustomSubcriteria] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [criteria, setCriteria] = useState<EvaluationCriteria[]>([
     {
       id: 'team',
       name: 'Team',
-      weight: 30,
-      subcriteria: [
-        { id: 'experience', name: 'Experience', weight: 40 },
-        { id: 'technical', name: 'Technical Expertise', weight: 30 },
-        { id: 'vision', name: 'Vision & Leadership', weight: 30 }
-      ]
+      weight: 25,
+      description: 'Founder backgrounds, expertise, and ability to execute. Assesses technical skills, domain knowledge, and leadership capabilities.',
+      subcriteria: []
     },
     {
       id: 'market',
       name: 'Market Opportunity',
       weight: 25,
-      subcriteria: [
-        { id: 'size', name: 'Market Size', weight: 35 },
-        { id: 'growth', name: 'Growth Rate', weight: 35 },
-        { id: 'timing', name: 'Market Timing', weight: 30 }
-      ]
+      description: 'Total addressable market size, growth rate, and competitive landscape. Evaluates market timing and expansion potential.',
+      subcriteria: []
     },
     {
       id: 'product',
       name: 'Product & Technology',
       weight: 25,
-      subcriteria: [
-        { id: 'innovation', name: 'Innovation Level', weight: 40 },
-        { id: 'scalability', name: 'Scalability', weight: 30 },
-        { id: 'moat', name: 'Competitive Moat', weight: 30 }
-      ]
+      description: 'Problem-solution fit, innovation level, and technical moat. Includes product differentiation and scalability assessment.',
+      subcriteria: []
     },
     {
       id: 'traction',
       name: 'Traction & Metrics',
-      weight: 20,
-      subcriteria: [
-        { id: 'growth', name: 'Growth Rate', weight: 40 },
-        { id: 'retention', name: 'Retention', weight: 30 },
-        { id: 'efficiency', name: 'Capital Efficiency', weight: 30 }
-      ]
+      weight: 15,
+      description: 'User growth, revenue metrics, and retention rates. Measures product-market fit through quantifiable business indicators.',
+      subcriteria: []
+    },
+    {
+      id: 'finance',
+      name: 'Finance',
+      weight: 10,
+      description: 'Unit economics, burn rate, and path to profitability. Analyzes capital efficiency and financial sustainability.',
+      subcriteria: []
     }
   ]);
 
@@ -79,6 +81,110 @@ export function VCMode() {
       }
       return c;
     }));
+    setHasUnsavedChanges(true); // Mark as changed
+  };
+
+  // Function to load preferences (wrapped in useCallback to prevent infinite loops)
+  const loadPreferences = useCallback(async () => {
+    if (!user?.id) {
+      console.log('ℹ️ No user logged in, using default weights');
+      return;
+    }
+
+    try {
+      console.log('🔄 Loading VC preferences for user:', user.id, 'industry:', selectedIndustry);
+      const response = await fetch(
+        `http://localhost:3000/api/vc-preferences/${user.id}?industry=${selectedIndustry}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.preferences?.criteria) {
+          console.log('✅ Loaded preferences:', data.preferences.preferences_name);
+          const parsedCriteria = typeof data.preferences.criteria === 'string' 
+            ? JSON.parse(data.preferences.criteria) 
+            : data.preferences.criteria;
+          setCriteria(parsedCriteria);
+          setHasUnsavedChanges(false); // Mark as saved after loading from DB
+        } else {
+          console.log('ℹ️ No criteria in response - keeping current weights');
+        }
+      } else if (response.status === 404) {
+        console.log('ℹ️ No saved preferences found - using defaults');
+        // Don't reset criteria - keep whatever is currently in state
+      } else {
+        console.warn('⚠️ Unexpected response status:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to load preferences:', error);
+      // Don't reset criteria on error - keep current state
+    }
+  }, [user?.id, selectedIndustry]);
+
+  // Load saved preferences ONLY on initial mount
+  useEffect(() => {
+    if (user?.id) {
+      console.log('🔄 Initial load of preferences for user:', user.id, user.email);
+      loadPreferences();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Only reload when user changes, NOT when industry changes
+
+  // NOTE: Removed auto-reload on focus/visibility to prevent resetting unsaved changes
+  // Users must click "Save Preferences" to persist their changes
+
+  // Save preferences to database
+  const handleSavePreferences = async () => {
+    if (!user?.id) {
+      setSaveStatus('error');
+      setSaveMessage('You must be logged in to save preferences');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveStatus('idle');
+
+    try {
+      const response = await fetch('http://localhost:3000/api/vc-preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          preferencesName: 'Default',
+          industry: selectedIndustry,
+          criteria: criteria,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save preferences');
+      }
+
+      const data = await response.json();
+      setSaveStatus('success');
+      setSaveMessage('Preferences saved successfully!');
+      setHasUnsavedChanges(false); // Clear unsaved changes flag
+      console.log('Saved preferences:', data);
+
+      // Reload preferences to ensure UI is in sync with database
+      await loadPreferences();
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 3000);
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+      setSaveStatus('error');
+      setSaveMessage('Failed to save preferences. Please try again.');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -145,46 +251,104 @@ export function VCMode() {
       </div>
 
       {activeTab === 'evaluation' && (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-32">
+          {/* Add bottom padding to prevent save button overlap */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-slate-800 mb-4">Investment Criteria Weights</h2>
+            <p className="text-sm text-slate-600 mb-6">
+              Adjust the importance of each criterion to match your investment thesis. Weights must total 100%.
+            </p>
             <div className="space-y-6">
               {criteria.map(criterion => (
-                <div key={criterion.id} className="border-b pb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="font-medium text-slate-900">{criterion.name}</h3>
-                      <p className="text-sm text-slate-500">Main weight: {criterion.weight}%</p>
+                <div key={criterion.id} className="border-b pb-6 last:border-b-0">
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-slate-900">{criterion.name}</h3>
+                      <span className="text-lg font-bold text-blue-600">{criterion.weight}%</span>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={criterion.weight}
-                      onChange={(e) => updateWeight(criterion.id, null, parseInt(e.target.value))}
-                      className="w-48"
-                    />
+                    <p className="text-sm text-slate-600 leading-relaxed mb-3">
+                      {criterion.description}
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6">
-                    {criterion.subcriteria.map(sub => (
-                      <div key={sub.id} className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-slate-700">{sub.name}</p>
-                          <p className="text-xs text-slate-500">{sub.weight}%</p>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={sub.weight}
-                          onChange={(e) => updateWeight(criterion.id, sub.id, parseInt(e.target.value))}
-                          className="w-32"
-                        />
-                      </div>
-                    ))}
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={criterion.weight}
+                    onChange={(e) => updateWeight(criterion.id, null, parseInt(e.target.value))}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-slate-500 mt-1">
+                    <span>0%</span>
+                    <span>50%</span>
+                    <span>100%</span>
                   </div>
                 </div>
               ))}
+            </div>
+            
+            {/* Weight Total Indicator */}
+            <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700">Total Weight:</span>
+                <span className={`text-lg font-bold ${
+                  criteria.reduce((sum, c) => sum + c.weight, 0) === 100 
+                    ? 'text-green-600' 
+                    : 'text-orange-600'
+                }`}>
+                  {criteria.reduce((sum, c) => sum + c.weight, 0)}%
+                </span>
+              </div>
+              {criteria.reduce((sum, c) => sum + c.weight, 0) !== 100 && (
+                <p className="text-xs text-orange-600 mt-1">
+                  ⚠️ Weights should total 100% for accurate scoring
+                </p>
+              )}
+            </div>
+
+            {/* Save Button */}
+            <div className="mt-6">
+              {hasUnsavedChanges && (
+                <div className="flex items-center space-x-2 text-orange-600 mb-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm font-medium">You have unsaved changes</span>
+                </div>
+              )}
+              
+              {saveStatus === 'success' && (
+                <div className="flex items-center space-x-2 text-green-600 mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="text-sm font-medium">{saveMessage}</span>
+                </div>
+              )}
+              
+              {saveStatus === 'error' && (
+                <div className="flex items-center space-x-2 text-red-600 mb-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm font-medium">{saveMessage}</span>
+                </div>
+              )}
+              
+              <button
+                onClick={handleSavePreferences}
+                disabled={isSaving || !user}
+                className={`w-full flex items-center justify-center space-x-2 px-6 py-4 rounded-lg font-medium transition-all ${
+                  isSaving || !user
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : hasUnsavedChanges
+                    ? 'bg-orange-600 text-white hover:bg-orange-700 hover:shadow-lg active:scale-[0.99]'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg active:scale-[0.99]'
+                }`}
+              >
+                <Save className="w-5 h-5" />
+                <span className="text-lg">{isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Save Preferences'}</span>
+              </button>
+              
+              {!user && (
+                <p className="text-xs text-slate-500 mt-2 text-center">
+                  Please log in to save your preferences
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -216,6 +380,7 @@ export function VCMode() {
                           id: customCriteria.toLowerCase().replace(/\s+/g, '-'),
                           name: customCriteria,
                           weight: 0,
+                          description: 'Custom evaluation criterion',
                           subcriteria: [],
                           customizable: true,
                         },

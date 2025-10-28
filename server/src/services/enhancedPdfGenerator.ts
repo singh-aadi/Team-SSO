@@ -25,6 +25,21 @@ interface EnhancedPDFOptions {
     webSearchQueries: string[];
     webSources: any[];
   };
+  // 🎯 NEW: VC preferences used for this analysis
+  vcPreferencesUsed?: {
+    name?: string;
+    industry?: string;
+    criteria: Array<{
+      id: string;
+      name: string;
+      weight: number;
+      subcriteria: Array<{
+        id: string;
+        name: string;
+        weight: number;
+      }>;
+    }>;
+  };
 }
 
 // Premium Color System for Investor-Grade Reports
@@ -482,6 +497,12 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
       // PAGE 4: Score Breakdown
       doc.addPage();
       addScoreBreakdown(doc, analysis);
+
+      // PAGE: VC Preferences Used (if available)
+      if (options.vcPreferencesUsed) {
+        doc.addPage();
+        addVCPreferencesSection(doc, options.vcPreferencesUsed, analysis);
+      }
 
       // PAGE 5-7: Section-by-Section Analysis
       const sections = analysis?.analysis?.sections || [];
@@ -1515,6 +1536,187 @@ function addIndustryBenchmarks(doc: PDFKit.PDFDocument, stage: string, industry:
 
 // ============================================================================
 // PAGE 4: SCORE BREAKDOWN
+// ============================================================================
+// ============================================================================
+// VC PREFERENCES SECTION
+// ============================================================================
+function addVCPreferencesSection(
+  doc: PDFKit.PDFDocument, 
+  vcPreferences: any,
+  analysis: any
+) {
+  doc.fontSize(26)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.dark)
+     .text('INVESTMENT CRITERIA & WEIGHTING', 50, 60);
+
+  doc.moveTo(50, 95)
+     .lineTo(doc.page.width - 50, 95)
+     .strokeColor(COLORS.lighter)
+     .lineWidth(2)
+     .stroke();
+
+  let currentY = 115;
+
+  // Context box
+  doc.fontSize(12)
+     .font('Helvetica')
+     .fillColor(COLORS.mediumDark)
+     .text(
+       'This analysis was customized based on specific investment preferences. The scores and overall rating were calculated using weighted criteria that reflect the investor\'s priorities.',
+       50,
+       currentY,
+       { width: doc.page.width - 100, align: 'justify' }
+     );
+
+  currentY = doc.y + 25;
+
+  // If we have preference name/industry
+  if (vcPreferences.name || vcPreferences.industry) {
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.primary)
+       .text('Preference Profile', 50, currentY);
+    
+    currentY = doc.y + 10;
+
+    if (vcPreferences.name) {
+      doc.fontSize(11)
+         .font('Helvetica')
+         .fillColor(COLORS.mediumDark)
+         .text(`Name: ${vcPreferences.name}`, 60, currentY);
+      currentY = doc.y + 5;
+    }
+
+    if (vcPreferences.industry) {
+      doc.fontSize(11)
+         .font('Helvetica')
+         .fillColor(COLORS.mediumDark)
+         .text(`Industry Focus: ${vcPreferences.industry}`, 60, currentY);
+      currentY = doc.y + 15;
+    }
+  }
+
+  // Criteria weights
+  doc.fontSize(14)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.primary)
+     .text('Evaluation Criteria & Weights', 50, currentY);
+
+  currentY = doc.y + 15;
+
+  if (vcPreferences.criteria && Array.isArray(vcPreferences.criteria)) {
+    // Display each criterion with its weight
+    vcPreferences.criteria.forEach((criterion: any, index: number) => {
+      const weight = criterion.weight * 100; // Convert to percentage
+      const barWidth = doc.page.width - 220;
+      
+      // Criterion name and weight
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .fillColor(COLORS.dark)
+         .text(`${criterion.name}`, 60, currentY, { width: 200 });
+
+      // Weight badge
+      doc.roundedRect(doc.page.width - 150, currentY - 3, 60, 22, 4)
+         .fillColor(COLORS.primaryLight)
+         .fill();
+
+      doc.fontSize(11)
+         .font('Helvetica-Bold')
+         .fillColor(COLORS.white)
+         .text(`${weight.toFixed(0)}%`, doc.page.width - 150, currentY + 2, { width: 60, align: 'center' });
+
+      currentY = doc.y + 10;
+
+      // Weight bar visualization
+      const fillWidth = (barWidth * weight) / 100;
+      
+      // Background
+      doc.rect(60, currentY, barWidth, 18)
+         .fillColor(COLORS.background)
+         .fill();
+
+      // Fill
+      doc.rect(60, currentY, fillWidth, 18)
+         .fillColor(COLORS.primary)
+         .fillOpacity(0.6)
+         .fill()
+         .fillOpacity(1);
+
+      currentY += 30;
+
+      // Prevent page overflow
+      if (currentY > doc.page.height - 150 && index < vcPreferences.criteria.length - 1) {
+        doc.addPage();
+        currentY = 60;
+      }
+    });
+  }
+
+  // Scoring formula explanation
+  if (currentY < doc.page.height - 200) {
+    currentY += 10;
+
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor(COLORS.primary)
+       .text('Score Calculation Formula', 50, currentY);
+
+    currentY = doc.y + 15;
+
+    // Build the formula from criteria
+    let formula = 'Overall Score = ';
+    if (vcPreferences.criteria && Array.isArray(vcPreferences.criteria)) {
+      const formulaParts = vcPreferences.criteria.map((c: any) => {
+        const criterionName = c.name.toLowerCase().replace(/ /g, '');
+        const weight = (c.weight * 100).toFixed(0);
+        return `(${criterionName}Score × ${weight}%)`;
+      });
+      formula += formulaParts.join(' + ');
+    } else {
+      formula += 'weighted average of all criteria';
+    }
+
+    // Display formula in a box
+    doc.rect(50, currentY, doc.page.width - 100, 50)
+       .fillColor(COLORS.background)
+       .fill();
+
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor(COLORS.dark)
+       .text(formula, 60, currentY + 15, { width: doc.page.width - 120, align: 'left' });
+
+    currentY += 60;
+
+    // Show actual calculation if available
+    if (analysis?.analysis?.overall?.scoreCalculation) {
+      doc.fontSize(11)
+         .font('Helvetica')
+         .fillColor(COLORS.mediumDark)
+         .text(`Actual Calculation: ${analysis.analysis.overall.scoreCalculation}`, 60, currentY, {
+           width: doc.page.width - 120
+         });
+    }
+
+    currentY += 25;
+
+    // Add validation note
+    doc.fontSize(10)
+       .font('Helvetica-Oblique')
+       .fillColor(COLORS.medium)
+       .text(
+         '✓ All scores were validated against the weighted formula to ensure mathematical accuracy.',
+         50,
+         currentY,
+         { width: doc.page.width - 100, align: 'center' }
+       );
+  }
+}
+
+// ============================================================================
+// SCORE BREAKDOWN
 // ============================================================================
 function addScoreBreakdown(doc: PDFKit.PDFDocument, analysis: any) {
   doc.fontSize(26)
