@@ -220,6 +220,50 @@ class ApiService {
     return data.deck;
   }
 
+  // Compare two pitch decks
+  async compareDecks(deck1: File, deck2: File, userId: string): Promise<any> {
+    console.log('📊 Comparing decks:', {
+      deck1Name: deck1.name,
+      deck1Size: deck1.size,
+      deck2Name: deck2.name,
+      deck2Size: deck2.size,
+      userId
+    });
+
+    const formData = new FormData();
+    formData.append('deck1', deck1);
+    formData.append('deck2', deck2);
+    formData.append('uploaded_by', userId);
+
+    try {
+      const response = await fetch(`${API_URL}/decks/compare`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      console.log('📡 Comparison response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Comparison failed:', errorText);
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText };
+        }
+        throw new Error(error.error || 'Failed to compare decks');
+      }
+
+      const data = await response.json();
+      console.log('✅ Comparison successful:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Comparison error:', error);
+      throw error;
+    }
+  }
+
   async getDeck(deckId: string): Promise<PitchDeck> {
     const response = await fetch(`${API_URL}/decks/${deckId}`, {
       headers: this.getAuthHeaders(),

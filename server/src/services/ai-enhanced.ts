@@ -962,3 +962,169 @@ export async function analyzePitchDeckWithGrounding(
   }
 }
 
+// 📊 NEW: Compare two pitch decks side-by-side
+export async function comparePitchDecks(
+  deck1Path: string,
+  deck2Path: string
+): Promise<{
+  deck1Analysis: any;
+  deck2Analysis: any;
+  comparison: {
+    summary: string;
+    winnerOverall: string;
+    categoryWinners: {
+      team: string;
+      market: string;
+      product: string;
+      traction: string;
+      financials: string;
+    };
+    strengths: {
+      deck1: string[];
+      deck2: string[];
+    };
+    weaknesses: {
+      deck1: string[];
+      deck2: string[];
+    };
+    recommendations: {
+      deck1: string[];
+      deck2: string[];
+    };
+    keyDifferences: string[];
+  };
+}> {
+  try {
+    console.log('📊 Starting side-by-side deck comparison...');
+    
+    // Extract text from both decks
+    const deck1Text = await extractTextFromDocument(deck1Path);
+    const deck2Text = await extractTextFromDocument(deck2Path);
+    
+    if (!deck1Text || deck1Text.length < 100) {
+      throw new Error('Insufficient text content extracted from first deck');
+    }
+    if (!deck2Text || deck2Text.length < 100) {
+      throw new Error('Insufficient text content extracted from second deck');
+    }
+
+    // Analyze both decks individually first
+    console.log('🔍 Analyzing Deck 1...');
+    const deck1Analysis = await analyzePitchDeckFromPDF(deck1Path, 'Company 1');
+    console.log('✓ Deck 1 analyzed:', {
+      hasAnalysis: !!deck1Analysis.analysis,
+      overallScore: deck1Analysis.analysis?.overallScore,
+      hasStrengths: !!deck1Analysis.analysis?.strengths,
+      strengthsCount: deck1Analysis.analysis?.strengths?.length || 0
+    });
+    
+    console.log('🔍 Analyzing Deck 2...');
+    const deck2Analysis = await analyzePitchDeckFromPDF(deck2Path, 'Company 2');
+    console.log('✓ Deck 2 analyzed:', {
+      hasAnalysis: !!deck2Analysis.analysis,
+      overallScore: deck2Analysis.analysis?.overallScore,
+      hasStrengths: !!deck2Analysis.analysis?.strengths,
+      strengthsCount: deck2Analysis.analysis?.strengths?.length || 0
+    });
+
+    // Now do comparative analysis with Gemini
+    console.log('⚖️ Running comparative analysis...');
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    
+    // Safely extract data with fallbacks
+    const deck1Score = deck1Analysis.analysis?.overallScore || 0;
+    const deck1Strengths = deck1Analysis.analysis?.strengths || [];
+    const deck1Weaknesses = deck1Analysis.analysis?.weaknesses || [];
+    
+    const deck2Score = deck2Analysis.analysis?.overallScore || 0;
+    const deck2Strengths = deck2Analysis.analysis?.strengths || [];
+    const deck2Weaknesses = deck2Analysis.analysis?.weaknesses || [];
+    
+    const comparisonPrompt = `You are a senior VC analyst comparing two pitch decks side-by-side.
+
+**DECK 1 TEXT:**
+${deck1Text.substring(0, 15000)}
+
+**DECK 2 TEXT:**
+${deck2Text.substring(0, 15000)}
+
+**INDIVIDUAL ANALYSES:**
+
+Deck 1 Overall Score: ${deck1Score}/100
+Deck 1 Strengths: ${deck1Strengths.length > 0 ? deck1Strengths.join(', ') : 'Not analyzed'}
+Deck 1 Weaknesses: ${deck1Weaknesses.length > 0 ? deck1Weaknesses.join(', ') : 'Not analyzed'}
+
+Deck 2 Overall Score: ${deck2Score}/100
+Deck 2 Strengths: ${deck2Strengths.length > 0 ? deck2Strengths.join(', ') : 'Not analyzed'}
+Deck 2 Weaknesses: ${deck2Weaknesses.length > 0 ? deck2Weaknesses.join(', ') : 'Not analyzed'}
+
+**YOUR TASK:**
+Provide a detailed comparative analysis in JSON format with:
+1. Executive summary of the comparison
+2. Determine which deck is stronger overall and in each category (Team, Market, Product, Traction, Financials)
+3. Comparative strengths and weaknesses for each deck
+4. Actionable recommendations for improving each deck
+5. Key differences between the two approaches
+
+Return ONLY valid JSON in this exact format:
+{
+  "summary": "2-3 sentence executive summary of the comparison",
+  "winnerOverall": "deck1" or "deck2" or "tie",
+  "categoryWinners": {
+    "team": "deck1" or "deck2" or "tie",
+    "market": "deck1" or "deck2" or "tie", 
+    "product": "deck1" or "deck2" or "tie",
+    "traction": "deck1" or "deck2" or "tie",
+    "financials": "deck1" or "deck2" or "tie"
+  },
+  "strengths": {
+    "deck1": ["strength 1", "strength 2", "strength 3"],
+    "deck2": ["strength 1", "strength 2", "strength 3"]
+  },
+  "weaknesses": {
+    "deck1": ["weakness 1", "weakness 2"],
+    "deck2": ["weakness 1", "weakness 2"]
+  },
+  "recommendations": {
+    "deck1": ["recommendation 1", "recommendation 2", "recommendation 3"],
+    "deck2": ["recommendation 1", "recommendation 2", "recommendation 3"]
+  },
+  "keyDifferences": ["difference 1", "difference 2", "difference 3", "difference 4"]
+}`;
+
+    const result = await model.generateContent(comparisonPrompt);
+    const response = await result.response;
+    const text_response = response.text();
+    
+    const jsonMatch = text_response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to parse AI comparison response');
+    }
+
+    const comparison = JSON.parse(jsonMatch[0]);
+    
+    console.log('✅ Comparison analysis complete');
+    console.log(`   Winner: ${comparison.winnerOverall}`);
+    
+    return {
+      deck1Analysis: {
+        overallScore: deck1Analysis.analysis?.overallScore || 0,
+        sections: deck1Analysis.sections || [],
+        strengths: deck1Analysis.analysis?.strengths || [],
+        weaknesses: deck1Analysis.analysis?.weaknesses || [],
+        recommendation: deck1Analysis.analysis?.recommendation || 'No recommendation available'
+      },
+      deck2Analysis: {
+        overallScore: deck2Analysis.analysis?.overallScore || 0,
+        sections: deck2Analysis.sections || [],
+        strengths: deck2Analysis.analysis?.strengths || [],
+        weaknesses: deck2Analysis.analysis?.weaknesses || [],
+        recommendation: deck2Analysis.analysis?.recommendation || 'No recommendation available'
+      },
+      comparison
+    };
+  } catch (error) {
+    console.error('Error comparing pitch decks:', error);
+    throw error;
+  }
+}
