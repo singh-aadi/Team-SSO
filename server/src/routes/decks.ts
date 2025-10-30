@@ -577,6 +577,87 @@ router.post('/upload', upload.single('deck'), async (req: Request, res: Response
   }
 });
 
+// GET /api/decks/recent-analyses - Get recent deck analyses (for founders)
+// NOTE: This MUST come before /:id route to avoid being caught by it
+router.get('/recent-analyses', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const userId = req.query.userId as string;
+
+    let queryText = `
+      SELECT 
+        d.id, 
+        d.filename, 
+        d.analysis_status, 
+        d.created_at, 
+        d.analyzed_at,
+        d.sso_score,
+        c.name as company_name
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+    `;
+
+    const params: any[] = [];
+    
+    if (userId) {
+      queryText += ` WHERE d.uploaded_by = $1`;
+      params.push(userId);
+      queryText += ` ORDER BY d.created_at DESC LIMIT $2`;
+      params.push(limit);
+    } else {
+      queryText += ` ORDER BY d.created_at DESC LIMIT $1`;
+      params.push(limit);
+    }
+
+    const result = await query(queryText, params);
+
+    res.json({ 
+      analyses: result.rows,
+      total: result.rows.length 
+    });
+  } catch (error) {
+    console.error('Error fetching recent analyses:', error);
+    res.status(500).json({ error: 'Failed to fetch recent analyses' });
+  }
+});
+
+// GET /api/decks/comparisons/recent - Get recent comparisons
+// NOTE: This MUST come before /:id route to avoid being caught by it
+router.get('/comparisons/recent', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const userId = req.query.userId as string;
+
+    let queryText = `
+      SELECT id, deck1_filename, deck2_filename, analysis_status, 
+             created_at, analyzed_at, uploaded_by
+      FROM deck_comparisons 
+    `;
+
+    const params: any[] = [];
+    
+    if (userId) {
+      queryText += ` WHERE uploaded_by = $1`;
+      params.push(userId);
+      queryText += ` ORDER BY created_at DESC LIMIT $2`;
+      params.push(limit);
+    } else {
+      queryText += ` ORDER BY created_at DESC LIMIT $1`;
+      params.push(limit);
+    }
+
+    const result = await query(queryText, params);
+
+    res.json({ 
+      comparisons: result.rows,
+      total: result.rows.length 
+    });
+  } catch (error) {
+    console.error('Error fetching recent comparisons:', error);
+    res.status(500).json({ error: 'Failed to fetch recent comparisons' });
+  }
+});
+
 // GET /api/decks/:id - Get deck details with analysis
 router.get('/:id', async (req: Request, res: Response) => {
   try {

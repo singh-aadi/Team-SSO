@@ -1,12 +1,16 @@
 import { useNavigate } from 'react-router';
+import { useEffect, useState } from 'react';
 import { 
   Upload, 
   BarChart3, 
   BookOpen, 
   FileText,
   Target,
-  Users
+  Users,
+  GitCompare,
+  Download
 } from 'lucide-react';
+import { api } from '../services/api';
 
 interface DashboardProps {
   userType: 'founder' | 'vc';
@@ -14,6 +18,49 @@ interface DashboardProps {
 
 export function Dashboard({ userType }: DashboardProps) {
   const navigate = useNavigate();
+  const [recentComparisons, setRecentComparisons] = useState<any[]>([]);
+  const [recentAnalyses, setRecentAnalyses] = useState<any[]>([]);
+  const [loadingComparisons, setLoadingComparisons] = useState(false);
+  const [loadingAnalyses, setLoadingAnalyses] = useState(false);
+
+  // Fetch recent comparisons for VCs
+  useEffect(() => {
+    const fetchComparisons = async () => {
+      if (userType !== 'vc') return;
+      
+      setLoadingComparisons(true);
+      try {
+        const comparisons = await api.getRecentComparisons(undefined, 5);
+        setRecentComparisons(comparisons);
+      } catch (error) {
+        console.error('Error fetching comparisons:', error);
+      } finally {
+        setLoadingComparisons(false);
+      }
+    };
+
+    fetchComparisons();
+  }, [userType]);
+
+  // Fetch recent analyses for Founders
+  useEffect(() => {
+    const fetchAnalyses = async () => {
+      if (userType !== 'founder') return;
+      
+      setLoadingAnalyses(true);
+      try {
+        const analyses = await api.getRecentAnalyses(undefined, 5);
+        setRecentAnalyses(analyses);
+      } catch (error) {
+        console.error('Error fetching analyses:', error);
+      } finally {
+        setLoadingAnalyses(false);
+      }
+    };
+
+    fetchAnalyses();
+  }, [userType]);
+
   const founderActions = [
     {
       title: 'Upload Pitch Deck',
@@ -141,40 +188,157 @@ export function Dashboard({ userType }: DashboardProps) {
           <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
         </div>
         <div className="divide-y divide-slate-100">
-          {[
-            {
-              action: 'Deck analyzed: "FinTech Series A"',
-              score: 'SSO Score™: 8.2/10',
-              time: '2 hours ago',
-              status: 'success'
-            },
-            {
-              action: 'Benchmark completed: SaaS metrics',
-              score: '65th percentile CAC',
-              time: '4 hours ago',
-              status: 'info'
-            },
-            {
-              action: 'Glossary updated: Revenue definition',
-              score: 'Consistency improved',
-              time: '1 day ago',
-              status: 'warning'
-            }
-          ].map((item, index) => (
-            <div key={index} className="px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  item.status === 'success' ? 'bg-green-500' :
-                  item.status === 'info' ? 'bg-blue-500' : 'bg-orange-500'
-                }`}></div>
-                <div>
-                  <p className="font-medium text-slate-900">{item.action}</p>
-                  <p className="text-sm text-slate-600">{item.score}</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-500">{item.time}</p>
+          {/* Recent Analyses for Founders */}
+          {userType === 'founder' && recentAnalyses.length > 0 && (
+            <>
+              {recentAnalyses.map((analysis) => {
+                const isCompleted = analysis.analysis_status === 'completed';
+                const isProcessing = analysis.analysis_status === 'processing' || analysis.analysis_status === 'analyzing';
+                const isFailed = analysis.analysis_status === 'failed';
+                
+                return (
+                  <div key={analysis.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className={`w-3 h-3 rounded-full ${
+                        isCompleted ? 'bg-green-500' :
+                        isProcessing ? 'bg-blue-500 animate-pulse' : 
+                        isFailed ? 'bg-red-500' : 'bg-orange-500'
+                      }`}></div>
+                      <FileText className="h-5 w-5 text-slate-400" />
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">
+                          Deck analyzed: "{analysis.filename}"
+                          {analysis.company_name && <span className="text-slate-600"> - {analysis.company_name}</span>}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {isCompleted && analysis.sso_score 
+                            ? `SSO Score™: ${analysis.sso_score}/10`
+                            : isProcessing ? 'Analyzing...' :
+                            isFailed ? 'Analysis failed' : 'Pending analysis'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <p className="text-sm text-slate-500">
+                        {new Date(analysis.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      {isCompleted && (
+                        <button
+                          onClick={() => navigate(`/decks/${analysis.id}`)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          View
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Recent Comparisons for VCs */}
+          {userType === 'vc' && recentComparisons.length > 0 && (
+            <>
+              {recentComparisons.map((comparison) => {
+                const isCompleted = comparison.analysis_status === 'completed';
+                const isProcessing = comparison.analysis_status === 'processing';
+                const isFailed = comparison.analysis_status === 'failed';
+                
+                return (
+                  <div key={comparison.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className={`w-3 h-3 rounded-full ${
+                        isCompleted ? 'bg-green-500' :
+                        isProcessing ? 'bg-blue-500 animate-pulse' : 
+                        isFailed ? 'bg-red-500' : 'bg-orange-500'
+                      }`}></div>
+                      <GitCompare className="h-5 w-5 text-slate-400" />
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">
+                          Deck comparison: "{comparison.deck1_filename}" vs "{comparison.deck2_filename}"
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {isCompleted ? 'Analysis completed' : 
+                           isProcessing ? 'Processing...' :
+                           isFailed ? 'Analysis failed' : 'Pending analysis'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <p className="text-sm text-slate-500">
+                        {new Date(comparison.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      {isCompleted && (
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${comparison.id}/report/pdf`}
+                          download
+                          className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>PDF</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Empty state for founders with no analyses */}
+          {userType === 'founder' && !loadingAnalyses && recentAnalyses.length === 0 && (
+            <div className="px-6 py-8 text-center">
+              <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-1">No recent deck analyses</p>
+              <p className="text-sm text-slate-400">
+                Upload your pitch deck in the{' '}
+                <button 
+                  onClick={() => navigate('/decks')}
+                  className="text-blue-600 hover:underline"
+                >
+                  Upload Pitch Deck
+                </button>
+                {' '}section to get started
+              </p>
             </div>
-          ))}
+          )}
+
+          {/* Empty state for VCs with no comparisons */}
+          {userType === 'vc' && !loadingComparisons && recentComparisons.length === 0 && (
+            <div className="px-6 py-8 text-center">
+              <GitCompare className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-1">No recent deck comparisons</p>
+              <p className="text-sm text-slate-400">
+                Upload two decks in the{' '}
+                <button 
+                  onClick={() => navigate('/decks')}
+                  className="text-blue-600 hover:underline"
+                >
+                  Deck Intelligence
+                </button>
+                {' '}section to compare them
+              </p>
+            </div>
+          )}
+
+          {/* Loading states */}
+          {(loadingComparisons || loadingAnalyses) && (
+            <div className="px-6 py-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-slate-500 mt-3">Loading recent activity...</p>
+            </div>
+          )}
         </div>
       </div>
 

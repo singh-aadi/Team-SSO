@@ -732,18 +732,68 @@ Provide analysis in JSON format with overallAnalysis and sections arrays.
 - Include "scoreCalculation" field showing your calculation with decimal weights
 - Example: If Team=100%, Market=0%, and teamScore=85, then overallScore must be 85
 
+**JSON FORMATTING REQUIREMENTS**:
+- Return ONLY valid JSON - no markdown, no code blocks, no explanatory text
+- Use double quotes for all strings
+- Escape special characters properly (use \\\\ for backslash, \\" for quotes)
+- No trailing commas
+- No line breaks within string values
+
 Return valid JSON only, no markdown.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text_response = response.text();
     
+    console.log('🔍 Raw AI response (first 500 chars):', text_response.substring(0, 500));
+    
     const jsonMatch = text_response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('Failed to parse AI response');
+      throw new Error('Failed to parse AI response - no JSON found');
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+    try {
+      // Clean the JSON string before parsing
+      let jsonString = jsonMatch[0];
+      
+      // Remove any markdown code blocks
+      jsonString = jsonString.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // Fix common JSON issues
+      jsonString = jsonString
+        .replace(/\\/g, '\\\\') // Escape backslashes first
+        .replace(/\\\\"/g, '\\"') // Fix over-escaped quotes
+        .replace(/\\\\n/g, '\\n') // Fix over-escaped newlines
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/[\r\n\t]/g, ' ') // Replace special chars with spaces
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+      
+      // Try to fix bad escape sequences
+      jsonString = jsonString.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
+      
+      console.log('🧹 Cleaned JSON (first 500 chars):', jsonString.substring(0, 500));
+      
+      parsed = JSON.parse(jsonString);
+    } catch (parseError: any) {
+      console.error('❌ JSON parsing failed in analyzePitchDeckFromPDF:', parseError.message);
+      console.error('📄 Problematic JSON:', jsonMatch[0].substring(0, 1000));
+      
+      // Provide a minimal fallback analysis
+      parsed = {
+        overallAnalysis: {
+          overallScore: 50,
+          strengths: ['Analysis completed but encountered formatting issues'],
+          weaknesses: ['Unable to parse detailed analysis'],
+          keyInsights: ['Please retry analysis or check deck format'],
+          recommendation: 'Analysis encountered technical issues. Please retry or upload a different format.'
+        },
+        sections: []
+      };
+      
+      console.log('⚠️ Using fallback analysis structure');
+    }
     
     // Validate and correct the overall score based on VC preferences
     if (parsed.overallAnalysis) {
@@ -1066,16 +1116,19 @@ Provide a detailed comparative analysis in JSON format with:
 4. Actionable recommendations for improving each deck
 5. Key differences between the two approaches
 
-Return ONLY valid JSON in this exact format:
+CRITICAL: Return ONLY valid, properly formatted JSON. No markdown, no code blocks, no explanatory text.
+Use proper JSON syntax: double quotes for strings, no trailing commas, no line breaks within strings.
+
+Return in this exact format:
 {
   "summary": "2-3 sentence executive summary of the comparison",
-  "winnerOverall": "deck1" or "deck2" or "tie",
+  "winnerOverall": "deck1",
   "categoryWinners": {
-    "team": "deck1" or "deck2" or "tie",
-    "market": "deck1" or "deck2" or "tie", 
-    "product": "deck1" or "deck2" or "tie",
-    "traction": "deck1" or "deck2" or "tie",
-    "financials": "deck1" or "deck2" or "tie"
+    "team": "deck1",
+    "market": "deck2", 
+    "product": "tie",
+    "traction": "deck1",
+    "financials": "deck2"
   },
   "strengths": {
     "deck1": ["strength 1", "strength 2", "strength 3"],
@@ -1096,12 +1149,65 @@ Return ONLY valid JSON in this exact format:
     const response = await result.response;
     const text_response = response.text();
     
+    console.log('🔍 Raw AI response (first 500 chars):', text_response.substring(0, 500));
+    
     const jsonMatch = text_response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('Failed to parse AI comparison response');
+      throw new Error('Failed to parse AI comparison response - no JSON found');
     }
 
-    const comparison = JSON.parse(jsonMatch[0]);
+    let comparison;
+    try {
+      // Clean the JSON string before parsing
+      let jsonString = jsonMatch[0];
+      
+      // Remove any markdown code blocks
+      jsonString = jsonString.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // Fix common JSON issues
+      jsonString = jsonString
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/\n/g, ' ') // Replace newlines with spaces
+        .replace(/\r/g, '') // Remove carriage returns
+        .replace(/\t/g, ' ') // Replace tabs with spaces
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+      
+      console.log('🧹 Cleaned JSON (first 500 chars):', jsonString.substring(0, 500));
+      
+      comparison = JSON.parse(jsonString);
+    } catch (parseError: any) {
+      console.error('❌ JSON parsing failed:', parseError.message);
+      console.error('📄 Problematic JSON:', jsonMatch[0].substring(0, 1000));
+      
+      // Provide a fallback comparison structure
+      comparison = {
+        summary: 'Comparison analysis completed but encountered formatting issues. Please review individual deck analyses.',
+        winnerOverall: 'tie',
+        categoryWinners: {
+          team: 'tie',
+          market: 'tie',
+          product: 'tie',
+          traction: 'tie',
+          financials: 'tie'
+        },
+        strengths: {
+          deck1: ['Analysis available in detailed report'],
+          deck2: ['Analysis available in detailed report']
+        },
+        weaknesses: {
+          deck1: ['Please review individual analysis'],
+          deck2: ['Please review individual analysis']
+        },
+        recommendations: {
+          deck1: ['Refer to individual deck analysis for detailed recommendations'],
+          deck2: ['Refer to individual deck analysis for detailed recommendations']
+        },
+        keyDifferences: ['Please compare individual deck analyses for detailed differences']
+      };
+      
+      console.log('⚠️ Using fallback comparison structure');
+    }
     
     console.log('✅ Comparison analysis complete');
     console.log(`   Winner: ${comparison.winnerOverall}`);
