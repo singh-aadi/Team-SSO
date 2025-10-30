@@ -28,3 +28,6 @@ server/migrate-008.js
 server/save-current-user-prefs.js
 server/test-connection.js
 server/migrate-vc-preferences.js
+server/migrate-009.js
+.gitignore
+server/migrations/009_add_deck_comparisons.sql
