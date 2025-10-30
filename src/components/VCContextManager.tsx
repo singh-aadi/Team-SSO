@@ -89,10 +89,6 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this context item?')) {
-      return;
-    }
-
     try {
       await vcContextApi.deleteContext(id);
       await loadItems();
@@ -100,6 +96,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
       if (summary) {
         setError('Context changed. Consider regenerating the summary.');
       }
+      console.log('Context item deleted successfully');
     } catch (err: any) {
       console.error('Delete failed:', err);
       setError('Failed to delete context item');

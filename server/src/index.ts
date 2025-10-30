@@ -15,6 +15,7 @@ import vcRoutes from './routes/vc';
 import adminRoutes from './routes/admin';
 import vcContextRoutes from './routes/vc-context';
 import vcPreferencesRoutes from './routes/vc-preferences';
+import radarRoutes from './routes/radar';
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -63,6 +64,7 @@ app.use('/api/vc', vcRoutes);
 app.use('/api/vc-context', vcContextRoutes);
 app.use('/api/vc-preferences', vcPreferencesRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/radar', radarRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

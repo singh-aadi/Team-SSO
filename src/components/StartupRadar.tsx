@@ -1,157 +1,287 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Mail, 
-  Phone, 
-  FileText, 
-  MessageSquare, 
-  Star, 
-  Tag,
-  Zap,
-  Users,
-  AlertCircle,
-  Twitter as XIcon,
   Globe,
-  Headphones,
-  MoveRight,
-  Filter,
   Plus,
   TrendingUp,
-  AlertTriangle,
-  LineChart
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 
-type Industry = 'healthcare' | 'fintech' | 'healthtech' | 'ai' | 'enterprise' | 'consumer' | 'climate';
-type SubIndustry = Industry | 'biotech' | 'medtech' | 'insurtech' | 'edtech' | 'web3' | 'robotics';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-interface MarketInsight {
+interface RadarSource {
   id: string;
-  source: 'x' | 'reddit' | 'podcast' | 'news' | 'research';
-  title: string;
-  summary: string;
-  link: string;
-  date: string;
-  industry: Industry;
-  subIndustry?: SubIndustry;
-  engagement: number;
-  sentiment: 'positive' | 'neutral' | 'negative';
-  trendScore: number;
-  relevanceScore: number;
+  name: string;
+  url: string;
+  source_type: 'custom' | 'built-in';
+  is_active: boolean;
+  last_scraped_at: string | null;
+  created_at: string;
 }
 
-interface EcosystemInsight {
+interface RadarDataItem {
   id: string;
-  type: 'email' | 'call' | 'note' | 'meeting';
-  title: string;
-  summary: string;
-  date: string;
-  industry: Industry;
-  subIndustry?: SubIndustry;
-  participants: string[];
-  keyPoints: string[];
-  nextSteps?: string[];
-  attachments?: string[];
-  sentiment: 'positive' | 'neutral' | 'negative';
+  source_id: string;
+  source_name: string;
+  source_url: string;
+  company_name: string;
+  headline: string;
+  description: string;
+  category: string;
+  funding_amount: number | null;
+  funding_stage: string | null;
+  investors: string[];
+  url: string;
+  image_url: string | null;
+  published_date: string;
+  scraped_at: string;
 }
 
 export function StartupRadar() {
-  const [activeView, setActiveView] = useState<'market' | 'ecosystem'>('market');
-  const [selectedIndustry, setSelectedIndustry] = useState<Industry>('healthcare');
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState<SubIndustry | null>(null);
-  const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month'>('week');
-  const [showSourcePopup, setShowSourcePopup] = useState(false);
-  const [showAnalyticsPopup, setShowAnalyticsPopup] = useState(false);
-  const [showInteractionPopup, setShowInteractionPopup] = useState(false);
-  const [newSource, setNewSource] = useState({
-    link: '',
-    type: 'x' as MarketInsight['source'],
-    notes: ''
-  });
-  const [newInteraction, setNewInteraction] = useState({
-    type: 'figma' as 'figma' | 'notion' | 'miro' | 'confluence' | 'other',
-    title: '',
-    link: '',
-    description: '',
-    participants: '',
-    nextSteps: ''
-  });
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [radarData, setRadarData] = useState<RadarDataItem[]>([]);
+  const [sources, setSources] = useState<RadarSource[]>([]);
+  const [categories, setCategories] = useState<Array<{ category: string; count: number }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showAddSourcePopup, setShowAddSourcePopup] = useState(false);
+  const [showSourcesPopup, setShowSourcesPopup] = useState(false);
+  const [newSource, setNewSource] = useState({ name: '', url: '' });
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [sourceBulkDeleteMode, setSourceBulkDeleteMode] = useState(false);
 
-  // Mock data
-  const marketInsights: MarketInsight[] = [
-    {
-      id: '1',
-      source: 'x',
-      title: 'Revolutionary AI-Powered Healthcare Diagnostics',
-      summary: 'New startup leverages advanced ML models for early disease detection with 99.9% accuracy',
-      link: 'https://x.com/healthtech/status/123',
-      date: '2025-09-20',
-      industry: 'healthcare',
-      subIndustry: 'ai',
-      engagement: 12500,
-      sentiment: 'positive',
-      trendScore: 92,
-      relevanceScore: 95
-    },
-    {
-      id: '2',
-      source: 'podcast',
-      title: 'The Future of Digital Health - Episode 45',
-      summary: 'Interview with leading healthtech founders about AI integration in healthcare',
-      link: 'https://healthpodcast.com/ep45',
-      date: '2025-09-19',
-      industry: 'healthcare',
-      subIndustry: 'healthtech',
-      engagement: 8900,
-      sentiment: 'positive',
-      trendScore: 88,
-      relevanceScore: 90
+  // Fetch radar data
+  const fetchRadarData = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/radar/data?category=${selectedCategory}&limit=50`,
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      const data = await response.json();
+      setRadarData(data.data || []);
+    } catch (error) {
+      console.error('Error fetching radar data:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  const ecosystemInsights: EcosystemInsight[] = [
-    {
-      id: '1',
-      type: 'call',
-      title: 'AI Diagnostics Platform Discussion',
-      summary: 'Deep dive into new diagnostic algorithms and regulatory compliance',
-      date: '2025-09-18',
-      industry: 'healthcare',
-      subIndustry: 'ai',
-      participants: ['Dr. Sarah Chen', 'Alex Kumar', 'Dr. Mike Ross'],
-      keyPoints: [
-        'Novel ML approach for diagnostic accuracy',
-        'FDA approval pathway discussed',
-        'Clinical trial planning initiated'
-      ],
-      nextSteps: [
-        'Schedule follow-up with regulatory team',
-        'Review technical documentation'
-      ],
-      sentiment: 'positive'
-    }
-  ];
-
-  const industries: Industry[] = [
-    'healthcare',
-    'fintech',
-    'healthtech',
-    'ai',
-    'enterprise',
-    'consumer',
-    'climate'
-  ];
-
-  const getSubIndustries = (industry: Industry): SubIndustry[] => {
-    const subIndustryMap: Record<Industry, SubIndustry[]> = {
-      healthcare: ['biotech', 'medtech', 'ai'],
-      fintech: ['insurtech', 'web3'],
-      healthtech: ['ai', 'biotech'],
-      ai: ['healthtech', 'robotics'],
-      enterprise: ['ai', 'fintech'],
-      consumer: ['fintech', 'healthtech'],
-      climate: ['ai', 'enterprise']
-    };
-    return subIndustryMap[industry] || [];
   };
+
+  // Fetch sources
+  const fetchSources = async () => {
+    try {
+      const response = await fetch(`${API_URL}/radar/sources`);
+      const data = await response.json();
+      setSources(data.sources || []);
+    } catch (error) {
+      console.error('Error fetching sources:', error);
+    }
+  };
+
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(`${API_URL}/radar/categories`);
+      const data = await response.json();
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  // Add new source
+  const handleAddSource = async () => {
+    if (!newSource.name || !newSource.url) {
+      console.warn('Source name and URL are required');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/radar/sources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newSource.name,
+          url: newSource.url,
+          addedBy: 'vc-001' // Replace with actual user ID from auth context
+        })
+      });
+
+      if (response.ok) {
+        console.log('Source added and scraping initiated');
+        setShowAddSourcePopup(false);
+        setNewSource({ name: '', url: '' });
+        fetchSources();
+        fetchRadarData();
+        fetchCategories();
+      } else {
+        const error = await response.json();
+        console.error('Failed to add source:', error.error);
+      }
+    } catch (error) {
+      console.error('Error adding source:', error);
+    }
+  };
+
+  // Refresh sources
+  const handleRefreshSources = async () => {
+    setRefreshing(true);
+    try {
+      const response = await fetch(`${API_URL}/radar/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`Refresh complete: ${result.totalItemsScraped} items scraped from ${result.sourcesRefreshed} sources`);
+        fetchRadarData();
+        fetchCategories();
+        fetchSources();
+      } else {
+        console.error('Failed to refresh sources');
+      }
+    } catch (error) {
+      console.error('Error refreshing sources:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Delete source
+  const handleDeleteSource = async (sourceId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/radar/sources/${sourceId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        console.log('Source deleted successfully');
+        fetchSources();
+        fetchRadarData();
+        fetchCategories();
+      } else {
+        console.error('Failed to delete source');
+      }
+    } catch (error) {
+      console.error('Error deleting source:', error);
+    }
+  };
+
+  // Delete radar data entry
+  const handleDeleteEntry = async (entryId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/radar/data/${entryId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        console.log('Entry deleted successfully');
+        fetchRadarData();
+        fetchCategories();
+      } else {
+        console.error('Failed to delete entry');
+      }
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+    }
+  };
+
+  // Toggle entry selection
+  const toggleEntrySelection = (entryId: string) => {
+    const newSelected = new Set(selectedEntries);
+    if (newSelected.has(entryId)) {
+      newSelected.delete(entryId);
+    } else {
+      newSelected.add(entryId);
+    }
+    setSelectedEntries(newSelected);
+  };
+
+  // Toggle source selection
+  const toggleSourceSelection = (sourceId: string) => {
+    const newSelected = new Set(selectedSources);
+    if (newSelected.has(sourceId)) {
+      newSelected.delete(sourceId);
+    } else {
+      newSelected.add(sourceId);
+    }
+    setSelectedSources(newSelected);
+  };
+
+  // Select all entries
+  const selectAllEntries = () => {
+    setSelectedEntries(new Set(radarData.map(item => item.id)));
+  };
+
+  // Select all sources
+  const selectAllSources = () => {
+    const allSourceIds = sources.map(s => s.id);
+    setSelectedSources(new Set(allSourceIds));
+  };
+
+  // Bulk delete entries
+  const handleBulkDeleteEntries = async () => {
+    if (selectedEntries.size === 0) {
+      console.warn('No entries selected for deletion');
+      return;
+    }
+
+    try {
+      const deletePromises = Array.from(selectedEntries).map(entryId =>
+        fetch(`${API_URL}/radar/data/${entryId}`, { method: 'DELETE' })
+      );
+
+      await Promise.all(deletePromises);
+      console.log(`${selectedEntries.size} entries deleted successfully`);
+      setSelectedEntries(new Set());
+      setBulkDeleteMode(false);
+      fetchRadarData();
+      fetchCategories();
+    } catch (error) {
+      console.error('Error bulk deleting entries:', error);
+    }
+  };
+
+  // Bulk delete sources
+  const handleBulkDeleteSources = async () => {
+    if (selectedSources.size === 0) {
+      console.warn('No sources selected for deletion');
+      return;
+    }
+
+    try {
+      const deletePromises = Array.from(selectedSources).map(sourceId =>
+        fetch(`${API_URL}/radar/sources/${sourceId}`, { method: 'DELETE' })
+      );
+
+      await Promise.all(deletePromises);
+      console.log(`${selectedSources.size} sources deleted successfully`);
+      setSelectedSources(new Set());
+      setSourceBulkDeleteMode(false);
+      fetchSources();
+      fetchRadarData();
+      fetchCategories();
+    } catch (error) {
+      console.error('Error bulk deleting sources:', error);
+    }
+  };
+
+  // Load data on mount and category change
+  useEffect(() => {
+    fetchRadarData();
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    fetchSources();
+    fetchCategories();
+  }, []);
 
   
   return (
@@ -160,171 +290,199 @@ export function StartupRadar() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Startup Radar</h1>
-          <p className="text-slate-600 mt-1">Track, analyze, and discover startup opportunities</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex rounded-lg border border-slate-200 p-1">
-            <button
-              onClick={() => setActiveView('market')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                activeView === 'market'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Market Intel
-            </button>
-            <button
-              onClick={() => setActiveView('ecosystem')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                activeView === 'ecosystem'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              My Ecosystem
-            </button>
-          </div>
+          <p className="text-slate-600 mt-1">AI-powered startup intelligence from curated sources</p>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="p-4">
+      {/* Category Filter + Action Buttons */}
+      <div className="bg-white rounded-lg shadow mb-6 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Market Intel</h2>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowAddSourcePopup(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Custom Source</span>
+            </button>
+            <button
+              onClick={handleRefreshSources}
+              disabled={refreshing}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              {refreshing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Refresh Sources</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowSourcesPopup(!showSourcesPopup)}
+              className="flex items-center space-x-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium"
+            >
+              {showSourcesPopup ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <span>Show Current Sources</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Category Filter */}
+        <div className="flex items-center space-x-2 flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+              selectedCategory === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            All
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.category}
+              onClick={() => setSelectedCategory(cat.category)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                selectedCategory === cat.category
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {cat.category} ({cat.count})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sources List (Collapsible) */}
+      {showSourcesPopup && (
+        <div className="bg-white rounded-lg shadow mb-6 p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-slate-900">Quick Filters</h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700">
-              Advanced Filters
-            </button>
-          </div>
-          <div className="flex flex-col space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Industry
-                </label>
-                <select
-                  value={selectedIndustry}
-                  onChange={(e) => setSelectedIndustry(e.target.value as Industry)}
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                >
-                  {industries.map((industry) => (
-                    <option key={industry} value={industry}>
-                      {industry.charAt(0).toUpperCase() + industry.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Sub-Industry
-                </label>
-                <select
-                  value={selectedSubIndustry || ''}
-                  onChange={(e) => setSelectedSubIndustry(e.target.value as SubIndustry)}
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                >
-                  <option value="">All</option>
-                  {getSubIndustries(selectedIndustry).map((sub) => (
-                    <option key={sub} value={sub}>
-                      {sub.charAt(0).toUpperCase() + sub.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <h3 className="text-md font-semibold text-slate-900">
+              Current Sources ({sources.length})
+              {sourceBulkDeleteMode && (
+                <span className="ml-2 text-sm font-normal text-blue-600">
+                  - Selection Mode Active
+                </span>
+              )}
+            </h3>
             <div className="flex items-center space-x-2">
-              {['day', 'week', 'month'].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range as typeof timeRange)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    timeRange === range
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {range.charAt(0).toUpperCase() + range.slice(1)}
-                </button>
-              ))}
+              {!sourceBulkDeleteMode ? (
+                <>
+                  {sources.length > 0 && (
+                    <button
+                      onClick={() => setSourceBulkDeleteMode(true)}
+                      className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 border border-red-200 rounded hover:bg-red-50"
+                    >
+                      Bulk Delete
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={selectAllSources}
+                    className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded hover:bg-blue-50"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSourceBulkDeleteMode(false);
+                      setSelectedSources(new Set());
+                    }}
+                    className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-700 border border-slate-200 rounded hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteSources}
+                    disabled={selectedSources.size === 0}
+                    className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Delete ({selectedSources.size})
+                  </button>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      </div>
-
-      {activeView === 'market' && (
-        <div className="space-y-6">
-          {/* Market Insights Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {marketInsights.map((insight) => (
-              <div key={insight.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      {insight.source === 'x' && <XIcon className="h-5 w-5 text-slate-600" />}
-                      {insight.source === 'reddit' && <Globe className="h-5 w-5 text-orange-500" />}
-                      {insight.source === 'podcast' && <Headphones className="h-5 w-5 text-purple-500" />}
-                      <div>
-                        <h3 className="text-sm font-medium text-slate-900">{insight.title}</h3>
-                        <p className="text-xs text-slate-500">{insight.source.toUpperCase()} • {insight.date}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        insight.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
-                        insight.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
-                        {insight.engagement.toLocaleString()} interactions
-                      </span>
-                    </div>
+          <div className="space-y-2">
+            {sources.map((source) => (
+              <div 
+                key={source.id} 
+                className={`flex items-center p-3 rounded-lg transition-colors ${
+                  sourceBulkDeleteMode
+                    ? selectedSources.has(source.id)
+                      ? 'bg-blue-50 border-2 border-blue-300'
+                      : 'bg-slate-50 border-2 border-slate-200 hover:border-slate-300'
+                    : 'bg-slate-50'
+                }`}
+              >
+                {sourceBulkDeleteMode && (
+                  <label className="flex items-center mr-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedSources.has(source.id)}
+                      onChange={() => toggleSourceSelection(source.id)}
+                      className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </label>
+                )}
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium text-slate-900">{source.name}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      source.source_type === 'built-in' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'bg-green-100 text-green-700'
+                    }`}>
+                      {source.source_type}
+                    </span>
                   </div>
-                  <p className="mt-3 text-sm text-slate-600">{insight.summary}</p>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700">
-                        {insight.industry}
-                      </span>
-                      {insight.subIndustry && (
-                        <>
-                          <MoveRight className="h-3 w-3 text-slate-400" />
-                          <span className="px-2 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700">
-                            {insight.subIndustry}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="flex items-center space-x-1">
-                        <TrendingUp className="h-4 w-4 text-green-500" />
-                        <span className="text-xs font-medium text-green-700">{insight.trendScore}%</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Star className="h-4 w-4 text-yellow-500" />
-                        <span className="text-xs font-medium text-yellow-700">{insight.relevanceScore}%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="border-t border-slate-100 p-4">
                   <a
-                    href={insight.link}
+                    href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center justify-between"
+                    className="text-sm text-blue-600 hover:underline flex items-center space-x-1 mt-1"
                   >
-                    <span>View Full Content</span>
-                    <MoveRight className="h-4 w-4" />
+                    <span className="truncate max-w-md">{source.url}</span>
+                    <ExternalLink className="h-3 w-3" />
                   </a>
+                  {source.last_scraped_at && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Last scraped: {new Date(source.last_scraped_at).toLocaleString()}
+                    </p>
+                  )}
                 </div>
+                {!sourceBulkDeleteMode && (
+                  <button
+                    onClick={() => handleDeleteSource(source.id)}
+                    className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded"
+                    title={source.source_type === 'built-in' ? 'Built-in sources cannot be deleted individually' : 'Delete source'}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
-
-          {/* Add Source */}
-          <button 
-            onClick={() => setShowSourcePopup(true)}
-            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+          {sources.length === 0 && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> You currently have no sources. Add custom sources using the button below.
+              </p>
+            </div>
+          )}
+          <button
+            onClick={() => setShowAddSourcePopup(true)}
+            className="mt-4 flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
           >
             <Plus className="h-4 w-4" />
             <span>Add Custom Source</span>
@@ -332,364 +490,212 @@ export function StartupRadar() {
         </div>
       )}
 
-      {activeView === 'ecosystem' && (
-        <div className="space-y-6">
-          {/* Ecosystem Insights */}
-          {ecosystemInsights.map((insight) => (
-            <div key={insight.id} className="bg-white rounded-lg shadow">
-              <div className="p-4">
-                <div className="flex items-start space-x-4">
-                  <div className={`p-2 rounded-lg ${
-                    insight.type === 'call' ? 'bg-green-100' :
-                    insight.type === 'email' ? 'bg-blue-100' :
-                    insight.type === 'note' ? 'bg-yellow-100' :
-                    'bg-purple-100'
-                  }`}>
-                    {insight.type === 'call' ? <Phone className="h-5 w-5 text-green-600" /> :
-                     insight.type === 'email' ? <Mail className="h-5 w-5 text-blue-600" /> :
-                     insight.type === 'note' ? <FileText className="h-5 w-5 text-yellow-600" /> :
-                     <MessageSquare className="h-5 w-5 text-purple-600" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-slate-900">{insight.title}</h3>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {insight.date} • {insight.participants.join(', ')}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700">
-                          {insight.industry}
-                        </span>
-                        {insight.subIndustry && (
-                          <>
-                            <MoveRight className="h-3 w-3 text-slate-400" />
-                            <span className="px-2 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700">
-                              {insight.subIndustry}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm text-slate-600">{insight.summary}</p>
-                    
-                    {/* Key Points */}
-                    <div className="mt-4">
-                      <h4 className="text-xs font-medium text-slate-700 mb-2">Key Points</h4>
-                      <ul className="space-y-1">
-                        {insight.keyPoints.map((point, i) => (
-                          <li key={i} className="text-sm text-slate-600 flex items-center space-x-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                            <span>{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      )}
 
-                    {/* Next Steps */}
-                    {insight.nextSteps && (
-                      <div className="mt-4">
-                        <h4 className="text-xs font-medium text-slate-700 mb-2">Next Steps</h4>
-                        <ul className="space-y-1">
-                          {insight.nextSteps.map((step, i) => (
-                            <li key={i} className="text-sm text-slate-600 flex items-center space-x-2">
-                              <AlertCircle className="h-4 w-4 text-blue-500" />
-                              <span>{step}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Quick Actions */}
-          <div className="flex space-x-4">
-            <button 
-              onClick={() => setShowInteractionPopup(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Interaction</span>
-            </button>
-            <button 
-              onClick={() => setShowAnalyticsPopup(true)}
-              className="flex items-center space-x-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <LineChart className="h-4 w-4" />
-              <span>View Analytics</span>
-            </button>
+      {/* Bulk Delete Controls for Radar Data */}
+      {!loading && radarData.length > 0 && (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Startup Intelligence ({radarData.length})
+          </h2>
+          <div className="flex items-center space-x-2">
+            {!bulkDeleteMode ? (
+              <button
+                onClick={() => setBulkDeleteMode(true)}
+                className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 border border-red-200 rounded hover:bg-red-50"
+              >
+                Bulk Delete
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={selectAllEntries}
+                  className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => {
+                    setBulkDeleteMode(false);
+                    setSelectedEntries(new Set());
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDeleteEntries}
+                  disabled={selectedEntries.size === 0}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Delete ({selectedEntries.size})
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* Add Interaction Popup */}
-      {showInteractionPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Add New Interaction</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Integration Type</label>
-                <select
-                  value={newInteraction.type}
-                  onChange={(e) => setNewInteraction(prev => ({ ...prev, type: e.target.value as typeof newInteraction.type }))}
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                >
-                  <option value="figma">Figma Board</option>
-                  <option value="notion">Notion Page</option>
-                  <option value="miro">Miro Board</option>
-                  <option value="confluence">Confluence Page</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={newInteraction.title}
-                  onChange={(e) => setNewInteraction(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Enter a descriptive title"
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Link</label>
-                <input
-                  type="text"
-                  value={newInteraction.link}
-                  onChange={(e) => setNewInteraction(prev => ({ ...prev, link: e.target.value }))}
-                  placeholder="https://"
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea
-                  value={newInteraction.description}
-                  onChange={(e) => setNewInteraction(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe the content and key insights..."
-                  rows={3}
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Participants</label>
-                <input
-                  type="text"
-                  value={newInteraction.participants}
-                  onChange={(e) => setNewInteraction(prev => ({ ...prev, participants: e.target.value }))}
-                  placeholder="Enter participant names (comma separated)"
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Next Steps</label>
-                <textarea
-                  value={newInteraction.nextSteps}
-                  onChange={(e) => setNewInteraction(prev => ({ ...prev, nextSteps: e.target.value }))}
-                  placeholder="List any action items or follow-ups..."
-                  rows={2}
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                />
-              </div>
+      {/* Radar Data Grid */}
+      {!loading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {radarData.length === 0 ? (
+            <div className="col-span-2 text-center py-12">
+              <Globe className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-2">No startup intelligence found</p>
+              <p className="text-sm text-slate-400">Add sources and refresh to see the latest startup news</p>
             </div>
-            <div className="mt-6 flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setShowInteractionPopup(false);
-                  setNewInteraction({
-                    type: 'figma',
-                    title: '',
-                    link: '',
-                    description: '',
-                    participants: '',
-                    nextSteps: ''
-                  });
-                }}
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  // Handle interaction addition here
-                  setShowInteractionPopup(false);
-                  setNewInteraction({
-                    type: 'figma',
-                    title: '',
-                    link: '',
-                    description: '',
-                    participants: '',
-                    nextSteps: ''
-                  });
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-              >
-                Add Interaction
-              </button>
-            </div>
-          </div>
+          ) : (
+            radarData.map((item) => (
+              <div key={item.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+                <div className="p-4">
+                  {bulkDeleteMode && (
+                    <div className="mb-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedEntries.has(item.id)}
+                        onChange={() => toggleEntrySelection(item.id)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-900">{item.company_name}</h3>
+                      <p className="text-sm text-slate-500">
+                        {item.source_name} • {new Date(item.published_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                        {item.category}
+                      </span>
+                      {!bulkDeleteMode && (
+                        <button
+                          onClick={() => handleDeleteEntry(item.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Delete entry"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <h4 className="text-md font-medium text-slate-800 mb-2">{item.headline}</h4>
+                  <p className="text-sm text-slate-600 mb-4">{item.description}</p>
+
+                  {/* Funding Info */}
+                  {(item.funding_amount || item.funding_stage) && (
+                    <div className="flex items-center space-x-4 mb-4 text-sm">
+                      {item.funding_amount && (
+                        <div className="flex items-center space-x-1">
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          <span className="font-medium text-green-700">
+                            ${item.funding_amount}M raised
+                          </span>
+                        </div>
+                      )}
+                      {item.funding_stage && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
+                          {item.funding_stage}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Investors */}
+                  {item.investors && item.investors.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-medium text-slate-700 mb-1">Investors:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {item.investors.map((investor, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700"
+                          >
+                            {investor}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-100 p-4">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center justify-between"
+                  >
+                    <span>Read Full Article</span>
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
       {/* Add Source Popup */}
-      {showSourcePopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+      {showAddSourcePopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Add New Source</h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Add Custom Source</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Source Type</label>
-                <select
-                  value={newSource.type}
-                  onChange={(e) => setNewSource(prev => ({ ...prev, type: e.target.value as MarketInsight['source'] }))}
-                  className="w-full rounded-md border-slate-200 shadow-sm"
-                >
-                  <option value="x">X (Twitter)</option>
-                  <option value="reddit">Reddit</option>
-                  <option value="podcast">Podcast</option>
-                  <option value="news">News</option>
-                  <option value="research">Research</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Source Link</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Source Name
+                </label>
                 <input
                   type="text"
-                  value={newSource.link}
-                  onChange={(e) => setNewSource(prev => ({ ...prev, link: e.target.value }))}
-                  placeholder="https://"
+                  value={newSource.name}
+                  onChange={(e) => setNewSource((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., TechCrunch AI"
                   className="w-full rounded-md border-slate-200 shadow-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-                <textarea
-                  value={newSource.notes}
-                  onChange={(e) => setNewSource(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Any additional context or notes..."
-                  rows={3}
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Source URL
+                </label>
+                <input
+                  type="url"
+                  value={newSource.url}
+                  onChange={(e) => setNewSource((prev) => ({ ...prev, url: e.target.value }))}
+                  placeholder="https://techcrunch.com/ai"
                   className="w-full rounded-md border-slate-200 shadow-sm"
                 />
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Adding a source will immediately trigger AI scraping to extract startup intelligence from that source.
+                </p>
               </div>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button
-                onClick={() => setShowSourcePopup(false)}
+                onClick={() => {
+                  setShowAddSourcePopup(false);
+                  setNewSource({ name: '', url: '' });
+                }}
                 className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  // Handle source addition here
-                  setShowSourcePopup(false);
-                  setNewSource({ link: '', type: 'x', notes: '' });
-                }}
+                onClick={handleAddSource}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
               >
-                Add Source
+                Add Source & Scrape
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Popup */}
-      {showAnalyticsPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-semibold text-slate-900">Startup Analytics</h3>
-              <button
-                onClick={() => setShowAnalyticsPopup(false)}
-                className="text-slate-400 hover:text-slate-500"
-              >
-                <AlertTriangle className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Growth Metrics */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-slate-700 mb-3">Growth Metrics</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">MRR Growth</span>
-                    <span className="text-sm font-medium text-green-600">+42%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">User Growth</span>
-                    <span className="text-sm font-medium text-green-600">+28%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Team Growth</span>
-                    <span className="text-sm font-medium text-blue-600">+15%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Market Position */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-slate-700 mb-3">Market Position</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Market Share</span>
-                    <span className="text-sm font-medium text-blue-600">12%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Competitor Count</span>
-                    <span className="text-sm font-medium text-slate-900">8</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Market Position</span>
-                    <span className="text-sm font-medium text-green-600">Top 3</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Key Performance */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-slate-700 mb-3">Key Performance</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">CAC</span>
-                    <span className="text-sm font-medium text-slate-900">$450</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">LTV</span>
-                    <span className="text-sm font-medium text-slate-900">$2,800</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Burn Rate</span>
-                    <span className="text-sm font-medium text-yellow-600">$85k/mo</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Funding Status */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-slate-700 mb-3">Funding Status</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Last Round</span>
-                    <span className="text-sm font-medium text-slate-900">Series A</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Amount Raised</span>
-                    <span className="text-sm font-medium text-slate-900">$12M</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Runway</span>
-                    <span className="text-sm font-medium text-green-600">18 months</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

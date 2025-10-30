@@ -243,8 +243,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             setComparisonStage('✅ Complete!');
             setCompletedComparisonId(comparisonId);
             
-            // Don't auto-download, show success message
-            alert(`Comparison analysis complete! You can now download the report in your preferred format.`);
+            // Don't auto-download, log success message
+            console.log('Comparison analysis complete! You can now download the report in your preferred format.');
             
           } else if (data.analysis_status === 'failed') {
             clearInterval(poll);
