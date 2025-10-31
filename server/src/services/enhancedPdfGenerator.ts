@@ -4,10 +4,12 @@ import path from 'path';
 import { getIndustryMetrics } from '../config/industryMetrics';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+process.env.GEMINI_API_KEY="AIzaSyAnWSc9H2ug4CIFKq9I-btv97hHBXAViSA";
+console.debug(`Gemini API Key in environment: ${process.env.GEMINI_API_KEY}`);   // normally coming undefined, dont know why even after dotenv config(), so now just setting it above
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 interface EnhancedPDFOptions {
-  deck: any;
+  deck: any;   // should have "id" object attribute
   analysis: any;
   selectedStage: string;
   selectedIndustry: string;
@@ -298,8 +300,10 @@ If analysis data is LIMITED, still be SPECIFIC about what you DO know. Infer pro
 
 Write the introduction now. Use "${companyName}" as the company name. Make it SPECIFIC.`;
 
-    console.log('📤 Sending to Gemini...');
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    console.log('📤 Sending to Gemini...'); 
+    const gemini_model_version = 'gemini-2.0-flash';
+    //const gemini_model_version = 'gemini-1.5-flash';  // //ERROR: [404 Not Found] models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+    const model = genAI.getGenerativeModel({ model: gemini_model_version }); 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     let introduction = response.text().trim();

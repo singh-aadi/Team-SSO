@@ -1,0 +1,36 @@
+------WebKitFormBoundary5iWavOk085hom8uh
+Content-Disposition: form-data; name=\"deck\"; filename=\"We360.ai (INR) Deck May 2025.pdf\"
+Content-Type: application/pdf
+
+
+------WebKitFormBoundary5iWavOk085hom8uh
+Content-Disposition: form-data; name=\"checklist\"; filename=\"01. LV - Checklist (Founders Checklist).docx\"
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+
+------WebKitFormBoundary5iWavOk085hom8uh
+Content-Disposition: form-data; name=\"company_id\"
+
+1
+------WebKitFormBoundary5iWavOk085hom8uh
+Content-Disposition: form-data; name=\"uploaded_by\"
+
+4b1abe46-21c2-40d9-960b-90c8ec2a9780
+------WebKitFormBoundary5iWavOk085hom8uh--
+
+
+//////////// body above extracted from full request below:
+
+await fetch("http://localhost:3000/decks/upload-dual", {
+  "headers": {
+    "content-type": "multipart/form-data; boundary=----WebKitFormBoundary5iWavOk085hom8uh",
+    "sec-ch-ua": "\"Google Chrome\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Linux\""
+  },
+  "referrer": "http://localhost:3001/",
+  "body": "------WebKitFormBoundary5iWavOk085hom8uh\r\nContent-Disposition: form-data; name=\"deck\"; filename=\"We360.ai (INR) Deck May 2025.pdf\"\r\nContent-Type: application/pdf\r\n\r\n\r\n------WebKitFormBoundary5iWavOk085hom8uh\r\nContent-Disposition: form-data; name=\"checklist\"; filename=\"01. LV - Checklist (Founders Checklist).docx\"\r\nContent-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n\r\n------WebKitFormBoundary5iWavOk085hom8uh\r\nContent-Disposition: form-data; name=\"company_id\"\r\n\r\n1\r\n------WebKitFormBoundary5iWavOk085hom8uh\r\nContent-Disposition: form-data; name=\"uploaded_by\"\r\n\r\n4b1abe46-21c2-40d9-960b-90c8ec2a9780\r\n------WebKitFormBoundary5iWavOk085hom8uh--\r\n",
+  "method": "POST",
+  //"mode": "cors",
+  "credentials": "omit"
+});

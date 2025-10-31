@@ -21,7 +21,8 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware - CORS configuration for production
 app.use(cors({
-  origin: true, // Allow all origins in development/testing
+  //origin: true, // Allow all origins in development/testing
+  origin: '*',  // allow any origin - TODO: insecure, change this later
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
