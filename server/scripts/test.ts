@@ -20,6 +20,8 @@ import { query } from '../src/db';
 import { generateEnhancedPDF } from '../src/services/enhancedPdfGenerator'
 
 async function main() {
+    // abandoned database (forget about it, run directly!) - lots of issues with setting up Postgres database on localhost. 
+    // Wish Aditya just used something simple like sqlite !
     const example_id = 1;
     // const deckResult = await query(`
     //     SELECT d.*, c.name as company_name, c.stage, c.industry
@@ -44,4 +46,67 @@ async function main() {
     console.log(result_str);
 }
 
-main()
+async function my_pdf_declarative_gen() {
+    const fs = require('fs');
+    const PdfPrinter = require('pdfmake');
+
+    // Define fonts (pdfmake requires at least one font)
+    const fonts = {
+        // got font error (.ttf font file is missing!)
+        // Roboto: {
+        //     normal: 'node_modules/pdfmake/examples/fonts/Roboto-Regular.ttf',
+        //     bold: 'node_modules/pdfmake/examples/fonts/Roboto-Medium.ttf',
+        //     italics: 'node_modules/pdfmake/examples/fonts/Roboto-Italic.ttf',
+        //     bolditalics: 'node_modules/pdfmake/examples/fonts/Roboto-MediumItalic.ttf'
+        // }
+
+        // Use built-in Helvetica — no need to provide actual .ttf files
+        Helvetica: {
+            normal: 'Helvetica',
+            bold: 'Helvetica-Bold',
+            italics: 'Helvetica-Oblique',
+            bolditalics: 'Helvetica-BoldOblique'
+        }
+    };
+    const printer = new PdfPrinter(fonts);
+
+    // Helper to vertically spread lines evenly on a page
+    function spacedPage(lines) {
+    return {
+        stack: lines.map((text, i) => ({
+        text,
+        margin: [0, i * 200, 0, 0] // adjust spacing (Y offset)
+        })),
+        absolutePosition: {x: 100, y: 100}
+    };
+    }
+
+    const docDefinition = {
+        pageSize: 'A4',
+        defaultStyle: { font: 'Helvetica' },    // if not specified, by default it uses Roboto font I think but that requires its font .ttf file to be installed
+        content: [
+            // --- PAGE 1 ---
+            spacedPage([
+            'line 1 on 1 level',
+            'line 2 on 2 level',
+            'line 3 on 3 level'
+            ]),
+            { text: '', pageBreak: 'after' },
+
+            // --- PAGE 2 ---
+            spacedPage([
+            'page 2 test line 1 on 1 level',
+            'page 2 test line 2 on 2 level',
+            'page 2 line 3 on 3 level'
+            ])
+        ]
+    };
+
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+    pdfDoc.pipe(fs.createWriteStream('/home/sohangchopra/Programming/hackathons/Team-SSO/server/temp/PDFKIT_DECLARATIVE_OUTPUT.pdf'));
+    pdfDoc.end();
+
+}
+
+//main()
+my_pdf_declarative_gen()

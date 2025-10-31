@@ -302,7 +302,7 @@ Write the introduction now. Use "${companyName}" as the company name. Make it SP
 
     console.log('📤 Sending to Gemini...'); 
     const gemini_model_version = 'gemini-2.0-flash';
-    //const gemini_model_version = 'gemini-1.5-flash';  // //ERROR: [404 Not Found] models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+    //const gemini_model_version = 'gemini-1.5-flash';  //ERROR: [404 Not Found] models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
     const model = genAI.getGenerativeModel({ model: gemini_model_version }); 
     const result = await model.generateContent(prompt);
     const response = await result.response;
