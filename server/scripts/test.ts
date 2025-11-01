@@ -48,7 +48,7 @@ async function main() {
 
 async function my_pdf_declarative_gen() {
     const fs = require('fs');
-    const PdfPrinter = require('pdfmake');
+    const PdfPrinter = require('pdfmake'); // TUTORIAL/RESOURCE on pdfmake, looks official: https://www.npmjs.com/package/@leantechniques/pdfmake
 
     // Define fonts (pdfmake requires at least one font)
     const fonts = {
@@ -71,35 +71,101 @@ async function my_pdf_declarative_gen() {
     const printer = new PdfPrinter(fonts);
 
     // Helper to vertically spread lines evenly on a page
-    function spacedPage(lines) {
-    return {
-        stack: lines.map((text, i) => ({
-        text,
-        margin: [0, i * 200, 0, 0] // adjust spacing (Y offset)
-        })),
-        absolutePosition: {x: 100, y: 100}
-    };
-    }
+    // function spacedPage(lines) {
+    //     return {
+    //         stack: lines.map((text, i) => ({
+    //         text,
+    //         margin: [0, i * 200, 0, 0] // adjust spacing (Y offset)
+    //         })),
+    //         absolutePosition: {x: 100, y: 100}
+    //     };
+    // }
+
+    // const docDefinition = {
+    //     pageSize: 'A4',
+    //     defaultStyle: { font: 'Helvetica' },    // if not specified, by default it uses Roboto font I think but that requires its font .ttf file to be installed
+    //     content: [
+    //         // --- PAGE 1 ---
+    //         {
+    //             table: {
+    //                 widths: ['*'],
+    //                 body: [[
+    //                 {
+    //                     stack: [
+    //                     { text: 'PITCH DECK ANALYSIS', fontSize: 28, bold: true, color: 'white', alignment: 'center' },
+    //                     { text: 'INVESTMENT READINESS REPORT', fontSize: 20, bold: true, color: 'white', alignment: 'center', margin: [0, 5, 0, 0] },
+    //                     { text: 'Powered by Team SSO Intelligence Report Intelligence', fontSize: 9, color: 'white', alignment: 'center', margin: [0, 10, 0, 0] }
+    //                     ]
+    //                 }
+    //                 ]]
+    //             },
+    //             layout: 'noBorders',
+    //             fillColor: '#003366',
+    //             margin: [0, 0, 0, 20]
+    //         },
+    //         { text: '', pageBreak: 'after' },
+
+    //         // --- PAGE 2 ---
+    //         // spacedPage([
+    //         // 'page 2 test line 1 on 1 level',
+    //         // 'page 2 test line 2 on 2 level',
+    //         // 'page 2 line 3 on 3 level'
+    //         // ])
+    //     ]
+    // };
+
 
     const docDefinition = {
         pageSize: 'A4',
-        defaultStyle: { font: 'Helvetica' },    // if not specified, by default it uses Roboto font I think but that requires its font .ttf file to be installed
-        content: [
-            // --- PAGE 1 ---
-            spacedPage([
-            'line 1 on 1 level',
-            'line 2 on 2 level',
-            'line 3 on 3 level'
-            ]),
-            { text: '', pageBreak: 'after' },
+        pageMargins: [40, 60, 40, 60],
 
-            // --- PAGE 2 ---
-            spacedPage([
-            'page 2 test line 1 on 1 level',
-            'page 2 test line 2 on 2 level',
-            'page 2 line 3 on 3 level'
-            ])
-        ]
+        content: [
+            // HEADER (dark-blue, centered, white text)
+            {
+            table: {
+                widths: ['*'],
+                body: [[
+                {
+                    stack: [
+                    { text: 'PITCH DECK ANALYSIS', fontSize: 28, bold: true, color: 'white', alignment: 'center' },
+                    { text: 'INVESTMENT READINESS REPORT', fontSize: 20, bold: true, color: 'white', alignment: 'center', margin: [0, 5, 0, 0] },
+                    { text: 'Powered by Team SSO Intelligence Report Intelligence', fontSize: 9, color: 'white', alignment: 'center', margin: [0, 10, 0, 0] }
+                    ]
+                }
+                ]]
+            },
+            layout: 'noBorders',
+            fillColor: '#003366',
+            margin: [0, 0, 0, 30]
+            },
+
+            // BODY SECTION
+            {
+            stack: [
+                {
+                text: [
+                    { text: 'Company Name: ', fontSize: 18, bold: true },
+                    { text: 'We360AI (Zenstack Private Limited)', fontSize: 18 }
+                ],
+                alignment: 'center',
+                margin: [0, 30, 0, 30]
+                },
+                {
+                stack: [
+                    { text: score.toFixed(1), fontSize: 72, bold: true, color: scoreColor, alignment: 'center' },
+                    { text: '/ 100', fontSize: 16, alignment: 'center', margin: [0, -10, 0, 0] }
+                ]
+                }
+            ]
+            }
+        ],
+
+        footer: (currentPage, pageCount) => ({
+            text: 'SSO Readiness Score™',
+            alignment: 'center',
+            fontSize: 10,
+            margin: [0, 10, 0, 0]
+        })
     };
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
