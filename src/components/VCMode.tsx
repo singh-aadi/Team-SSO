@@ -67,17 +67,31 @@ export function VCMode() {
   ]);
 
   const updateWeight = (criteriaId: string, subcriteriaId: string | null, newWeight: number) => {
+    // Calculate the sum of all OTHER sliders (excluding the current one being changed)
+    const otherSlidersSum = criteria.reduce((sum, c) => {
+      if (c.id === criteriaId) {
+        return sum; // Skip the current criterion
+      }
+      return sum + c.weight;
+    }, 0);
+    
+    // Maximum allowed value for this slider = 100 - (sum of all other sliders)
+    const maxAllowed = 100 - otherSlidersSum;
+    
+    // Clamp the new weight between 0 and maxAllowed
+    const clampedWeight = Math.min(Math.max(newWeight, 0), maxAllowed);
+    
     setCriteria(prev => prev.map(c => {
       if (c.id === criteriaId) {
         if (subcriteriaId) {
           return {
             ...c,
             subcriteria: c.subcriteria.map(sc => 
-              sc.id === subcriteriaId ? { ...sc, weight: newWeight } : sc
+              sc.id === subcriteriaId ? { ...sc, weight: clampedWeight } : sc
             )
           };
         }
-        return { ...c, weight: newWeight };
+        return { ...c, weight: clampedWeight };
       }
       return c;
     }));
@@ -258,33 +272,44 @@ export function VCMode() {
             <p className="text-sm text-slate-600 mb-6">
               Adjust the importance of each criterion to match your investment thesis. Weights must total 100%.
             </p>
-            <div className="space-y-6">
-              {criteria.map(criterion => (
-                <div key={criterion.id} className="border-b pb-6 last:border-b-0">
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-slate-900">{criterion.name}</h3>
-                      <span className="text-lg font-bold text-blue-600">{criterion.weight}%</span>
+            
+            {/* 2-Column Grid for Sliders */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              {criteria.map(criterion => {
+                // Calculate max value for this slider (100 - sum of all other sliders)
+                const otherSlidersSum = criteria.reduce((sum, c) => {
+                  if (c.id === criterion.id) return sum;
+                  return sum + c.weight;
+                }, 0);
+                const maxValue = 100 - otherSlidersSum;
+                
+                return (
+                  <div key={criterion.id} className="border-b pb-6 last:border-b-0 md:last:border-b md:nth-last-child-2:border-b-0">
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-slate-900">{criterion.name}</h3>
+                        <span className="text-lg font-bold text-blue-600">{criterion.weight}%</span>
+                      </div>
+                      <p className="text-sm text-slate-600 leading-relaxed mb-3">
+                        {criterion.description}
+                      </p>
                     </div>
-                    <p className="text-sm text-slate-600 leading-relaxed mb-3">
-                      {criterion.description}
-                    </p>
+                    <input
+                      type="range"
+                      min="0"
+                      max={maxValue}
+                      value={criterion.weight}
+                      onChange={(e) => updateWeight(criterion.id, null, parseInt(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>0%</span>
+                      <span>{Math.round(maxValue / 2)}%</span>
+                      <span>{maxValue}%</span>
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={criterion.weight}
-                    onChange={(e) => updateWeight(criterion.id, null, parseInt(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-slate-500 mt-1">
-                    <span>0%</span>
-                    <span>50%</span>
-                    <span>100%</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* Weight Total Indicator */}

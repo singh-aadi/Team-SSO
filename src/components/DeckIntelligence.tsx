@@ -12,7 +12,8 @@ import {
   X,
   BookOpen,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trophy
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
@@ -38,7 +39,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [comparisonStage, setComparisonStage] = useState<string>('Initializing...');
   const [comparisonConfidence, setComparisonConfidence] = useState<number>(0);
   const [completedComparisonId, setCompletedComparisonId] = useState<string | null>(null);
-  
+  const [comparisonPreview, setComparisonPreview] = useState<any>(null);
+  const [showComparisonPreview, setShowComparisonPreview] = useState(false);
+
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [currentDeck, setCurrentDeck] = useState<PitchDeck | null>(null);
@@ -237,11 +240,27 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           
           if (data.analysis_status === 'completed') {
             console.log('✓ Comparison analysis complete!');
+            console.log('📊 Comparison data:', data);
+            console.log('📄 Comparison analysis:', data.comparison_analysis);
             clearInterval(poll);
             setComparingDecks(false);
             setComparisonConfidence(100);
             setComparisonStage('✅ Complete!');
             setCompletedComparisonId(comparisonId);
+            
+            // Parse comparison_analysis if it's a string
+            let analysisResult = data.comparison_analysis;
+            if (typeof analysisResult === 'string') {
+              try {
+                analysisResult = JSON.parse(analysisResult);
+                console.log('✓ Parsed comparison analysis:', analysisResult);
+              } catch (parseError) {
+                console.error('Failed to parse comparison_analysis:', parseError);
+              }
+            }
+            
+            setComparisonPreview(analysisResult);
+            setShowComparisonPreview(true);
             
             // Don't auto-download, log success message
             console.log('Comparison analysis complete! You can now download the report in your preferred format.');
@@ -970,8 +989,295 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   </div>
                 )}
 
-                {/* Download Options (shown after completion) */}
-                {completedComparisonId && !comparingDecks && (
+                {/* Comparison Preview (shown after completion) */}
+                {showComparisonPreview && comparisonPreview && completedComparisonId && !comparingDecks && (
+                  <div className="mt-6 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    {/* Preview Header */}
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-slate-200 p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <CheckCircle className="h-6 w-6 text-green-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">Comparison Analysis Complete</h3>
+                            <p className="text-sm text-slate-600 mt-1">Review the comparison results below</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowComparisonPreview(false);
+                            setComparisonPreview(null);
+                            setCompletedComparisonId(null);
+                            setComparisonDeck1(null);
+                            setComparisonDeck2(null);
+                            setComparisonProgress(0);
+                            setComparisonConfidence(0);
+                          }}
+                          className="text-slate-400 hover:text-slate-600 p-2 hover:bg-white rounded-lg transition-all"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Preview Content */}
+                    <div className="p-6 max-h-[600px] overflow-y-auto">
+                      {/* Winner Badge */}
+                      {comparisonPreview?.comparison?.winnerOverall && (
+                        <div className="mb-6 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-lg p-4 text-center">
+                          <div className="text-white">
+                            <Trophy className="h-8 w-8 mx-auto mb-2" />
+                            <h3 className="text-xl font-bold">
+                              Winner: {comparisonPreview.comparison.winnerOverall === 'deck1' ? 'Deck 1' : comparisonPreview.comparison.winnerOverall === 'deck2' ? 'Deck 2' : 'Tie'}
+                            </h3>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Executive Summary */}
+                      {comparisonPreview?.comparison?.summary && (
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                            <BarChart className="h-5 w-5 mr-2 text-blue-600" />
+                            Executive Summary
+                          </h4>
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-slate-700">{comparisonPreview.comparison.summary}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Category Winners */}
+                      {comparisonPreview?.comparison?.categoryWinners && (
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                            <Target className="h-5 w-5 mr-2 text-purple-600" />
+                            Category Winners
+                          </h4>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            {Object.entries(comparisonPreview.comparison.categoryWinners).map(([category, winner]) => (
+                              <div key={category} className={`p-3 rounded-lg border-2 ${
+                                (winner as string) === 'deck1' ? 'bg-purple-50 border-purple-300' :
+                                (winner as string) === 'deck2' ? 'bg-teal-50 border-teal-300' :
+                                'bg-gray-50 border-gray-300'
+                              }`}>
+                                <div className="text-xs font-medium text-slate-600 uppercase mb-1">
+                                  {category}
+                                </div>
+                                <div className="text-sm font-bold text-slate-900">
+                                  {(winner as string) === 'deck1' ? 'Deck 1' : (winner as string) === 'deck2' ? 'Deck 2' : 'Tie'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Individual Deck Scores */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Deck 1 Score */}
+                        {comparisonPreview?.deck1Analysis?.analysis?.overallScore !== undefined && (
+                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <h4 className="text-md font-semibold text-purple-900 mb-2 flex items-center">
+                              <FileText className="h-4 w-4 mr-2" />
+                              Deck 1 Overall Score
+                            </h4>
+                            <div className="text-3xl font-bold text-purple-700">
+                              {comparisonPreview.deck1Analysis.analysis.overallScore}/100
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Deck 2 Score */}
+                        {comparisonPreview?.deck2Analysis?.analysis?.overallScore !== undefined && (
+                          <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <h4 className="text-md font-semibold text-teal-900 mb-2 flex items-center">
+                              <FileText className="h-4 w-4 mr-2" />
+                              Deck 2 Overall Score
+                            </h4>
+                            <div className="text-3xl font-bold text-teal-700">
+                              {comparisonPreview.deck2Analysis.analysis.overallScore}/100
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Comparative Strengths & Weaknesses */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Deck 1 */}
+                        <div>
+                          <h4 className="text-md font-semibold text-slate-900 mb-3 flex items-center">
+                            <FileText className="h-4 w-4 mr-2 text-purple-600" />
+                            Deck 1 Analysis
+                          </h4>
+                          
+                          {comparisonPreview?.comparison?.strengths?.deck1 && comparisonPreview.comparison.strengths.deck1.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-green-700 mb-2 flex items-center">
+                                <TrendingUp className="h-4 w-4 mr-1" />
+                                Strengths
+                              </h5>
+                              <ul className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.strengths.deck1.map((strength: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-green-600 mr-2">✓</span>
+                                    <span>{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.weaknesses?.deck1 && comparisonPreview.comparison.weaknesses.deck1.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                <AlertTriangle className="h-4 w-4 mr-1" />
+                                Weaknesses
+                              </h5>
+                              <ul className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.weaknesses.deck1.map((weakness: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-orange-600 mr-2">⚠</span>
+                                    <span>{weakness}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.recommendations?.deck1 && comparisonPreview.comparison.recommendations.deck1.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-blue-700 mb-2 flex items-center">
+                                <Target className="h-4 w-4 mr-1" />
+                                Recommendations
+                              </h5>
+                              <ul className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.recommendations.deck1.map((rec: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-blue-600 mr-2">→</span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Deck 2 */}
+                        <div>
+                          <h4 className="text-md font-semibold text-slate-900 mb-3 flex items-center">
+                            <FileText className="h-4 w-4 mr-2 text-teal-600" />
+                            Deck 2 Analysis
+                          </h4>
+                          
+                          {comparisonPreview?.comparison?.strengths?.deck2 && comparisonPreview.comparison.strengths.deck2.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-green-700 mb-2 flex items-center">
+                                <TrendingUp className="h-4 w-4 mr-1" />
+                                Strengths
+                              </h5>
+                              <ul className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.strengths.deck2.map((strength: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-green-600 mr-2">✓</span>
+                                    <span>{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.weaknesses?.deck2 && comparisonPreview.comparison.weaknesses.deck2.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                <AlertTriangle className="h-4 w-4 mr-1" />
+                                Weaknesses
+                              </h5>
+                              <ul className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.weaknesses.deck2.map((weakness: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-orange-600 mr-2">⚠</span>
+                                    <span>{weakness}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.recommendations?.deck2 && comparisonPreview.comparison.recommendations.deck2.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-blue-700 mb-2 flex items-center">
+                                <Target className="h-4 w-4 mr-1" />
+                                Recommendations
+                              </h5>
+                              <ul className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.recommendations.deck2.map((rec: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-blue-600 mr-2">→</span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Key Differences */}
+                      {comparisonPreview?.comparison?.keyDifferences && comparisonPreview.comparison.keyDifferences.length > 0 && (
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                            <AlertTriangle className="h-5 w-5 mr-2 text-yellow-600" />
+                            Key Differences
+                          </h4>
+                          <ul className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+                            {comparisonPreview.comparison.keyDifferences.map((diff: string, idx: number) => (
+                              <li key={idx} className="text-slate-700 flex items-start">
+                                <span className="text-yellow-600 font-bold mr-2">{idx + 1}.</span>
+                                <span>{diff}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Export Options at Bottom */}
+                    <div className="border-t border-slate-200 bg-slate-50 p-6">
+                      <h4 className="text-md font-semibold text-slate-900 mb-4">Export Comparison Report</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/pdf`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-600 text-blue-600 px-4 py-3 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>PDF</span>
+                        </a>
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/txt`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-white border-2 border-teal-600 text-teal-600 px-4 py-3 rounded-lg font-medium hover:bg-teal-600 hover:text-white transition-all"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>TXT</span>
+                        </a>
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/md`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-white border-2 border-purple-600 text-purple-600 px-4 py-3 rounded-lg font-medium hover:bg-purple-600 hover:text-white transition-all"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>Markdown</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Old Download Options - Remove or keep as fallback */}
+                {completedComparisonId && !comparingDecks && !showComparisonPreview && (
                   <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-2">
@@ -1026,35 +1332,6 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            {
-              title: 'Instant Analysis',
-              description: 'Get feedback in under 30 seconds',
-              icon: Target
-            },
-            {
-              title: 'Benchmark Comparison',
-              description: 'Compare against 50+ top decks',
-              icon: BarChart
-            },
-            {
-              title: 'SSO Readiness Score™',
-              description: 'Proprietary scoring system',
-              icon: TrendingUp
-            }
-          ].map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <div key={index} className="bg-white rounded-lg border border-slate-200 p-6">
-                <Icon className="h-8 w-8 text-blue-600 mb-4" />
-                <h3 className="font-semibold text-slate-900 mb-2">{feature.title}</h3>
-                <p className="text-sm text-slate-600">{feature.description}</p>
-              </div>
-            );
-          })}
         </div>
       </div>
     );

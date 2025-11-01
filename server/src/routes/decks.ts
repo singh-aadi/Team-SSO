@@ -1104,7 +1104,7 @@ router.get('/compare/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const result = await query(`
-      SELECT id, analysis_status, deck1_filename, deck2_filename, created_at, analyzed_at
+      SELECT id, analysis_status, comparison_analysis, deck1_filename, deck2_filename, created_at, analyzed_at
       FROM deck_comparisons 
       WHERE id = $1
     `, [id]);
