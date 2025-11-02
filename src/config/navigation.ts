@@ -8,7 +8,8 @@ import {
   Rocket,
   Briefcase,
   Sliders,
-  Construction
+  Construction,
+  Radar
 } from 'lucide-react';
 
 export interface NavItem {
@@ -82,6 +83,12 @@ export const VC_NAV: NavItem[] = [
     label: 'VC Mode',
     icon: Sliders,
     description: 'Advanced tools & VC context'
+  },
+  {
+    path: '/startup-radar',
+    label: 'Startup Radar',
+    icon: Radar,
+    description: 'Track startups & market intelligence'
   },
   {
     path: '/glossary',
