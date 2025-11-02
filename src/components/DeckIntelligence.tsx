@@ -13,11 +13,13 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
-  Trophy
+  Trophy,
+  Wand2
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
 import { useAuth } from '../context/AuthContext';
+import { EvaluationWizard } from './EvaluationWizard';
 
 interface DeckIntelligenceProps {
   userType: 'founder' | 'vc';
@@ -25,6 +27,9 @@ interface DeckIntelligenceProps {
 
 export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const { user } = useAuth(); // Get the logged-in user
+  
+  // Wizard Mode
+  const [useWizardMode, setUseWizardMode] = useState(false);
   
   // Dual PDF Upload State
   const [deckFile, setDeckFile] = useState<File | null>(null);
@@ -96,20 +101,16 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   };
 
   const validateFile = (file: File, isPitchDeck: boolean = false): string | null => {
-    if (file.size > 15 * 1024 * 1024) {
-      return 'File size must be less than 15MB';
+    // 100MB limit for all files
+    if (file.size > 100 * 1024 * 1024) {
+      return 'File size must be less than 100MB';
     }
-    if (isPitchDeck) {
-      // Pitch deck must be PDF (for visual analysis)
-      if (!file.name.match(/\.pdf$/i)) {
-        return 'Pitch deck must be a PDF file';
-      }
-    } else {
-      // Checklist can be PDF or Word
-      if (!file.name.match(/\.(pdf|docx|doc)$/i)) {
-        return 'Checklist must be a PDF or Word document (.docx, .doc)';
-      }
+    
+    // Accept PDF, Word, and PowerPoint for both deck and checklist
+    if (!file.name.match(/\.(pdf|docx|doc|pptx|ppt)$/i)) {
+      return 'File must be PDF, Word (.docx, .doc), or PowerPoint (.pptx, .ppt)';
     }
+    
     return null;
   };
 
@@ -386,6 +387,14 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         console.log(`[Poll ${attempts}] Deck status:`, deck.status, 'Has analysis:', !!deck.analysis);
         
         setCurrentDeck(deck);
+        
+        // Populate stage and industry from deck's company data
+        if (deck.stage && !selectedStage) {
+          setSelectedStage(deck.stage);
+        }
+        if (deck.industry && !selectedIndustry) {
+          setSelectedIndustry(deck.industry);
+        }
 
         // Backend uses 'completed' not 'analyzed'
         if (deck.status === 'completed' || deck.status === 'analyzed' || deck.status === 'failed') {
@@ -422,17 +431,61 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     ? (parseFloat(currentDeck.analysis.sso_score.toString()) * 10).toFixed(1) 
     : '0.0';
 
+  // Handle wizard completion
+  const handleWizardComplete = async (deckId: string, hasContext: boolean, hasPreferences: boolean) => {
+    console.log('🎉 Wizard complete:', { deckId, hasContext, hasPreferences });
+    setUseWizardMode(false);
+    
+    // Load the deck and poll for analysis
+    try {
+      const deck = await api.getDeck(deckId);
+      setCurrentDeck(deck);
+      
+      // Populate stage and industry from deck's company data
+      if (deck.stage) setSelectedStage(deck.stage);
+      if (deck.industry) setSelectedIndustry(deck.industry);
+      
+      setAnalyzing(true);
+      pollForAnalysis(deckId);
+    } catch (err) {
+      console.error('Failed to load deck after wizard:', err);
+      setError('Failed to load deck. Please refresh the page.');
+    }
+  };
+
+  // Show wizard if enabled
+  if (useWizardMode && !currentDeck) {
+    return (
+      <EvaluationWizard
+        onComplete={handleWizardComplete}
+        onCancel={() => setUseWizardMode(false)}
+        userId={user?.id || crypto.randomUUID()}
+      />
+    );
+  }
+
   // Show upload form if no deck uploaded yet
   if (!currentDeck) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Pitch Deck & Memo Intelligence</h1>
-          <p className="text-slate-600 mt-1">
-            {userType === 'founder' 
-              ? 'Upload your deck to get instant feedback and SSO Readiness Score™'
-              : 'Analyze multiple decks and compare them side-by-side'}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Pitch Deck & Memo Intelligence</h1>
+            <p className="text-slate-600 mt-1">
+              {userType === 'founder' 
+                ? 'Upload your deck to get instant feedback and SSO Readiness Score™'
+                : 'Analyze multiple decks and compare them side-by-side'}
+            </p>
+          </div>
+          
+          {/* Wizard Mode Toggle */}
+          <button
+            onClick={() => setUseWizardMode(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+          >
+            <Wand2 className="h-5 w-5" />
+            <span>Guided Evaluation</span>
+          </button>
         </div>
 
         {/* Imported Context Badge */}

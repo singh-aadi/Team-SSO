@@ -1,39 +1,49 @@
 import { useNavigate } from 'react-router';
-import { ArrowRight, BarChart3, TrendingUp, Users, Shield, LineChart, Search } from 'lucide-react';
+import { ArrowRight, Sparkles, Brain, FileText, TrendingUp, Wand2, MessageSquare, BarChart3, Shield } from 'lucide-react';
 
 export function LandingPage() {
   const navigate = useNavigate();
 
   const features = [
     {
-      icon: Search,
-      title: 'Deal Flow Intelligence',
-      description: 'Advanced screening and scoring for deal sourcing with AI-powered insights'
+      icon: Wand2,
+      title: 'Guided Evaluation Wizard',
+      description: 'Step-by-step pitch deck analysis with context collection, custom criteria, and VC preferences in one seamless flow'
+    },
+    {
+      icon: Brain,
+      title: 'AI-Powered Dual Analysis',
+      description: 'Gemini 2.0 Flash analyzes both pitch deck and checklist together for comprehensive, context-aware insights'
+    },
+    {
+      icon: Sparkles,
+      title: 'Agentic VC Mode',
+      description: 'Customize evaluation criteria with unlimited subcriteria and weights. AI generates adaptive prompts tailored to your investment thesis'
+    },
+    {
+      icon: MessageSquare,
+      title: 'VC Context Intelligence',
+      description: 'Upload meeting notes, transcripts, and due diligence docs. AI synthesizes context to influence analysis outcomes'
+    },
+    {
+      icon: FileText,
+      title: 'Enhanced PDF Reports',
+      description: 'Professional reports with industry benchmarks, stage-specific insights, and comparative analysis across competitors'
     },
     {
       icon: BarChart3,
-      title: 'Portfolio Analytics',
-      description: 'Real-time portfolio performance tracking and benchmarking against market standards'
-    },
-    {
-      icon: Shield,
-      title: 'Due Diligence Automation',
-      description: 'Comprehensive risk assessment and validation tools for faster decision-making'
+      title: 'SSO Readiness Score™',
+      description: 'Proprietary scoring algorithm evaluating decks across Problem, Solution, Market, Traction, Team, Financials, and Ask'
     },
     {
       icon: TrendingUp,
-      title: 'Market Intelligence',
-      description: 'Track trends, valuations, and competitive landscapes across sectors'
+      title: 'Competitive Benchmarking',
+      description: 'Compare startups against industry standards and stage-specific metrics (Seed, Series A/B/C, Growth)'
     },
     {
-      icon: LineChart,
-      title: 'Predictive Analytics',
-      description: 'Data-driven forecasting for startup performance and exit potential'
-    },
-    {
-      icon: Users,
-      title: 'Founder-VC Alignment',
-      description: 'Bridge the gap between VCs and founders with shared intelligence and insights'
+      icon: Shield,
+      title: 'Risk & Founder Journey Analysis',
+      description: 'Deep-dive into risk factors, founder backgrounds, and competitive positioning with actionable recommendations'
     }
   ];
 
@@ -65,48 +75,79 @@ export function LandingPage() {
       {/* Hero Section */}
       <section className="relative z-10 px-6 py-20">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="text-teal-300 text-sm font-semibold mb-4 tracking-wide">POWERED BY LETSVENTURE</div>
+          <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-teal-400 to-purple-400 text-white text-sm font-semibold mb-6 px-4 py-2 rounded-full">
+            <Sparkles className="h-4 w-4" />
+            <span>INTELLIGENT DEAL ANALYSIS FOR VCs</span>
+          </div>
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
-            Intelligent Deal Flow
+            Smart Pitch Deck
             <br />
-            <span className="text-teal-300">For Modern VCs</span>
+            <span className="bg-gradient-to-r from-teal-300 to-purple-300 bg-clip-text text-transparent">Analysis Platform</span>
           </h1>
           <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-3xl mx-auto">
-            Advanced scouting, due diligence automation, and portfolio intelligence platform 
-            designed to help VCs make faster, smarter investment decisions.
+            Evaluate startup decks with <strong>agentic AI agents</strong>, custom VC criteria, 
+            context-aware analysis, and industry benchmarks—all in minutes, not days.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => navigate('/login')}
-              className="bg-white text-blue-800 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-colors flex items-center justify-center space-x-2"
+              className="bg-gradient-to-r from-teal-500 to-purple-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:from-teal-400 hover:to-purple-500 transition-all shadow-xl hover:shadow-2xl flex items-center justify-center space-x-2"
             >
-              <span>Get Started</span>
+              <Wand2 className="h-5 w-5" />
+              <span>Start Analyzing Decks</span>
               <ArrowRight className="h-5 w-5" />
             </button>
-            <button className="border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-800 transition-colors">
-              Watch Demo
+            <button 
+              onClick={() => navigate('/login')}
+              className="border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-800 transition-colors"
+            >
+              View Demo
             </button>
+          </div>
+          
+          {/* Stats Bar */}
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
+              <div className="text-4xl font-bold text-teal-300 mb-2">10x</div>
+              <div className="text-blue-100">Faster Analysis</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
+              <div className="text-4xl font-bold text-purple-300 mb-2">100%</div>
+              <div className="text-blue-100">Consistent Scoring</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
+              <div className="text-4xl font-bold text-teal-300 mb-2">7</div>
+              <div className="text-blue-100">Analysis Dimensions</div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section className="relative z-10 px-6 py-20">
+      <section className="relative z-10 px-6 py-20 bg-white/5">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
-            Your Complete VC Intelligence Platform
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="text-center mb-16">
+            <div className="text-teal-300 text-sm font-semibold mb-4 tracking-wide">WHAT WE BUILT</div>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Everything You Need to Evaluate Decks
+            </h2>
+            <p className="text-xl text-blue-100 max-w-2xl mx-auto">
+              From guided evaluation flows to agentic AI customization—built for VCs who demand precision and speed
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
                 <div
                   key={index}
-                  className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20 hover:bg-white/20 transition-colors"
+                  className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-lg rounded-xl p-6 border border-white/20 hover:border-teal-300/50 hover:shadow-xl hover:shadow-teal-500/20 transition-all group"
                 >
-                  <Icon className="h-8 w-8 text-teal-300 mb-4" />
-                  <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
-                  <p className="text-blue-100">{feature.description}</p>
+                  <div className="bg-gradient-to-br from-teal-400 to-purple-500 w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Icon className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
+                  <p className="text-blue-200 text-sm leading-relaxed">{feature.description}</p>
                 </div>
               );
             })}
@@ -114,22 +155,72 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* How It Works */}
+      <section className="relative z-10 px-6 py-20">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <div className="text-purple-300 text-sm font-semibold mb-4 tracking-wide">HOW IT WORKS</div>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              From Upload to Insights in 4 Steps
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 text-center">
+              <div className="bg-gradient-to-br from-teal-400 to-teal-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl">1</div>
+              <h3 className="text-white font-semibold mb-2">Upload Deck</h3>
+              <p className="text-blue-200 text-sm">Upload pitch deck & checklist (PDF, DOCX, PPT up to 100MB)</p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 text-center">
+              <div className="bg-gradient-to-br from-purple-400 to-purple-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl">2</div>
+              <h3 className="text-white font-semibold mb-2">Add Context</h3>
+              <p className="text-blue-200 text-sm">Upload meeting notes, transcripts, and due diligence docs (optional)</p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 text-center">
+              <div className="bg-gradient-to-br from-teal-400 to-purple-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl">3</div>
+              <h3 className="text-white font-semibold mb-2">Customize Criteria</h3>
+              <p className="text-blue-200 text-sm">Set evaluation weights, add custom criteria with unlimited subcriteria</p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 text-center">
+              <div className="bg-gradient-to-br from-purple-400 to-teal-400 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl">4</div>
+              <h3 className="text-white font-semibold mb-2">Get Insights</h3>
+              <p className="text-blue-200 text-sm">Receive SSO Score, section analysis, and enhanced PDF reports</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="relative z-10 px-6 py-20">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Ready to elevate your investment strategy?
-          </h2>
-          <p className="text-xl text-blue-100 mb-8">
-            Join leading VCs leveraging Startup Scout & Optioneers for superior deal intelligence.
-          </p>
-          <button
-            onClick={() => navigate('/login')}
-            className="bg-teal-500 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-teal-400 transition-colors inline-flex items-center space-x-2"
-          >
-            <span>Start Free Trial</span>
-            <ArrowRight className="h-5 w-5" />
-          </button>
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-gradient-to-br from-teal-500/20 to-purple-600/20 backdrop-blur-lg rounded-2xl p-12 border border-white/30 text-center">
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+              Ready to Transform Your Deal Evaluation?
+            </h2>
+            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+              Join VCs using AI-powered analysis to make <strong>faster, data-driven</strong> investment decisions
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => navigate('/login')}
+                className="bg-gradient-to-r from-teal-500 to-purple-600 text-white px-10 py-4 rounded-lg font-semibold text-lg hover:from-teal-400 hover:to-purple-500 transition-all shadow-xl hover:shadow-2xl inline-flex items-center justify-center space-x-2"
+              >
+                <Wand2 className="h-6 w-6" />
+                <span>Start Analyzing Now</span>
+                <ArrowRight className="h-6 w-6" />
+              </button>
+              <button
+                onClick={() => navigate('/login')}
+                className="bg-white/10 backdrop-blur-lg text-white px-10 py-4 rounded-lg font-semibold text-lg hover:bg-white/20 transition-all border border-white/30 inline-flex items-center justify-center space-x-2"
+              >
+                <Brain className="h-6 w-6" />
+                <span>Explore Features</span>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 

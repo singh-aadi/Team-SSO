@@ -43,7 +43,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { company_id, status } = req.query;
     
     let queryText = `
-      SELECT d.*, c.name as company_name 
+      SELECT d.*, c.name as company_name, c.stage, c.industry 
       FROM pitch_decks d
       LEFT JOIN companies c ON d.company_id = c.id
       WHERE 1=1
@@ -663,9 +663,9 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Get deck info
+    // Get deck info with company stage and industry
     const deckResult = await query(`
-      SELECT d.*, c.name as company_name 
+      SELECT d.*, c.name as company_name, c.stage, c.industry 
       FROM pitch_decks d
       LEFT JOIN companies c ON d.company_id = c.id
       WHERE d.id = $1

@@ -2,13 +2,18 @@ import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { 
   Upload, 
-  BarChart3, 
-  BookOpen, 
   FileText,
   Target,
-  Users,
   GitCompare,
-  Download
+  Download,
+  ArrowRight,
+  Radar,
+  Sliders,
+  ChevronRight,
+  Sparkles,
+  Clock,
+  Construction,
+  BookOpen
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -61,131 +66,226 @@ export function Dashboard({ userType }: DashboardProps) {
     fetchAnalyses();
   }, [userType]);
 
-  const founderActions = [
+  // VC Dashboard Journey Steps
+  const vcJourneySteps = [
     {
-      title: 'Upload Pitch Deck',
-      description: 'Get instant feedback and SSO Readiness Score™',
-      icon: Upload,
-      action: () => navigate('/decks'),
-      color: 'blue'
-    },
-    {
-      title: 'Benchmark Metrics',
-      description: 'Compare your KPIs against industry standards',
-      icon: BarChart3,
-      action: () => navigate('/benchmarks'),
-      color: 'teal'
-    },
-    {
-      title: 'Check Definitions',
-      description: 'Ensure consistent metric definitions',
-      icon: BookOpen,
-      action: () => navigate('/glossary'),
-      color: 'orange'
-    }
-  ];
-
-  const vcActions = [
-    {
-      title: 'Analyze Deals',
-      description: 'Compare multiple decks side-by-side',
+      number: 1,
+      title: 'Analyze Pitch Deck',
+      description: 'Upload startup pitch deck and get AI-powered analysis with SSO Score™',
       icon: FileText,
       action: () => navigate('/decks'),
-      color: 'blue'
+      color: 'blue',
+      status: 'ready'
     },
     {
-      title: 'Due Diligence',
-      description: 'Benchmark portfolio companies',
-      icon: Target,
-      action: () => navigate('/benchmarks'),
-      color: 'teal'
+      number: 2,
+      title: 'Compare Reports',
+      description: 'Side-by-side comparison of multiple startup analyses',
+      icon: GitCompare,
+      action: () => navigate('/decks'),
+      color: 'teal',
+      status: 'ready',
+      subtext: 'Compare deal opportunities'
     },
     {
-      title: 'Check Definitions',
-      description: 'Standardize metrics across portfolio',
-      icon: BookOpen,
-      action: () => navigate('/glossary'),
-      color: 'orange'
+      number: 3,
+      title: 'Discover Startups',
+      description: 'Browse curated startups and track emerging opportunities',
+      icon: Radar,
+      action: () => navigate('/startup-radar'),
+      color: 'purple',
+      status: 'ready'
+    },
+    {
+      number: 4,
+      title: 'VC Context & Mode',
+      description: 'Deep-dive analysis and custom evaluation frameworks',
+      icon: Sliders,
+      action: () => navigate('/vc-mode'),
+      color: 'indigo',
+      status: 'ready'
     }
   ];
 
-  const actions = userType === 'founder' ? founderActions : vcActions;
-
-  const stats = [
-    { label: 'Decks Analyzed', value: '2,847', icon: FileText, change: '+12%' },
-    { label: 'Companies Benchmarked', value: '1,205', icon: Users, change: '+8%' },
-    { label: 'Avg SSO Score™', value: '7.2/10', icon: Target, change: '+0.3' },
-    { label: 'Term Consistency', value: '92%', icon: BookOpen, change: '+7%' }
+  // Founder Dashboard Journey Steps
+  const founderJourneySteps = [
+    {
+      number: 1,
+      title: 'Upload Pitch Deck',
+      description: 'Get instant AI feedback and SSO Readiness Score™',
+      icon: Upload,
+      action: () => navigate('/decks'),
+      color: 'blue',
+      status: 'ready'
+    },
+    {
+      number: 2,
+      title: 'View Report',
+      description: 'Detailed analysis with strengths, gaps, and recommendations',
+      icon: FileText,
+      action: () => navigate('/decks'),
+      color: 'teal',
+      status: 'ready'
+    },
+    {
+      number: 3,
+      title: 'Track Your Journey',
+      description: 'Monitor fundraising milestones and progress',
+      icon: Target,
+      action: () => navigate('/founder-journey'),
+      color: 'purple',
+      status: 'ready'
+    }
   ];
 
+  const journeySteps = userType === 'vc' ? vcJourneySteps : founderJourneySteps;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Welcome back, {userType === 'founder' ? 'Founder' : 'Investor'}
+          <h1 className="text-3xl font-bold text-slate-900">
+            {userType === 'vc' ? 'VC Dashboard' : 'Founder Dashboard'}
           </h1>
-          <p className="text-slate-600 mt-1">
+          <p className="text-slate-600 mt-1 text-lg">
             {userType === 'founder' 
-              ? 'Ready to optimize your fundraising strategy?' 
-              : 'Let\'s analyze your deal flow efficiently.'}
+              ? 'Your journey to successful fundraising starts here' 
+              : 'Your deal flow analysis and portfolio management hub'}
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-500">SSO Platform v2.1</p>
-          <p className="text-xs text-slate-400">by Team SSO</p>
+        <div className="flex items-center space-x-3">
+          <div className="text-right">
+            <p className="text-sm font-medium text-slate-700">SSO Platform v2.1</p>
+            <p className="text-xs text-slate-500">by Team SSO</p>
+          </div>
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
+            <Sparkles className="h-6 w-6 text-white" />
+          </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <div key={index} className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">{stat.label}</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</p>
-                  <p className="text-sm text-green-600 mt-1">{stat.change}</p>
+      {/* Your Journey Section */}
+      <div className="bg-gradient-to-br from-blue-50 to-teal-50 rounded-xl p-8 border border-blue-100">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
+            <Target className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">
+              {userType === 'vc' ? 'Your Deal Flow Journey' : 'Your Fundraising Journey'}
+            </h2>
+            <p className="text-slate-600">
+              {userType === 'vc' 
+                ? 'Follow this workflow to analyze and compare startup opportunities' 
+                : 'Follow these steps to prepare and improve your pitch'}
+            </p>
+          </div>
+        </div>
+
+        {/* Journey Steps */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {journeySteps.map((step, index) => {
+            const Icon = step.icon;
+            const colorClasses: any = {
+              blue: 'from-blue-600 to-blue-700',
+              teal: 'from-teal-600 to-teal-700',
+              purple: 'from-purple-600 to-purple-700',
+              indigo: 'from-indigo-600 to-indigo-700'
+            };
+            
+            return (
+              <button
+                key={index}
+                onClick={step.action}
+                className="group bg-white rounded-xl p-6 text-left transition-all hover:shadow-xl border-2 border-transparent hover:border-blue-200"
+              >
+                <div className="flex items-start space-x-4">
+                  <div className={`flex-shrink-0 w-12 h-12 bg-gradient-to-br ${colorClasses[step.color]} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <Icon className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Step {step.number}
+                      </span>
+                      <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-1 group-hover:text-blue-600 transition-colors">
+                      {step.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {step.description}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <Icon className="h-6 w-6 text-slate-600" />
-                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Supporting Features */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* SSO Glossary */}
+        <button
+          onClick={() => navigate('/glossary')}
+          className="group bg-white rounded-xl p-6 text-left border-2 border-slate-200 hover:border-orange-300 hover:shadow-lg transition-all"
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                <BookOpen className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600 transition-colors">
+                  SSO Glossary™
+                </h3>
+                <p className="text-xs text-slate-500">AI-Powered Knowledge Agent</p>
               </div>
             </div>
-          );
-        })}
+            <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all" />
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            AI-powered glossary with PhD-level insights on 200+ startup metrics, benchmarks, and investment frameworks. Get instant clarification on terminology.
+          </p>
+        </button>
+
+        {/* Industry Benchmarks - WIP */}
+        <div className="relative bg-slate-50 rounded-xl p-6 border-2 border-dashed border-slate-300">
+          <div className="absolute top-3 right-3">
+            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full flex items-center space-x-1">
+              <Construction className="h-3 w-3" />
+              <span>WIP</span>
+            </span>
+          </div>
+          <div className="flex items-start space-x-3 mb-4">
+            <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center">
+              <Construction className="h-5 w-5 text-slate-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-500">
+                Industry Benchmarks
+              </h3>
+              <p className="text-xs text-slate-400">Coming Soon</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Compare startup metrics against industry standards and competitors. Deep market analysis and competitive positioning insights.
+          </p>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {actions.map((action, index) => {
-          const Icon = action.icon;
-          const colorClasses = {
-            blue: 'from-blue-800 to-blue-600 hover:from-blue-900 hover:to-blue-700',
-            teal: 'from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600',
-            orange: 'from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600'
-          };
-          
-          return (
-            <button
-              key={index}
-              onClick={action.action}
-              className={`bg-gradient-to-br ${colorClasses[action.color as keyof typeof colorClasses]} text-white rounded-xl p-6 text-left transition-all transform hover:scale-105 shadow-lg hover:shadow-xl`}
-            >
-              <Icon className="h-8 w-8 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">{action.title}</h3>
-              <p className="text-sm opacity-90">{action.description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+      {/* Recent Activity - Moved to Bottom */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-5 w-5 text-slate-600" />
+              <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+            </div>
+            <span className="text-xs text-slate-500">Last 7 days</span>
+          </div>
         </div>
         <div className="divide-y divide-slate-100">
           {/* Recent Analyses for Founders */}

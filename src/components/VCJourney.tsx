@@ -6,14 +6,10 @@ import {
   Users,
   CheckCircle,
   AlertCircle,
-  Clock,
-  BookOpen
+  Clock
 } from 'lucide-react';
-import { useNavigate } from 'react-router';
 
 export function VCJourney() {
-  const navigate = useNavigate();
-  
   const vcJourney = [
     {
       stage: 'Deal Sourcing',
@@ -29,22 +25,6 @@ export function VCJourney() {
         'Use SSO to compare multiple decks side-by-side',
         'Flag missing sections automatically'
       ]
-    },
-    {
-      stage: 'Context & Notes',
-      icon: BookOpen,
-      description: 'Upload and synthesize interaction context with AI',
-      tasks: [
-        { name: 'Upload meeting notes', status: 'in-progress' },
-        { name: 'Add email communications', status: 'pending' },
-        { name: 'Generate AI summary', status: 'pending' },
-        { name: 'Export context report', status: 'pending' }
-      ],
-      ssoPrompts: [
-        'AI synthesizes all interaction context automatically',
-        'Get investment recommendation from unstructured data'
-      ],
-      action: { label: 'Manage Context', path: '/vc-context/1afc4477-c5ab-4371-8fc5-50a409bd60ba' }
     },
     {
       stage: 'Investment Memo',
@@ -168,16 +148,6 @@ export function VCJourney() {
                   </div>
                 ))}
               </div>
-
-              {/* Action Button */}
-              {stage.action && (
-                <button
-                  onClick={() => navigate(stage.action.path)}
-                  className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-                >
-                  {stage.action.label}
-                </button>
-              )}
             </div>
           );
         })}

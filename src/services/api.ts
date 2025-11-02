@@ -45,6 +45,8 @@ export interface PitchDeck {
   id: string;
   company_id: string;
   company_name?: string;
+  stage?: string;
+  industry?: string;
   file_path: string;
   file_name: string;
   version?: string;
