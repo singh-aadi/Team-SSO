@@ -45,6 +45,8 @@ export interface PitchDeck {
   id: string;
   company_id: string;
   company_name?: string;
+  stage?: string;
+  industry?: string;
   file_path: string;
   file_name: string;
   version?: string;
@@ -218,6 +220,98 @@ class ApiService {
 
     const data = await response.json();
     return data.deck;
+  }
+
+  // Compare two pitch decks
+  async compareDecks(deck1: File, deck2: File, userId: string): Promise<any> {
+    console.log('📊 Comparing decks:', {
+      deck1Name: deck1.name,
+      deck1Size: deck1.size,
+      deck2Name: deck2.name,
+      deck2Size: deck2.size,
+      userId
+    });
+
+    const formData = new FormData();
+    formData.append('deck1', deck1);
+    formData.append('deck2', deck2);
+    formData.append('uploaded_by', userId);
+
+    try {
+      const response = await fetch(`${API_URL}/decks/compare`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      console.log('📡 Comparison response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Comparison failed:', errorText);
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText };
+        }
+        throw new Error(error.error || 'Failed to compare decks');
+      }
+
+      const data = await response.json();
+      console.log('✅ Comparison successful:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Comparison error:', error);
+      throw error;
+    }
+  }
+
+  // Get recent deck comparisons
+  async getRecentComparisons(userId?: string, limit: number = 10): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (userId) params.append('userId', userId);
+      params.append('limit', limit.toString());
+
+      const response = await fetch(`${API_URL}/decks/comparisons/recent?${params.toString()}`, {
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch recent comparisons');
+        return [];
+      }
+
+      const data = await response.json();
+      return data.comparisons || [];
+    } catch (error) {
+      console.error('Error fetching recent comparisons:', error);
+      return [];
+    }
+  }
+
+  // Get recent deck analyses (for founders)
+  async getRecentAnalyses(userId?: string, limit: number = 10): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (userId) params.append('userId', userId);
+      params.append('limit', limit.toString());
+
+      const response = await fetch(`${API_URL}/decks/recent-analyses?${params.toString()}`, {
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch recent analyses');
+        return [];
+      }
+
+      const data = await response.json();
+      return data.analyses || [];
+    } catch (error) {
+      console.error('Error fetching recent analyses:', error);
+      return [];
+    }
   }
 
   async getDeck(deckId: string): Promise<PitchDeck> {

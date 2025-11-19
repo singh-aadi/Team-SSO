@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Search, AlertCircle, CheckCircle, Edit3, Plus } from 'lucide-react';
+import { BookOpen, Search, AlertCircle, CheckCircle, Plus } from 'lucide-react';
 
 export function Glossary() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -279,9 +279,6 @@ export function Glossary() {
                     </code>
                   </div>
                 </div>
-                <button className="ml-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded">
-                  <Edit3 className="h-4 w-4" />
-                </button>
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-100">
@@ -293,14 +290,6 @@ export function Glossary() {
                     </div>
                   )}
                   <span className="text-sm text-slate-500">Updated {term.lastUpdated}</span>
-                </div>
-                <div className="flex space-x-2">
-                  <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                    View Usage
-                  </button>
-                  <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                    Resolve Conflicts
-                  </button>
                 </div>
               </div>
             </div>

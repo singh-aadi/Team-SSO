@@ -53,6 +53,57 @@ router.post('/migrate', async (req: Request, res: Response) => {
         UPDATE companies SET stage = 'Seed' WHERE name = 'FinanceHub' AND (stage IS NULL OR stage = '');
         UPDATE companies SET stage = 'Series A' WHERE name = 'EduStream' AND (stage IS NULL OR stage = '');
       `;
+    } else if (migration === 'startup-radar') {
+      // Create startup radar tables
+      sql = `
+        -- Sources table - stores custom sources added by VCs
+        CREATE TABLE IF NOT EXISTS radar_sources (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(255) NOT NULL,
+            url TEXT NOT NULL,
+            source_type VARCHAR(50) DEFAULT 'custom' CHECK (source_type IN ('custom', 'built-in')),
+            added_by VARCHAR(255),
+            is_active BOOLEAN DEFAULT true,
+            last_scraped_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Radar data table - stores scraped startup intelligence
+        CREATE TABLE IF NOT EXISTS radar_data (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            source_id UUID REFERENCES radar_sources(id) ON DELETE CASCADE,
+            company_name VARCHAR(255) NOT NULL,
+            headline TEXT NOT NULL,
+            description TEXT,
+            category VARCHAR(100),
+            funding_amount DECIMAL(15, 2),
+            funding_stage VARCHAR(50),
+            investors TEXT[],
+            url TEXT,
+            image_url TEXT,
+            published_date TIMESTAMP,
+            scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Add indexes for performance
+        CREATE INDEX IF NOT EXISTS idx_radar_sources_active ON radar_sources(is_active);
+        CREATE INDEX IF NOT EXISTS idx_radar_sources_added_by ON radar_sources(added_by);
+        CREATE INDEX IF NOT EXISTS idx_radar_data_source_id ON radar_data(source_id);
+        CREATE INDEX IF NOT EXISTS idx_radar_data_published_date ON radar_data(published_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_radar_data_category ON radar_data(category);
+
+        -- Insert default built-in sources
+        INSERT INTO radar_sources (name, url, source_type, is_active) VALUES
+        ('TechCrunch Startups', 'https://techcrunch.com/category/startups/', 'built-in', true),
+        ('Y Combinator News', 'https://news.ycombinator.com/news', 'built-in', true),
+        ('VentureBeat', 'https://venturebeat.com/category/ai/', 'built-in', true),
+        ('The Information', 'https://www.theinformation.com/startups', 'built-in', true),
+        ('Crunchbase News', 'https://news.crunchbase.com/', 'built-in', true)
+        ON CONFLICT DO NOTHING;
+      `;
     } else {
       return res.status(400).json({ error: 'Invalid migration name' });
     }

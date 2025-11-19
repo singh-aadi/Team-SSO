@@ -1,12 +1,21 @@
 import { useNavigate } from 'react-router';
+import { useEffect, useState } from 'react';
 import { 
   Upload, 
-  BarChart3, 
-  BookOpen, 
   FileText,
   Target,
-  Users
+  GitCompare,
+  Download,
+  ArrowRight,
+  Radar,
+  Sliders,
+  ChevronRight,
+  Sparkles,
+  Clock,
+  Construction,
+  BookOpen
 } from 'lucide-react';
+import { api } from '../services/api';
 
 interface DashboardProps {
   userType: 'founder' | 'vc';
@@ -14,167 +23,422 @@ interface DashboardProps {
 
 export function Dashboard({ userType }: DashboardProps) {
   const navigate = useNavigate();
-  const founderActions = [
-    {
-      title: 'Upload Pitch Deck',
-      description: 'Get instant feedback and SSO Readiness Score™',
-      icon: Upload,
-      action: () => navigate('/decks'),
-      color: 'blue'
-    },
-    {
-      title: 'Benchmark Metrics',
-      description: 'Compare your KPIs against industry standards',
-      icon: BarChart3,
-      action: () => navigate('/benchmarks'),
-      color: 'teal'
-    },
-    {
-      title: 'Check Definitions',
-      description: 'Ensure consistent metric definitions',
-      icon: BookOpen,
-      action: () => navigate('/glossary'),
-      color: 'orange'
-    }
-  ];
+  const [recentComparisons, setRecentComparisons] = useState<any[]>([]);
+  const [recentAnalyses, setRecentAnalyses] = useState<any[]>([]);
+  const [loadingComparisons, setLoadingComparisons] = useState(false);
+  const [loadingAnalyses, setLoadingAnalyses] = useState(false);
 
-  const vcActions = [
+  // Fetch recent comparisons for VCs
+  useEffect(() => {
+    const fetchComparisons = async () => {
+      if (userType !== 'vc') return;
+      
+      setLoadingComparisons(true);
+      try {
+        const comparisons = await api.getRecentComparisons(undefined, 5);
+        setRecentComparisons(comparisons);
+      } catch (error) {
+        console.error('Error fetching comparisons:', error);
+      } finally {
+        setLoadingComparisons(false);
+      }
+    };
+
+    fetchComparisons();
+  }, [userType]);
+
+  // Fetch recent analyses for Founders
+  useEffect(() => {
+    const fetchAnalyses = async () => {
+      if (userType !== 'founder') return;
+      
+      setLoadingAnalyses(true);
+      try {
+        const analyses = await api.getRecentAnalyses(undefined, 5);
+        setRecentAnalyses(analyses);
+      } catch (error) {
+        console.error('Error fetching analyses:', error);
+      } finally {
+        setLoadingAnalyses(false);
+      }
+    };
+
+    fetchAnalyses();
+  }, [userType]);
+
+  // VC Dashboard Journey Steps
+  const vcJourneySteps = [
     {
-      title: 'Analyze Deals',
-      description: 'Compare multiple decks side-by-side',
+      number: 1,
+      title: 'Analyze Pitch Deck',
+      description: 'Upload startup pitch deck and get AI-powered analysis with SSO Score™',
       icon: FileText,
       action: () => navigate('/decks'),
-      color: 'blue'
+      color: 'blue',
+      status: 'ready'
     },
     {
-      title: 'Due Diligence',
-      description: 'Benchmark portfolio companies',
-      icon: Target,
-      action: () => navigate('/benchmarks'),
-      color: 'teal'
+      number: 2,
+      title: 'Compare Reports',
+      description: 'Side-by-side comparison of multiple startup analyses',
+      icon: GitCompare,
+      action: () => navigate('/decks'),
+      color: 'teal',
+      status: 'ready',
+      subtext: 'Compare deal opportunities'
     },
     {
-      title: 'Check Definitions',
-      description: 'Standardize metrics across portfolio',
-      icon: BookOpen,
-      action: () => navigate('/glossary'),
-      color: 'orange'
+      number: 3,
+      title: 'Discover Startups',
+      description: 'Browse curated startups and track emerging opportunities',
+      icon: Radar,
+      action: () => navigate('/startup-radar'),
+      color: 'purple',
+      status: 'ready'
+    },
+    {
+      number: 4,
+      title: 'VC Context & Mode',
+      description: 'Deep-dive analysis and custom evaluation frameworks',
+      icon: Sliders,
+      action: () => navigate('/vc-mode'),
+      color: 'indigo',
+      status: 'ready'
     }
   ];
 
-  const actions = userType === 'founder' ? founderActions : vcActions;
-
-  const stats = [
-    { label: 'Decks Analyzed', value: '2,847', icon: FileText, change: '+12%' },
-    { label: 'Companies Benchmarked', value: '1,205', icon: Users, change: '+8%' },
-    { label: 'Avg SSO Score™', value: '7.2/10', icon: Target, change: '+0.3' },
-    { label: 'Term Consistency', value: '92%', icon: BookOpen, change: '+7%' }
+  // Founder Dashboard Journey Steps
+  const founderJourneySteps = [
+    {
+      number: 1,
+      title: 'Upload Pitch Deck',
+      description: 'Get instant AI feedback and SSO Readiness Score™',
+      icon: Upload,
+      action: () => navigate('/decks'),
+      color: 'blue',
+      status: 'ready'
+    },
+    {
+      number: 2,
+      title: 'View Report',
+      description: 'Detailed analysis with strengths, gaps, and recommendations',
+      icon: FileText,
+      action: () => navigate('/decks'),
+      color: 'teal',
+      status: 'ready'
+    },
+    {
+      number: 3,
+      title: 'Track Your Journey',
+      description: 'Monitor fundraising milestones and progress',
+      icon: Target,
+      action: () => navigate('/founder-journey'),
+      color: 'purple',
+      status: 'ready'
+    }
   ];
 
+  const journeySteps = userType === 'vc' ? vcJourneySteps : founderJourneySteps;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Welcome back, {userType === 'founder' ? 'Founder' : 'Investor'}
+          <h1 className="text-3xl font-bold text-slate-900">
+            {userType === 'vc' ? 'VC Dashboard' : 'Founder Dashboard'}
           </h1>
-          <p className="text-slate-600 mt-1">
+          <p className="text-slate-600 mt-1 text-lg">
             {userType === 'founder' 
-              ? 'Ready to optimize your fundraising strategy?' 
-              : 'Let\'s analyze your deal flow efficiently.'}
+              ? 'Your journey to successful fundraising starts here' 
+              : 'Your deal flow analysis and portfolio management hub'}
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-500">SSO Platform v2.1</p>
-          <p className="text-xs text-slate-400">by Team SSO</p>
+        <div className="flex items-center space-x-3">
+          <div className="text-right">
+            <p className="text-sm font-medium text-slate-700">SSO Platform v2.1</p>
+            <p className="text-xs text-slate-500">by Team SSO</p>
+          </div>
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
+            <Sparkles className="h-6 w-6 text-white" />
+          </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <div key={index} className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">{stat.label}</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</p>
-                  <p className="text-sm text-green-600 mt-1">{stat.change}</p>
+      {/* Your Journey Section */}
+      <div className="bg-gradient-to-br from-blue-50 to-teal-50 rounded-xl p-8 border border-blue-100">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
+            <Target className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">
+              {userType === 'vc' ? 'Your Deal Flow Journey' : 'Your Fundraising Journey'}
+            </h2>
+            <p className="text-slate-600">
+              {userType === 'vc' 
+                ? 'Follow this workflow to analyze and compare startup opportunities' 
+                : 'Follow these steps to prepare and improve your pitch'}
+            </p>
+          </div>
+        </div>
+
+        {/* Journey Steps */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {journeySteps.map((step, index) => {
+            const Icon = step.icon;
+            const colorClasses: any = {
+              blue: 'from-blue-600 to-blue-700',
+              teal: 'from-teal-600 to-teal-700',
+              purple: 'from-purple-600 to-purple-700',
+              indigo: 'from-indigo-600 to-indigo-700'
+            };
+            
+            return (
+              <button
+                key={index}
+                onClick={step.action}
+                className="group bg-white rounded-xl p-6 text-left transition-all hover:shadow-xl border-2 border-transparent hover:border-blue-200"
+              >
+                <div className="flex items-start space-x-4">
+                  <div className={`flex-shrink-0 w-12 h-12 bg-gradient-to-br ${colorClasses[step.color]} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <Icon className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Step {step.number}
+                      </span>
+                      <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-1 group-hover:text-blue-600 transition-colors">
+                      {step.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {step.description}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <Icon className="h-6 w-6 text-slate-600" />
-                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Supporting Features */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* SSO Glossary */}
+        <button
+          onClick={() => navigate('/glossary')}
+          className="group bg-white rounded-xl p-6 text-left border-2 border-slate-200 hover:border-orange-300 hover:shadow-lg transition-all"
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+                <BookOpen className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600 transition-colors">
+                  SSO Glossary™
+                </h3>
+                <p className="text-xs text-slate-500">AI-Powered Knowledge Agent</p>
               </div>
             </div>
-          );
-        })}
+            <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all" />
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            AI-powered glossary with PhD-level insights on 200+ startup metrics, benchmarks, and investment frameworks. Get instant clarification on terminology.
+          </p>
+        </button>
+
+        {/* Industry Benchmarks - WIP */}
+        <div className="relative bg-slate-50 rounded-xl p-6 border-2 border-dashed border-slate-300">
+          <div className="absolute top-3 right-3">
+            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full flex items-center space-x-1">
+              <Construction className="h-3 w-3" />
+              <span>WIP</span>
+            </span>
+          </div>
+          <div className="flex items-start space-x-3 mb-4">
+            <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center">
+              <Construction className="h-5 w-5 text-slate-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-500">
+                Industry Benchmarks
+              </h3>
+              <p className="text-xs text-slate-400">Coming Soon</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Compare startup metrics against industry standards and competitors. Deep market analysis and competitive positioning insights.
+          </p>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {actions.map((action, index) => {
-          const Icon = action.icon;
-          const colorClasses = {
-            blue: 'from-blue-800 to-blue-600 hover:from-blue-900 hover:to-blue-700',
-            teal: 'from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600',
-            orange: 'from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600'
-          };
-          
-          return (
-            <button
-              key={index}
-              onClick={action.action}
-              className={`bg-gradient-to-br ${colorClasses[action.color as keyof typeof colorClasses]} text-white rounded-xl p-6 text-left transition-all transform hover:scale-105 shadow-lg hover:shadow-xl`}
-            >
-              <Icon className="h-8 w-8 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">{action.title}</h3>
-              <p className="text-sm opacity-90">{action.description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+      {/* Recent Activity - Moved to Bottom */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-5 w-5 text-slate-600" />
+              <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+            </div>
+            <span className="text-xs text-slate-500">Last 7 days</span>
+          </div>
         </div>
         <div className="divide-y divide-slate-100">
-          {[
-            {
-              action: 'Deck analyzed: "FinTech Series A"',
-              score: 'SSO Score™: 8.2/10',
-              time: '2 hours ago',
-              status: 'success'
-            },
-            {
-              action: 'Benchmark completed: SaaS metrics',
-              score: '65th percentile CAC',
-              time: '4 hours ago',
-              status: 'info'
-            },
-            {
-              action: 'Glossary updated: Revenue definition',
-              score: 'Consistency improved',
-              time: '1 day ago',
-              status: 'warning'
-            }
-          ].map((item, index) => (
-            <div key={index} className="px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  item.status === 'success' ? 'bg-green-500' :
-                  item.status === 'info' ? 'bg-blue-500' : 'bg-orange-500'
-                }`}></div>
-                <div>
-                  <p className="font-medium text-slate-900">{item.action}</p>
-                  <p className="text-sm text-slate-600">{item.score}</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-500">{item.time}</p>
+          {/* Recent Analyses for Founders */}
+          {userType === 'founder' && recentAnalyses.length > 0 && (
+            <>
+              {recentAnalyses.map((analysis) => {
+                const isCompleted = analysis.analysis_status === 'completed';
+                const isProcessing = analysis.analysis_status === 'processing' || analysis.analysis_status === 'analyzing';
+                const isFailed = analysis.analysis_status === 'failed';
+                
+                return (
+                  <div key={analysis.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className={`w-3 h-3 rounded-full ${
+                        isCompleted ? 'bg-green-500' :
+                        isProcessing ? 'bg-blue-500 animate-pulse' : 
+                        isFailed ? 'bg-red-500' : 'bg-orange-500'
+                      }`}></div>
+                      <FileText className="h-5 w-5 text-slate-400" />
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">
+                          Deck analyzed: "{analysis.filename}"
+                          {analysis.company_name && <span className="text-slate-600"> - {analysis.company_name}</span>}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {isCompleted && analysis.sso_score 
+                            ? `SSO Score™: ${analysis.sso_score}/10`
+                            : isProcessing ? 'Analyzing...' :
+                            isFailed ? 'Analysis failed' : 'Pending analysis'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <p className="text-sm text-slate-500">
+                        {new Date(analysis.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      {isCompleted && (
+                        <button
+                          onClick={() => navigate(`/decks/${analysis.id}`)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          View
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Recent Comparisons for VCs */}
+          {userType === 'vc' && recentComparisons.length > 0 && (
+            <>
+              {recentComparisons.map((comparison) => {
+                const isCompleted = comparison.analysis_status === 'completed';
+                const isProcessing = comparison.analysis_status === 'processing';
+                const isFailed = comparison.analysis_status === 'failed';
+                
+                return (
+                  <div key={comparison.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className={`w-3 h-3 rounded-full ${
+                        isCompleted ? 'bg-green-500' :
+                        isProcessing ? 'bg-blue-500 animate-pulse' : 
+                        isFailed ? 'bg-red-500' : 'bg-orange-500'
+                      }`}></div>
+                      <GitCompare className="h-5 w-5 text-slate-400" />
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">
+                          Deck comparison: "{comparison.deck1_filename}" vs "{comparison.deck2_filename}"
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {isCompleted ? 'Analysis completed' : 
+                           isProcessing ? 'Processing...' :
+                           isFailed ? 'Analysis failed' : 'Pending analysis'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <p className="text-sm text-slate-500">
+                        {new Date(comparison.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      {isCompleted && (
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${comparison.id}/report/pdf`}
+                          download
+                          className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>PDF</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Empty state for founders with no analyses */}
+          {userType === 'founder' && !loadingAnalyses && recentAnalyses.length === 0 && (
+            <div className="px-6 py-8 text-center">
+              <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-1">No recent deck analyses</p>
+              <p className="text-sm text-slate-400">
+                Upload your pitch deck in the{' '}
+                <button 
+                  onClick={() => navigate('/decks')}
+                  className="text-blue-600 hover:underline"
+                >
+                  Upload Pitch Deck
+                </button>
+                {' '}section to get started
+              </p>
             </div>
-          ))}
+          )}
+
+          {/* Empty state for VCs with no comparisons */}
+          {userType === 'vc' && !loadingComparisons && recentComparisons.length === 0 && (
+            <div className="px-6 py-8 text-center">
+              <GitCompare className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-1">No recent deck comparisons</p>
+              <p className="text-sm text-slate-400">
+                Upload two decks in the{' '}
+                <button 
+                  onClick={() => navigate('/decks')}
+                  className="text-blue-600 hover:underline"
+                >
+                  Deck Intelligence
+                </button>
+                {' '}section to compare them
+              </p>
+            </div>
+          )}
+
+          {/* Loading states */}
+          {(loadingComparisons || loadingAnalyses) && (
+            <div className="px-6 py-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-slate-500 mt-3">Loading recent activity...</p>
+            </div>
+          )}
         </div>
       </div>
 

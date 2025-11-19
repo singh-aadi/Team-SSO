@@ -12,11 +12,14 @@ import {
   X,
   BookOpen,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trophy,
+  Wand2
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
 import { useAuth } from '../context/AuthContext';
+import { EvaluationWizard } from './EvaluationWizard';
 
 interface DeckIntelligenceProps {
   userType: 'founder' | 'vc';
@@ -25,10 +28,25 @@ interface DeckIntelligenceProps {
 export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const { user } = useAuth(); // Get the logged-in user
   
+  // Wizard Mode
+  const [useWizardMode, setUseWizardMode] = useState(false);
+  
   // Dual PDF Upload State
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [checklistFile, setChecklistFile] = useState<File | null>(null);
   
+  // Comparison State
+  const [showComparisonUpload, setShowComparisonUpload] = useState(false);
+  const [comparisonDeck1, setComparisonDeck1] = useState<File | null>(null);
+  const [comparisonDeck2, setComparisonDeck2] = useState<File | null>(null);
+  const [comparingDecks, setComparingDecks] = useState(false);
+  const [comparisonProgress, setComparisonProgress] = useState(0);
+  const [comparisonStage, setComparisonStage] = useState<string>('Initializing...');
+  const [comparisonConfidence, setComparisonConfidence] = useState<number>(0);
+  const [completedComparisonId, setCompletedComparisonId] = useState<string | null>(null);
+  const [comparisonPreview, setComparisonPreview] = useState<any>(null);
+  const [showComparisonPreview, setShowComparisonPreview] = useState(false);
+
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [currentDeck, setCurrentDeck] = useState<PitchDeck | null>(null);
@@ -83,20 +101,16 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   };
 
   const validateFile = (file: File, isPitchDeck: boolean = false): string | null => {
-    if (file.size > 15 * 1024 * 1024) {
-      return 'File size must be less than 15MB';
+    // 100MB limit for all files
+    if (file.size > 100 * 1024 * 1024) {
+      return 'File size must be less than 100MB';
     }
-    if (isPitchDeck) {
-      // Pitch deck must be PDF (for visual analysis)
-      if (!file.name.match(/\.pdf$/i)) {
-        return 'Pitch deck must be a PDF file';
-      }
-    } else {
-      // Checklist can be PDF or Word
-      if (!file.name.match(/\.(pdf|docx|doc)$/i)) {
-        return 'Checklist must be a PDF or Word document (.docx, .doc)';
-      }
+    
+    // Accept PDF, Word, and PowerPoint for both deck and checklist
+    if (!file.name.match(/\.(pdf|docx|doc|pptx|ppt)$/i)) {
+      return 'File must be PDF, Word (.docx, .doc), or PowerPoint (.pptx, .ppt)';
     }
+    
     return null;
   };
 
@@ -124,6 +138,151 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       setChecklistFile(file);
       setError('');
     }
+  };
+
+  const handleComparison1FileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const validationError = validateFile(file, false); // Accepts PDF, Word, PPT
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      setComparisonDeck1(file);
+      setError('');
+    }
+  };
+
+  const handleComparison2FileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const validationError = validateFile(file, false); // Accepts PDF, Word, PPT
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      setComparisonDeck2(file);
+      setError('');
+    }
+  };
+
+  const handleCompareDecks = async () => {
+    if (!comparisonDeck1 || !comparisonDeck2) {
+      setError('Please select both pitch decks to compare');
+      return;
+    }
+
+    setComparingDecks(true);
+    setComparisonProgress(0);
+    setComparisonConfidence(0);
+    setComparisonStage('Uploading files...');
+    setError('');
+
+    try {
+      const userId = user?.id || crypto.randomUUID();
+      console.log('📊 Starting comparison for:', comparisonDeck1.name, 'vs', comparisonDeck2.name);
+      
+      const result = await api.compareDecks(comparisonDeck1, comparisonDeck2, userId);
+      
+      console.log('✅ Comparison started:', result);
+      
+      // Start polling for comparison completion
+      pollForComparison(result.id);
+    } catch (err: any) {
+      console.error('Comparison error:', err);
+      setError(err.message || 'Failed to compare decks');
+      setComparingDecks(false);
+      setComparisonProgress(0);
+      setComparisonConfidence(0);
+    }
+  };
+
+  const pollForComparison = async (comparisonId: string) => {
+    const maxAttempts = 300; // 10 minutes max
+    let attempts = 0;
+
+    const poll = setInterval(async () => {
+      attempts++;
+      setComparisonProgress(attempts);
+      
+      // Update stage and confidence based on progress
+      if (attempts <= 5) {
+        setComparisonStage('📤 Uploading pitch decks...');
+        setComparisonConfidence(10);
+      } else if (attempts <= 15) {
+        setComparisonStage('📄 Extracting text from Deck 1...');
+        setComparisonConfidence(20);
+      } else if (attempts <= 25) {
+        setComparisonStage('📄 Extracting text from Deck 2...');
+        setComparisonConfidence(30);
+      } else if (attempts <= 45) {
+        setComparisonStage('🔍 Analyzing Deck 1 individually...');
+        setComparisonConfidence(45);
+      } else if (attempts <= 65) {
+        setComparisonStage('🔍 Analyzing Deck 2 individually...');
+        setComparisonConfidence(60);
+      } else if (attempts <= 100) {
+        setComparisonStage('⚖️ Running comparative AI analysis...');
+        setComparisonConfidence(75);
+      } else if (attempts <= 150) {
+        setComparisonStage('📊 Identifying strengths & weaknesses...');
+        setComparisonConfidence(85);
+      } else {
+        setComparisonStage('✨ Generating recommendations...');
+        setComparisonConfidence(95);
+      }
+      
+      try {
+        // Check comparison status
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${comparisonId}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.analysis_status === 'completed') {
+            console.log('✓ Comparison analysis complete!');
+            console.log('📊 Comparison data:', data);
+            console.log('📄 Comparison analysis:', data.comparison_analysis);
+            clearInterval(poll);
+            setComparingDecks(false);
+            setComparisonConfidence(100);
+            setComparisonStage('✅ Complete!');
+            setCompletedComparisonId(comparisonId);
+            
+            // Parse comparison_analysis if it's a string
+            let analysisResult = data.comparison_analysis;
+            if (typeof analysisResult === 'string') {
+              try {
+                analysisResult = JSON.parse(analysisResult);
+                console.log('✓ Parsed comparison analysis:', analysisResult);
+              } catch (parseError) {
+                console.error('Failed to parse comparison_analysis:', parseError);
+              }
+            }
+            
+            setComparisonPreview(analysisResult);
+            setShowComparisonPreview(true);
+            
+            // Don't auto-download, log success message
+            console.log('Comparison analysis complete! You can now download the report in your preferred format.');
+            
+          } else if (data.analysis_status === 'failed') {
+            clearInterval(poll);
+            setComparingDecks(false);
+            setError('Comparison analysis failed. Please try again.');
+          }
+        }
+
+        if (attempts >= maxAttempts) {
+          console.log('⏱️ Polling timeout after', maxAttempts, 'attempts');
+          clearInterval(poll);
+          setComparingDecks(false);
+          setError('Comparison timed out. Please try again.');
+        }
+      } catch (err) {
+        console.error('Error polling for comparison:', err);
+      }
+    }, 2000); // Poll every 2 seconds
   };
 
   const handleUpload = async () => {
@@ -228,6 +387,14 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         console.log(`[Poll ${attempts}] Deck status:`, deck.status, 'Has analysis:', !!deck.analysis);
         
         setCurrentDeck(deck);
+        
+        // Populate stage and industry from deck's company data
+        if (deck.stage && !selectedStage) {
+          setSelectedStage(deck.stage);
+        }
+        if (deck.industry && !selectedIndustry) {
+          setSelectedIndustry(deck.industry);
+        }
 
         // Backend uses 'completed' not 'analyzed'
         if (deck.status === 'completed' || deck.status === 'analyzed' || deck.status === 'failed') {
@@ -264,17 +431,61 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     ? (parseFloat(currentDeck.analysis.sso_score.toString()) * 10).toFixed(1) 
     : '0.0';
 
+  // Handle wizard completion
+  const handleWizardComplete = async (deckId: string, hasContext: boolean, hasPreferences: boolean) => {
+    console.log('🎉 Wizard complete:', { deckId, hasContext, hasPreferences });
+    setUseWizardMode(false);
+    
+    // Load the deck and poll for analysis
+    try {
+      const deck = await api.getDeck(deckId);
+      setCurrentDeck(deck);
+      
+      // Populate stage and industry from deck's company data
+      if (deck.stage) setSelectedStage(deck.stage);
+      if (deck.industry) setSelectedIndustry(deck.industry);
+      
+      setAnalyzing(true);
+      pollForAnalysis(deckId);
+    } catch (err) {
+      console.error('Failed to load deck after wizard:', err);
+      setError('Failed to load deck. Please refresh the page.');
+    }
+  };
+
+  // Show wizard if enabled
+  if (useWizardMode && !currentDeck) {
+    return (
+      <EvaluationWizard
+        onComplete={handleWizardComplete}
+        onCancel={() => setUseWizardMode(false)}
+        userId={user?.id || crypto.randomUUID()}
+      />
+    );
+  }
+
   // Show upload form if no deck uploaded yet
   if (!currentDeck) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Pitch Deck & Memo Intelligence</h1>
-          <p className="text-slate-600 mt-1">
-            {userType === 'founder' 
-              ? 'Upload your deck to get instant feedback and SSO Readiness Score™'
-              : 'Analyze multiple decks and compare them side-by-side'}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Pitch Deck & Memo Intelligence</h1>
+            <p className="text-slate-600 mt-1">
+              {userType === 'founder' 
+                ? 'Upload your deck to get instant feedback and SSO Readiness Score™'
+                : 'Analyze multiple decks and compare them side-by-side'}
+            </p>
+          </div>
+          
+          {/* Wizard Mode Toggle */}
+          <button
+            onClick={() => setUseWizardMode(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+          >
+            <Wand2 className="h-5 w-5" />
+            <span>Guided Evaluation</span>
+          </button>
         </div>
 
         {/* Imported Context Badge */}
@@ -627,48 +838,553 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             </div>
           </div>
           
-          {/* Compare Reports - Coming Soon */}
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-12 text-center hover:border-blue-200 transition-colors">
-            <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Reports</h3>
-            <p className="text-slate-600 mb-6">
-              Compare multiple decks side by side with detailed analysis
-            </p>
-            <button
-              className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
-            >
-              Select Reports to Compare
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            {
-              title: 'Instant Analysis',
-              description: 'Get feedback in under 30 seconds',
-              icon: Target
-            },
-            {
-              title: 'Benchmark Comparison',
-              description: 'Compare against 50+ top decks',
-              icon: BarChart
-            },
-            {
-              title: 'SSO Readiness Score™',
-              description: 'Proprietary scoring system',
-              icon: TrendingUp
-            }
-          ].map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <div key={index} className="bg-white rounded-lg border border-slate-200 p-6">
-                <Icon className="h-8 w-8 text-blue-600 mb-4" />
-                <h3 className="font-semibold text-slate-900 mb-2">{feature.title}</h3>
-                <p className="text-sm text-slate-600">{feature.description}</p>
+          {/* Compare Reports - Interactive Upload */}
+          <div className="bg-white rounded-xl border-2 border-slate-200 p-8 hover:border-blue-200 transition-colors">
+            {!showComparisonUpload ? (
+              <div className="text-center">
+                <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Pitch Decks</h3>
+                <p className="text-slate-600 mb-6">
+                  Upload two pitch decks to get AI-powered side-by-side comparative analysis
+                </p>
+                <button
+                  onClick={() => setShowComparisonUpload(true)}
+                  className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
+                >
+                  Select Reports to Compare
+                </button>
               </div>
-            );
-          })}
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Compare Two Pitch Decks</h3>
+                    <p className="text-sm text-slate-600 mt-1">Upload both decks for side-by-side comparison</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowComparisonUpload(false);
+                      setComparisonDeck1(null);
+                      setComparisonDeck2(null);
+                      setError('');
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Deck 1 Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      First Pitch Deck <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.ppt,.pptx,.docx,.doc"
+                      onChange={handleComparison1FileSelect}
+                      className="hidden"
+                      id="comparison-deck-1"
+                    />
+                    <label
+                      htmlFor="comparison-deck-1"
+                      className="flex items-center justify-center px-4 py-3 border-2 border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-all cursor-pointer"
+                    >
+                      <FileText className="h-5 w-5 mr-2" />
+                      {comparisonDeck1 ? 'Change Deck 1' : 'Choose Deck 1'}
+                    </label>
+                    {comparisonDeck1 && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        {comparisonDeck1.name}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Deck 2 Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Second Pitch Deck <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.ppt,.pptx,.docx,.doc"
+                      onChange={handleComparison2FileSelect}
+                      className="hidden"
+                      id="comparison-deck-2"
+                    />
+                    <label
+                      htmlFor="comparison-deck-2"
+                      className="flex items-center justify-center px-4 py-3 border-2 border-teal-600 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-all cursor-pointer"
+                    >
+                      <FileText className="h-5 w-5 mr-2" />
+                      {comparisonDeck2 ? 'Change Deck 2' : 'Choose Deck 2'}
+                    </label>
+                    {comparisonDeck2 && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        {comparisonDeck2.name}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  Supported formats: PDF, PowerPoint (.ppt, .pptx), Word (.doc, .docx) • Max 100MB per file
+                </p>
+
+                <button
+                  onClick={handleCompareDecks}
+                  disabled={comparingDecks || !comparisonDeck1 || !comparisonDeck2}
+                  className="w-full bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-4 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {comparingDecks ? (
+                    <span className="flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Comparing Decks...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <BarChart className="h-5 w-5 mr-2" />
+                      Compare & Generate Report
+                    </span>
+                  )}
+                </button>
+
+                {/* Enhanced Progress Indicator for Comparison */}
+                {comparingDecks && (
+                  <div className="mt-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+                    <div className="space-y-4">
+                      {/* Progress Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="relative">
+                            <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                            <div className="absolute inset-0 bg-blue-400 blur-sm opacity-30 animate-pulse"></div>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900">{comparisonStage}</h3>
+                            <p className="text-xs text-slate-600">
+                              Comparing: {comparisonDeck1?.name} vs {comparisonDeck2?.name}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-blue-600">{comparisonConfidence}%</div>
+                          <div className="text-xs text-slate-500">Progress</div>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="relative">
+                        <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-teal-500 transition-all duration-500 ease-out relative"
+                            style={{ width: `${comparisonConfidence}%` }}
+                          >
+                            <div className="absolute inset-0 bg-white opacity-30 animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between mt-2 text-xs text-slate-500">
+                          <span>Started</span>
+                          <span className="font-medium text-slate-700">
+                            {Math.floor(comparisonProgress * 2 / 60)}:{String(Math.floor((comparisonProgress * 2) % 60)).padStart(2, '0')} elapsed
+                          </span>
+                          <span>Complete</span>
+                        </div>
+                      </div>
+
+                      {/* Analysis Steps */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        <div className={`p-2 rounded-lg border ${comparisonConfidence >= 10 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {comparisonConfidence >= 10 ? <CheckCircle className="h-3 w-3" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Upload</span>
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${comparisonConfidence >= 30 ? 'bg-green-50 border-green-200 text-green-700' : comparisonConfidence >= 20 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {comparisonConfidence >= 30 ? <CheckCircle className="h-3 w-3" /> : comparisonConfidence >= 20 ? <Loader2 className="h-3 w-3 animate-spin" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Extract</span>
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${comparisonConfidence >= 75 ? 'bg-green-50 border-green-200 text-green-700' : comparisonConfidence >= 45 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {comparisonConfidence >= 75 ? <CheckCircle className="h-3 w-3" /> : comparisonConfidence >= 45 ? <Loader2 className="h-3 w-3 animate-spin" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Analyze</span>
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${comparisonConfidence >= 95 ? 'bg-green-50 border-green-200 text-green-700' : comparisonConfidence >= 85 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <div className="flex items-center space-x-1">
+                            {comparisonConfidence >= 95 ? <CheckCircle className="h-3 w-3" /> : comparisonConfidence >= 85 ? <Loader2 className="h-3 w-3 animate-spin" /> : <div className="h-3 w-3 border-2 border-slate-300 rounded-full"></div>}
+                            <span className="font-medium">Compare</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fun Facts */}
+                      <div className="pt-3 border-t border-slate-200">
+                        <div className="flex items-start space-x-2 text-xs text-slate-600">
+                          <Target className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-500" />
+                          <p>
+                            <strong className="text-slate-700">Did you know?</strong> Our AI analyzes {comparisonConfidence < 50 ? 'both decks individually' : comparisonConfidence < 75 ? 'team strength, market opportunity & product differentiation' : comparisonConfidence < 90 ? 'traction metrics, unit economics & competitive positioning' : 'comparative strengths, weaknesses & actionable recommendations'} to give you institutional-grade insights.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Comparison Preview (shown after completion) */}
+                {showComparisonPreview && comparisonPreview && completedComparisonId && !comparingDecks && (
+                  <div className="mt-6 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    {/* Preview Header */}
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-slate-200 p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <CheckCircle className="h-6 w-6 text-green-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">Comparison Analysis Complete</h3>
+                            <p className="text-sm text-slate-600 mt-1">Review the comparison results below</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowComparisonPreview(false);
+                            setComparisonPreview(null);
+                            setCompletedComparisonId(null);
+                            setComparisonDeck1(null);
+                            setComparisonDeck2(null);
+                            setComparisonProgress(0);
+                            setComparisonConfidence(0);
+                          }}
+                          className="text-slate-400 hover:text-slate-600 p-2 hover:bg-white rounded-lg transition-all"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Preview Content */}
+                    <div className="p-6 max-h-[600px] overflow-y-auto">
+                      {/* Winner Badge */}
+                      {comparisonPreview?.comparison?.winnerOverall && (
+                        <div className="mb-6 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-lg p-4 text-center">
+                          <div className="text-white">
+                            <Trophy className="h-8 w-8 mx-auto mb-2" />
+                            <h3 className="text-xl font-bold">
+                              Winner: {comparisonPreview.comparison.winnerOverall === 'deck1' ? 'Deck 1' : comparisonPreview.comparison.winnerOverall === 'deck2' ? 'Deck 2' : 'Tie'}
+                            </h3>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Executive Summary */}
+                      {comparisonPreview?.comparison?.summary && (
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                            <BarChart className="h-5 w-5 mr-2 text-blue-600" />
+                            Executive Summary
+                          </h4>
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-slate-700">{comparisonPreview.comparison.summary}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Category Winners */}
+                      {comparisonPreview?.comparison?.categoryWinners && (
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                            <Target className="h-5 w-5 mr-2 text-purple-600" />
+                            Category Winners
+                          </h4>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            {Object.entries(comparisonPreview.comparison.categoryWinners).map(([category, winner]) => (
+                              <div key={category} className={`p-3 rounded-lg border-2 ${
+                                (winner as string) === 'deck1' ? 'bg-purple-50 border-purple-300' :
+                                (winner as string) === 'deck2' ? 'bg-teal-50 border-teal-300' :
+                                'bg-gray-50 border-gray-300'
+                              }`}>
+                                <div className="text-xs font-medium text-slate-600 uppercase mb-1">
+                                  {category}
+                                </div>
+                                <div className="text-sm font-bold text-slate-900">
+                                  {(winner as string) === 'deck1' ? 'Deck 1' : (winner as string) === 'deck2' ? 'Deck 2' : 'Tie'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Individual Deck Scores */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Deck 1 Score */}
+                        {comparisonPreview?.deck1Analysis?.analysis?.overallScore !== undefined && (
+                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <h4 className="text-md font-semibold text-purple-900 mb-2 flex items-center">
+                              <FileText className="h-4 w-4 mr-2" />
+                              Deck 1 Overall Score
+                            </h4>
+                            <div className="text-3xl font-bold text-purple-700">
+                              {comparisonPreview.deck1Analysis.analysis.overallScore}/100
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Deck 2 Score */}
+                        {comparisonPreview?.deck2Analysis?.analysis?.overallScore !== undefined && (
+                          <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <h4 className="text-md font-semibold text-teal-900 mb-2 flex items-center">
+                              <FileText className="h-4 w-4 mr-2" />
+                              Deck 2 Overall Score
+                            </h4>
+                            <div className="text-3xl font-bold text-teal-700">
+                              {comparisonPreview.deck2Analysis.analysis.overallScore}/100
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Comparative Strengths & Weaknesses */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Deck 1 */}
+                        <div>
+                          <h4 className="text-md font-semibold text-slate-900 mb-3 flex items-center">
+                            <FileText className="h-4 w-4 mr-2 text-purple-600" />
+                            Deck 1 Analysis
+                          </h4>
+                          
+                          {comparisonPreview?.comparison?.strengths?.deck1 && comparisonPreview.comparison.strengths.deck1.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-green-700 mb-2 flex items-center">
+                                <TrendingUp className="h-4 w-4 mr-1" />
+                                Strengths
+                              </h5>
+                              <ul className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.strengths.deck1.map((strength: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-green-600 mr-2">✓</span>
+                                    <span>{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.weaknesses?.deck1 && comparisonPreview.comparison.weaknesses.deck1.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                <AlertTriangle className="h-4 w-4 mr-1" />
+                                Weaknesses
+                              </h5>
+                              <ul className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.weaknesses.deck1.map((weakness: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-orange-600 mr-2">⚠</span>
+                                    <span>{weakness}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.recommendations?.deck1 && comparisonPreview.comparison.recommendations.deck1.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-blue-700 mb-2 flex items-center">
+                                <Target className="h-4 w-4 mr-1" />
+                                Recommendations
+                              </h5>
+                              <ul className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.recommendations.deck1.map((rec: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-blue-600 mr-2">→</span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Deck 2 */}
+                        <div>
+                          <h4 className="text-md font-semibold text-slate-900 mb-3 flex items-center">
+                            <FileText className="h-4 w-4 mr-2 text-teal-600" />
+                            Deck 2 Analysis
+                          </h4>
+                          
+                          {comparisonPreview?.comparison?.strengths?.deck2 && comparisonPreview.comparison.strengths.deck2.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-green-700 mb-2 flex items-center">
+                                <TrendingUp className="h-4 w-4 mr-1" />
+                                Strengths
+                              </h5>
+                              <ul className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.strengths.deck2.map((strength: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-green-600 mr-2">✓</span>
+                                    <span>{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.weaknesses?.deck2 && comparisonPreview.comparison.weaknesses.deck2.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-sm font-medium text-orange-700 mb-2 flex items-center">
+                                <AlertTriangle className="h-4 w-4 mr-1" />
+                                Weaknesses
+                              </h5>
+                              <ul className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.weaknesses.deck2.map((weakness: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-orange-600 mr-2">⚠</span>
+                                    <span>{weakness}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {comparisonPreview?.comparison?.recommendations?.deck2 && comparisonPreview.comparison.recommendations.deck2.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-blue-700 mb-2 flex items-center">
+                                <Target className="h-4 w-4 mr-1" />
+                                Recommendations
+                              </h5>
+                              <ul className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                {comparisonPreview.comparison.recommendations.deck2.map((rec: string, idx: number) => (
+                                  <li key={idx} className="text-sm text-slate-700 flex items-start">
+                                    <span className="text-blue-600 mr-2">→</span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Key Differences */}
+                      {comparisonPreview?.comparison?.keyDifferences && comparisonPreview.comparison.keyDifferences.length > 0 && (
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                            <AlertTriangle className="h-5 w-5 mr-2 text-yellow-600" />
+                            Key Differences
+                          </h4>
+                          <ul className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+                            {comparisonPreview.comparison.keyDifferences.map((diff: string, idx: number) => (
+                              <li key={idx} className="text-slate-700 flex items-start">
+                                <span className="text-yellow-600 font-bold mr-2">{idx + 1}.</span>
+                                <span>{diff}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Export Options at Bottom */}
+                    <div className="border-t border-slate-200 bg-slate-50 p-6">
+                      <h4 className="text-md font-semibold text-slate-900 mb-4">Export Comparison Report</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/pdf`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-600 text-blue-600 px-4 py-3 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>PDF</span>
+                        </a>
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/txt`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-white border-2 border-teal-600 text-teal-600 px-4 py-3 rounded-lg font-medium hover:bg-teal-600 hover:text-white transition-all"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>TXT</span>
+                        </a>
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/md`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-white border-2 border-purple-600 text-purple-600 px-4 py-3 rounded-lg font-medium hover:bg-purple-600 hover:text-white transition-all"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>Markdown</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Old Download Options - Remove or keep as fallback */}
+                {completedComparisonId && !comparingDecks && !showComparisonPreview && (
+                  <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-6 w-6 text-green-600" />
+                        <div>
+                          <h3 className="font-semibold text-slate-900">Comparison Complete!</h3>
+                          <p className="text-sm text-slate-600">Download your report in your preferred format</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCompletedComparisonId(null);
+                          setComparisonDeck1(null);
+                          setComparisonDeck2(null);
+                          setComparisonProgress(0);
+                          setComparisonConfidence(0);
+                        }}
+                        className="text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <a
+                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/pdf`}
+                        download
+                        className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-600 text-blue-600 px-4 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>PDF</span>
+                      </a>
+                      <a
+                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/txt`}
+                        download
+                        className="flex items-center justify-center space-x-2 bg-white border-2 border-teal-600 text-teal-600 px-4 py-3 rounded-lg font-medium hover:bg-teal-50 transition-all"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>TXT</span>
+                      </a>
+                      <a
+                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/md`}
+                        download
+                        className="flex items-center justify-center space-x-2 bg-white border-2 border-purple-600 text-purple-600 px-4 py-3 rounded-lg font-medium hover:bg-purple-50 transition-all"
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>Markdown</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );

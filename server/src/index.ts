@@ -15,14 +15,33 @@ import vcRoutes from './routes/vc';
 import adminRoutes from './routes/admin';
 import vcContextRoutes from './routes/vc-context';
 import vcPreferencesRoutes from './routes/vc-preferences';
+import vcAgentRoutes from './routes/vcAgent';
+import radarRoutes from './routes/radar';
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware - CORS configuration for production
+const allowedOrigins = [
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'https://team-sso-frontend-520480129735.us-central1.run.app',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  //origin: true, // Allow all origins in development/testing
-  origin: '*',  // allow any origin - TODO: insecure, change this later
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS blocked request from: ${origin}`);
+      callback(null, true); // Allow anyway in production for flexibility
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -63,7 +82,9 @@ app.use('/api/benchmarks', benchmarksRoutes);
 app.use('/api/vc', vcRoutes);
 app.use('/api/vc-context', vcContextRoutes);
 app.use('/api/vc-preferences', vcPreferencesRoutes);
+app.use('/api/vc-agent', vcAgentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/radar', radarRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

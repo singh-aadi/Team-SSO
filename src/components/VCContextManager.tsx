@@ -6,11 +6,12 @@ import { useNavigate, useParams } from 'react-router';
 interface Props {
   deckId?: string;
   companyName?: string;
+  embedded?: boolean; // When true, hides navigation and makes it wizard-friendly
 }
 
-export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Company' }: Props) {
+export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Company', embedded = false }: Props) {
   const params = useParams();
-  const deckId = propDeckId || params.deckId || 'demo';
+  const deckId = propDeckId || params.deckId;
   const navigate = useNavigate();
   const [items, setItems] = useState<ContextItem[]>([]);
   const [summary, setSummary] = useState<ContextSummary | null>(null);
@@ -18,16 +19,44 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [availableDecks, setAvailableDecks] = useState<any[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState<string>('');
 
+  // Load available decks if no deckId provided
   useEffect(() => {
-    loadItems();
-    loadSummary();
+    if (!deckId) {
+      loadAvailableDecks();
+    }
   }, [deckId]);
 
-  const loadItems = async () => {
+  // Load context items and summary when deck is selected
+  useEffect(() => {
+    if (deckId || selectedDeckId) {
+      loadItems();
+      loadSummary();
+    }
+  }, [deckId, selectedDeckId]);
+
+  const loadAvailableDecks = async () => {
     try {
-      console.log('🔍 Loading context items for deckId:', deckId);
-      const data = await vcContextApi.getContextItems(deckId);
+      const response = await fetch('http://localhost:3000/api/decks');
+      const data = await response.json();
+      setAvailableDecks(data.decks || []);
+      if (data.decks && data.decks.length > 0) {
+        setSelectedDeckId(data.decks[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load decks:', err);
+    }
+  };
+
+  const loadItems = async () => {
+    const currentDeckId = deckId || selectedDeckId;
+    if (!currentDeckId) return;
+
+    try {
+      console.log('🔍 Loading context items for deckId:', currentDeckId);
+      const data = await vcContextApi.getContextItems(currentDeckId);
       console.log('✅ Context items loaded:', data.items.length);
       setItems(data.items);
     } catch (err: any) {
@@ -37,8 +66,11 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   };
 
   const loadSummary = async () => {
+    const currentDeckId = deckId || selectedDeckId;
+    if (!currentDeckId) return;
+
     try {
-      const data = await vcContextApi.getLatestSummary(deckId);
+      const data = await vcContextApi.getLatestSummary(currentDeckId);
       if (data.success && data.summary) {
         setSummary(data.summary);
       }
@@ -49,6 +81,12 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const currentDeckId = deckId || selectedDeckId;
+    if (!currentDeckId) {
+      setError('Please select a deck first');
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -62,7 +100,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
     setError(null);
 
     try {
-      await vcContextApi.uploadContext(deckId, file, 'meeting-notes');
+      await vcContextApi.uploadContext(currentDeckId, file, 'meeting-notes');
       await loadItems();
       e.target.value = ''; // Reset input
     } catch (err: any) {
@@ -74,11 +112,17 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   };
 
   const handleSynthesize = async () => {
+    const currentDeckId = deckId || selectedDeckId;
+    if (!currentDeckId) {
+      setError('Please select a deck first');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const result = await vcContextApi.synthesizeContext(deckId);
+      const result = await vcContextApi.synthesizeContext(currentDeckId);
       setSummary(result.summary);
     } catch (err: any) {
       console.error('Synthesis failed:', err);
@@ -89,10 +133,6 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this context item?')) {
-      return;
-    }
-
     try {
       await vcContextApi.deleteContext(id);
       await loadItems();
@@ -100,6 +140,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
       if (summary) {
         setError('Context changed. Consider regenerating the summary.');
       }
+      console.log('Context item deleted successfully');
     } catch (err: any) {
       console.error('Delete failed:', err);
       setError('Failed to delete context item');
@@ -177,24 +218,56 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className={embedded ? 'space-y-6' : 'min-h-screen bg-slate-50 p-6'}>
+      <div className={embedded ? 'space-y-6' : 'max-w-5xl mx-auto space-y-6'}>
         {/* Header */}
-        <div className="flex items-center justify-between">
+        {!embedded && (
+          <div className="flex items-center justify-between">
+            <div>
+              <button
+                onClick={() => navigate('/vc-journey')}
+                className="flex items-center space-x-2 text-sm text-slate-600 hover:text-slate-900 mb-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to VC Journey</span>
+              </button>
+              <h1 className="text-3xl font-bold text-slate-900">VC Context Manager</h1>
+              <p className="text-slate-600 mt-1">
+                {companyName} • Collect and synthesize interaction context
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {embedded && (
           <div>
-            <button
-              onClick={() => navigate('/vc-journey')}
-              className="flex items-center space-x-2 text-sm text-slate-600 hover:text-slate-900 mb-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span>Back to VC Journey</span>
-            </button>
-            <h1 className="text-3xl font-bold text-slate-900">VC Context Manager</h1>
-            <p className="text-slate-600 mt-1">
-              {companyName} • Collect and synthesize interaction context
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">Upload Context Materials</h3>
+            <p className="text-sm text-slate-600">
+              Add meeting notes, transcripts, or due diligence documents
             </p>
           </div>
-        </div>
+        )}
+
+        {/* Deck Selector (when no deckId prop provided) */}
+        {!deckId && availableDecks.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-slate-900 mb-2">
+              Select a Deck to Manage Context
+            </label>
+            <select
+              value={selectedDeckId}
+              onChange={(e) => setSelectedDeckId(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Choose a deck...</option>
+              {availableDecks.map((deck) => (
+                <option key={deck.id} value={deck.id}>
+                  {deck.company_name} - {deck.founder_name || 'No founder name'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Sliders, BarChart2, TrendingUp, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { Sliders, BarChart2, TrendingUp, Save, CheckCircle, AlertCircle, FileStack } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { VCContextManager } from './VCContextManager';
 
 interface Subcriteria {
   id: string;
@@ -20,7 +21,7 @@ interface EvaluationCriteria {
 
 export function VCMode() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'evaluation' | 'forecast' | 'customize'>('evaluation');
+  const [activeTab, setActiveTab] = useState<'context' | 'evaluation' | 'forecast' | 'customize'>('context');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
   const [customCriteria, setCustomCriteria] = useState<string>('');
   const [customSubcriteria, setCustomSubcriteria] = useState<string>('');
@@ -67,17 +68,19 @@ export function VCMode() {
   ]);
 
   const updateWeight = (criteriaId: string, subcriteriaId: string | null, newWeight: number) => {
+    // Simply update the weight - allow user to set any value
+    // They can balance manually or we warn if total != 100
     setCriteria(prev => prev.map(c => {
       if (c.id === criteriaId) {
         if (subcriteriaId) {
           return {
             ...c,
             subcriteria: c.subcriteria.map(sc => 
-              sc.id === subcriteriaId ? { ...sc, weight: newWeight } : sc
+              sc.id === subcriteriaId ? { ...sc, weight: Math.max(0, Math.min(100, newWeight)) } : sc
             )
           };
         }
-        return { ...c, weight: newWeight };
+        return { ...c, weight: Math.max(0, Math.min(100, newWeight)) };
       }
       return c;
     }));
@@ -146,6 +149,7 @@ export function VCMode() {
     setSaveStatus('idle');
 
     try {
+      // Step 1: Save preferences using existing API
       const response = await fetch('http://localhost:3000/api/vc-preferences', {
         method: 'POST',
         headers: {
@@ -163,20 +167,42 @@ export function VCMode() {
         throw new Error('Failed to save preferences');
       }
 
+      // Step 2: Trigger AI prompt regeneration (agentic system)
+      console.log('🤖 Triggering prompt regeneration...');
+      const promptResponse = await fetch('http://localhost:3000/api/vc-agent/regenerate-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          industry: selectedIndustry,
+          criteria: criteria,
+        }),
+      });
+
+      if (promptResponse.ok) {
+        const promptData = await promptResponse.json();
+        console.log('✅ Prompt regenerated:', promptData.version);
+        setSaveMessage(`Preferences saved! AI evaluation prompt updated (${promptData.version})`);
+      } else {
+        console.warn('⚠️ Prompt regeneration failed, but preferences saved');
+        setSaveMessage('Preferences saved (prompt update pending)');
+      }
+
       const data = await response.json();
       setSaveStatus('success');
-      setSaveMessage('Preferences saved successfully!');
       setHasUnsavedChanges(false); // Clear unsaved changes flag
       console.log('Saved preferences:', data);
 
       // Reload preferences to ensure UI is in sync with database
       await loadPreferences();
 
-      // Clear success message after 3 seconds
+      // Clear success message after 5 seconds (longer for AI update message)
       setTimeout(() => {
         setSaveStatus('idle');
         setSaveMessage('');
-      }, 3000);
+      }, 5000);
     } catch (error) {
       console.error('Error saving preferences:', error);
       setSaveStatus('error');
@@ -188,46 +214,14 @@ export function VCMode() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">VC Mode</h1>
-          <p className="text-slate-600 mt-1">Customize evaluation criteria and analyze growth potential</p>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setActiveTab('evaluation')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              activeTab === 'evaluation'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-            }`}
-          >
-            Evaluation Weights
-          </button>
-          <button
-            onClick={() => setActiveTab('forecast')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              activeTab === 'forecast'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-            }`}
-          >
-            Growth Forecast
-          </button>
-          <button
-            onClick={() => setActiveTab('customize')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              activeTab === 'customize'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-            }`}
-          >
-            Customize
-          </button>
-        </div>
+    <div className="p-6 max-w-[1800px] mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-slate-900">VC Mode</h1>
+        <p className="text-slate-600 mt-1">Due diligence context and investment evaluation tools</p>
       </div>
 
+      {/* Industry Focus - Global Setting */}
       <div className="mb-6">
         <label htmlFor="industry" className="block text-sm font-medium text-slate-700 mb-2">
           Industry Focus
@@ -236,7 +230,7 @@ export function VCMode() {
           id="industry"
           value={selectedIndustry}
           onChange={(e) => setSelectedIndustry(e.target.value)}
-          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+          className="mt-1 block w-full max-w-md pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
         >
           <option value="all">All Industries</option>
           <option value="healthcare">Healthcare</option>
@@ -250,6 +244,67 @@ export function VCMode() {
         </select>
       </div>
 
+      {/* Two-Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* LEFT COLUMN: VC Context (Always Visible) */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow p-6 sticky top-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                <FileStack className="w-5 h-5 text-teal-600" />
+                Due Diligence Context
+              </h2>
+              <p className="text-sm text-slate-600">
+                Upload call transcripts, research notes, and other context to build comprehensive deal knowledge. 
+                AI will synthesize all context into actionable insights for your investment decision.
+              </p>
+            </div>
+            <VCContextManager />
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Tabbed Content */}
+        <div className="space-y-6">
+          {/* Tab Switcher */}
+          <div className="bg-white rounded-lg shadow p-2 flex space-x-2">
+            <button
+              onClick={() => setActiveTab('evaluation')}
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'evaluation'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Sliders className="w-4 h-4 inline mr-2" />
+              Evaluation Weights
+            </button>
+            <button
+              onClick={() => setActiveTab('forecast')}
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'forecast'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 inline mr-2" />
+              Growth Forecast
+            </button>
+            <button
+              onClick={() => setActiveTab('customize')}
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'customize'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <BarChart2 className="w-4 h-4 inline mr-2" />
+              Customize
+            </button>
+          </div>
+
+          {/* Tab Content */}
+
       {activeTab === 'evaluation' && (
         <div className="space-y-6 pb-32">
           {/* Add bottom padding to prevent save button overlap */}
@@ -258,33 +313,44 @@ export function VCMode() {
             <p className="text-sm text-slate-600 mb-6">
               Adjust the importance of each criterion to match your investment thesis. Weights must total 100%.
             </p>
-            <div className="space-y-6">
-              {criteria.map(criterion => (
-                <div key={criterion.id} className="border-b pb-6 last:border-b-0">
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-slate-900">{criterion.name}</h3>
-                      <span className="text-lg font-bold text-blue-600">{criterion.weight}%</span>
+            
+            {/* 2-Column Grid for Sliders */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              {criteria.map(criterion => {
+                // Calculate max value for this slider (100 - sum of all other sliders)
+                const otherSlidersSum = criteria.reduce((sum, c) => {
+                  if (c.id === criterion.id) return sum;
+                  return sum + c.weight;
+                }, 0);
+                const maxValue = 100 - otherSlidersSum;
+                
+                return (
+                  <div key={criterion.id} className="border-b pb-6 last:border-b-0 md:last:border-b md:nth-last-child-2:border-b-0">
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-slate-900">{criterion.name}</h3>
+                        <span className="text-lg font-bold text-blue-600">{criterion.weight}%</span>
+                      </div>
+                      <p className="text-sm text-slate-600 leading-relaxed mb-3">
+                        {criterion.description}
+                      </p>
                     </div>
-                    <p className="text-sm text-slate-600 leading-relaxed mb-3">
-                      {criterion.description}
-                    </p>
+                    <input
+                      type="range"
+                      min="0"
+                      max={maxValue}
+                      value={criterion.weight}
+                      onChange={(e) => updateWeight(criterion.id, null, parseInt(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>0%</span>
+                      <span>{Math.round(maxValue / 2)}%</span>
+                      <span>{maxValue}%</span>
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={criterion.weight}
-                    onChange={(e) => updateWeight(criterion.id, null, parseInt(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-slate-500 mt-1">
-                    <span>0%</span>
-                    <span>50%</span>
-                    <span>100%</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* Weight Total Indicator */}
@@ -540,6 +606,11 @@ export function VCMode() {
           </div>
         </div>
       )}
+
+        </div>
+        {/* End RIGHT COLUMN */}
+      </div>
+      {/* End Two-Column Grid */}
     </div>
   );
 }

@@ -43,7 +43,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { company_id, status } = req.query;
     
     let queryText = `
-      SELECT d.*, c.name as company_name 
+      SELECT d.*, c.name as company_name, c.stage, c.industry 
       FROM pitch_decks d
       LEFT JOIN companies c ON d.company_id = c.id
       WHERE 1=1
@@ -70,6 +70,118 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching decks:', error);
     res.status(500).json({ error: 'Failed to fetch decks' });
+  }
+});
+
+// POST /api/decks/compare - Compare two pitch decks side-by-side
+router.post('/compare', upload.fields([
+  { name: 'deck1', maxCount: 1 },
+  { name: 'deck2', maxCount: 1 }
+]), async (req: Request, res: Response) => {
+  try {
+    console.log('📊 Received deck comparison request');
+    console.log('Request body:', req.body);
+    console.log('Files received:', req.files ? Object.keys(req.files) : 'none');
+    
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    
+    if (!files || !files.deck1 || !files.deck2) {
+      console.error('❌ Missing files:', {
+        hasFiles: !!files,
+        hasDeck1: !!files?.deck1,
+        hasDeck2: !!files?.deck2
+      });
+      return res.status(400).json({ 
+        error: 'Both pitch decks are required for comparison',
+        received: {
+          deck1: !!files?.deck1,
+          deck2: !!files?.deck2
+        }
+      });
+    }
+
+    const deck1File = files.deck1[0];
+    const deck2File = files.deck2[0];
+    const { uploaded_by } = req.body;
+    
+    const deck1Path = `/uploads/${deck1File.filename}`;
+    const deck2Path = `/uploads/${deck2File.filename}`;
+
+    // Validate uploaded_by is a valid UUID or set to null
+    let validUserId = null;
+    if (uploaded_by) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(uploaded_by)) {
+        validUserId = uploaded_by;
+      } else {
+        console.warn(`⚠️ Invalid UUID format for uploaded_by: "${uploaded_by}", setting to null`);
+      }
+    }
+
+    // Insert comparison record
+    const result = await query(`
+      INSERT INTO deck_comparisons 
+      (uploaded_by, deck1_filename, deck1_file_path, deck2_filename, deck2_file_path, analysis_status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [
+      validUserId,
+      deck1File.originalname,
+      deck1Path,
+      deck2File.originalname,
+      deck2Path,
+      'pending'
+    ]);
+
+    const comparisonId = result.rows[0].id;
+
+    // Trigger comparison analysis in background
+    setTimeout(async () => {
+      try {
+        console.log(`🚀 Starting comparison analysis for ${comparisonId}...`);
+        console.log(`  - Deck 1: ${deck1File.originalname}`);
+        console.log(`  - Deck 2: ${deck2File.originalname}`);
+        
+        await query(`UPDATE deck_comparisons SET analysis_status = 'processing' WHERE id = $1`, [comparisonId]);
+
+        // Full file paths
+        const fullDeck1Path = path.join(__dirname, '../../', deck1Path);
+        const fullDeck2Path = path.join(__dirname, '../../', deck2Path);
+
+        console.log('📊 Comparing pitch decks with AI...');
+        
+        // Import comparison function
+        const { comparePitchDecks } = await import('../services/ai-enhanced');
+        const comparisonResult = await comparePitchDecks(fullDeck1Path, fullDeck2Path);
+
+        console.log('💾 Storing comparison results...');
+
+        await query(`
+          UPDATE deck_comparisons 
+          SET analysis_status = 'completed', 
+              comparison_analysis = $1,
+              analyzed_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `, [JSON.stringify(comparisonResult), comparisonId]);
+
+        console.log(`✅ Comparison analysis complete for ${comparisonId}!`);
+      } catch (error) {
+        console.error(`❌ Comparison analysis failed for ${comparisonId}:`, error);
+        await query(`UPDATE deck_comparisons SET analysis_status = 'failed' WHERE id = $1`, [comparisonId]);
+      }
+    }, 1000);
+
+    res.status(201).json({
+      id: comparisonId,
+      message: 'Pitch decks uploaded successfully! Comparison analysis started.',
+      files: {
+        deck1: deck1File.originalname,
+        deck2: deck2File.originalname
+      }
+    });
+  } catch (error) {
+    console.error('Error comparing decks:', error);
+    res.status(500).json({ error: 'Failed to compare decks', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -465,14 +577,95 @@ router.post('/upload', upload.single('deck'), async (req: Request, res: Response
   }
 });
 
+// GET /api/decks/recent-analyses - Get recent deck analyses (for founders)
+// NOTE: This MUST come before /:id route to avoid being caught by it
+router.get('/recent-analyses', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const userId = req.query.userId as string;
+
+    let queryText = `
+      SELECT 
+        d.id, 
+        d.filename, 
+        d.analysis_status, 
+        d.created_at, 
+        d.analyzed_at,
+        d.sso_score,
+        c.name as company_name
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+    `;
+
+    const params: any[] = [];
+    
+    if (userId) {
+      queryText += ` WHERE d.uploaded_by = $1`;
+      params.push(userId);
+      queryText += ` ORDER BY d.created_at DESC LIMIT $2`;
+      params.push(limit);
+    } else {
+      queryText += ` ORDER BY d.created_at DESC LIMIT $1`;
+      params.push(limit);
+    }
+
+    const result = await query(queryText, params);
+
+    res.json({ 
+      analyses: result.rows,
+      total: result.rows.length 
+    });
+  } catch (error) {
+    console.error('Error fetching recent analyses:', error);
+    res.status(500).json({ error: 'Failed to fetch recent analyses' });
+  }
+});
+
+// GET /api/decks/comparisons/recent - Get recent comparisons
+// NOTE: This MUST come before /:id route to avoid being caught by it
+router.get('/comparisons/recent', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const userId = req.query.userId as string;
+
+    let queryText = `
+      SELECT id, deck1_filename, deck2_filename, analysis_status, 
+             created_at, analyzed_at, uploaded_by
+      FROM deck_comparisons 
+    `;
+
+    const params: any[] = [];
+    
+    if (userId) {
+      queryText += ` WHERE uploaded_by = $1`;
+      params.push(userId);
+      queryText += ` ORDER BY created_at DESC LIMIT $2`;
+      params.push(limit);
+    } else {
+      queryText += ` ORDER BY created_at DESC LIMIT $1`;
+      params.push(limit);
+    }
+
+    const result = await query(queryText, params);
+
+    res.json({ 
+      comparisons: result.rows,
+      total: result.rows.length 
+    });
+  } catch (error) {
+    console.error('Error fetching recent comparisons:', error);
+    res.status(500).json({ error: 'Failed to fetch recent comparisons' });
+  }
+});
+
 // GET /api/decks/:id - Get deck details with analysis
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Get deck info
+    // Get deck info with company stage and industry
     const deckResult = await query(`
-      SELECT d.*, c.name as company_name 
+      SELECT d.*, c.name as company_name, c.stage, c.industry 
       FROM pitch_decks d
       LEFT JOIN companies c ON d.company_id = c.id
       WHERE d.id = $1
@@ -903,6 +1096,131 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
     console.error('Error generating report:', error);
     res.status(500).json({ error: 'Failed to generate report' });
   }
+});
+
+// GET /api/decks/compare/:id - Get comparison status
+router.get('/compare/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(`
+      SELECT id, analysis_status, comparison_analysis, deck1_filename, deck2_filename, created_at, analyzed_at
+      FROM deck_comparisons 
+      WHERE id = $1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Comparison not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching comparison status:', error);
+    res.status(500).json({ error: 'Failed to fetch comparison status' });
+  }
+});
+
+// GET /api/decks/compare/:id/report/:format - Download comparison report in specified format
+router.get('/compare/:id/report/:format', async (req: Request, res: Response) => {
+  try {
+    const { id, format } = req.params;
+    
+    if (!['txt', 'md', 'pdf'].includes(format)) {
+      return res.status(400).json({ error: 'Invalid format. Use txt, md, or pdf' });
+    }
+
+    // Get comparison with analysis
+    const comparisonResult = await query(`
+      SELECT * FROM deck_comparisons WHERE id = $1
+    `, [id]);
+
+    if (comparisonResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Comparison not found' });
+    }
+
+    const comparison = comparisonResult.rows[0];
+
+    if (!comparison.comparison_analysis || comparison.analysis_status !== 'completed') {
+      return res.status(400).json({ 
+        error: 'Comparison analysis not completed yet' 
+      });
+    }
+
+    console.log(`\n📊 Generating ${format.toUpperCase()} comparison report for ${id}...`);
+
+    const reportData = {
+      comparisonId: comparison.id,
+      deck1Name: comparison.deck1_filename,
+      deck2Name: comparison.deck2_filename,
+      analysis: comparison.comparison_analysis
+    };
+
+    // Generate based on format
+    if (format === 'txt') {
+      const { generateComparisonTextReport } = await import('../services/comparisonReportGenerators');
+      const txtReport = generateComparisonTextReport(reportData);
+      
+      const fileName = `Deck_Comparison_${comparison.id.substring(0, 8)}.txt`;
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(txtReport);
+    }
+
+    if (format === 'md') {
+      const { generateComparisonMarkdownReport } = await import('../services/comparisonReportGenerators');
+      const mdReport = generateComparisonMarkdownReport(reportData);
+      
+      const fileName = `Deck_Comparison_${comparison.id.substring(0, 8)}.md`;
+      res.setHeader('Content-Type', 'text/markdown');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(mdReport);
+    }
+
+    if (format === 'pdf') {
+      const { default: generateComparisonPDF } = await import('../services/comparisonPdfGenerator');
+      
+      const pdfPath = await generateComparisonPDF(reportData);
+
+      console.log(`✓ Comparison PDF generated: ${pdfPath}`);
+
+      const fileName = `Deck_Comparison_${comparison.id.substring(0, 8)}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      
+      const fileStream = fs.createReadStream(pdfPath);
+      fileStream.pipe(res);
+      
+      fileStream.on('end', () => {
+        try {
+          fs.unlinkSync(pdfPath);
+          console.log(`✓ Temp PDF cleaned up: ${pdfPath}`);
+        } catch (err) {
+          console.error('Error cleaning up temp PDF:', err);
+        }
+      });
+
+      fileStream.on('error', (error) => {
+        console.error('Error streaming PDF:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to stream PDF' });
+        }
+      });
+    }
+
+  } catch (error: any) {
+    console.error('Error generating comparison report:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate comparison report',
+      details: error.message 
+    });
+  }
+});
+
+// Deprecated: old PDF-only route (kept for backward compatibility)
+router.get('/compare/:id/report', async (req: Request, res: Response) => {
+  // Redirect to PDF format
+  return res.redirect(`/decks/compare/${req.params.id}/report/pdf`);
 });
 
 export default router;
