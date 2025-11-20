@@ -10,20 +10,30 @@ const fonts = {
 const printer = new PdfPrinter(fonts);
 
 function titlePage(opts, score) {
+    const header = {
+        table: {
+            widths: ['*'],
+            body: [
+            [{
+                fillColor: 'blue',
+                color: 'white',
+                border: [false, false, false, false],
+                alignment: 'center',
+                stack: [
+                { text: 'PITCH DECK ANALYSIS', style: 'h1' },
+                { text: 'INVESTMENT READINESS REPORT', style: 'h1' },
+                { text: 'Powered by Team SSO Intelligence Report', margin: [0, 10, 0, 0] }
+                ]
+            }]
+            ]
+        },
+        layout: 'noBorders'
+    };
+
     return {
         stack: [
             // Blue Header
-            {
-                alignment: 'center',
-                color: 'white',
-                fillColor: 'darkblue',
-                margin: [0, 0, 0, 30],
-                stack: [
-                    { text: 'PITCH DECK ANALYSIS', style: 'h1' },
-                    { text: 'INVESTMENT READINESS REPORT', style: 'h2' },
-                    { text: 'Powered by Team SSO Intelligence Engine', margin: [0, 10, 0, 0] }
-                ]
-            },
+            header,
 
             // Company Name
             { text: opts.companyName, style: 'h2', alignment: 'center', margin: [0, 0, 0, 10] },
@@ -63,7 +73,8 @@ function titlePage(opts, score) {
 
             // Timestamp
             { text: `Generated: ${new Date().toLocaleString()}`, margin: [0, 20, 0, 0] }
-        ]
+        ],
+        pageBreak: 'after'
     };
 }
 
@@ -90,7 +101,7 @@ const docDefinition = {
     content: [
         // ---------- PAGE 1 ----------
         titlePage(enhancedPdfOptions, ssoScore),
-        { text: '', pageBreak: 'after' },
+        // { text: '', pageBreak: 'after' },
 
         // ---------- PAGE 2: COMPANY OVERVIEW ----------
         section('COMPANY OVERVIEW', {
@@ -221,5 +232,7 @@ Further diligence on the financials and competitive landscape is required before
 };
 
 const pdfDoc = printer.createPdfKitDocument(docDefinition);
+//const pdfDoc = printer.createPdfKitDocument({ content: [ ...titlePage(enhancedPdfOptions, ssoScore) ] });
+// pdfDoc.pipe(fs.createWriteStream('titlePage.pdf'));
 pdfDoc.pipe(fs.createWriteStream('document.pdf'));
 pdfDoc.end();

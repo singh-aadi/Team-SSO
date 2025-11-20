@@ -2,6 +2,7 @@
 //    https://www.npmjs.com/package/@leantechniques/pdfmake
 // server side pdfmake official docs: https://pdfmake.github.io/docs/0.1/getting-started/server-side/
 // pdfmake docdefinition docs: https://pdfmake.github.io/docs/0.1/document-definition-object/styling/
+// live playground pdfmake: http://pdfmake.org/playground.html
 const fs = require('fs');
 const PdfPrinter = require('pdfmake');
 
