@@ -22,7 +22,7 @@ function titlePage(opts, score) {
                 stack: [
                 { text: 'PITCH DECK ANALYSIS', style: 'h1' },
                 { text: 'INVESTMENT READINESS REPORT', style: 'h1' },
-                { text: 'Powered by Team SSO Intelligence Report', margin: [0, 10, 0, 0] }
+                { text: 'Powered by Team SSO Intelligence', margin: [0, 10, 0, 0] }
                 ]
             }]
             ]
@@ -62,8 +62,8 @@ function titlePage(opts, score) {
 
             {
                 ul: [
-                    `Strongest: Market Opportunity (${score}/100)`,
-                    `Needs Work: Team & Execution (75.0/100)`
+                    { text: [{text: 'Strongest: ', color: 'green'}, `Market Opportunity (${score}/100)` ]},
+                    { text: [{text: '& Needs Work: ', color: 'red'}, `Team & Execution (75.0/100)` ]},
                 ],
                 margin: [40, 0, 0, 10]
             },
@@ -71,8 +71,8 @@ function titlePage(opts, score) {
             // Deck file (simple)
             { text: `Deck: ${opts.deck.id}.pdf`, margin: [0, 10, 0, 0] },
 
-            // Timestamp
-            { text: `Generated: ${new Date().toLocaleString()}`, margin: [0, 20, 0, 0] }
+            // Timestamp ; margin order: [left, top, right, bottom]
+            { text: `Generated: ${new Date().toLocaleString()}`, margin: [40,200,40,20], alignment: 'center', fontSize: 8 }   // footer at bottom in center in small
         ],
         pageBreak: 'after'
     };

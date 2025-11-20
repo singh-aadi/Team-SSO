@@ -10,7 +10,8 @@ var docDefinition = { content: 'This is an sample PDF printed with pdfMake' };  
 // global styling: { content: ..., styles: ... } (can also set defaultStyle: ... instead)
 
 // default is vertical stacking, for horizontal stacking do:
-{ content: { columns: [...], columnGap: 10 }}
+{ content: { text: [text_block_1 , text_block_2 ...]}}   // inline horizontal styling (for text)
+{ content: { columns: [...], columnGap: 10 }}   // OR in general
 
 // table example: { content: }
 var docDefinition = {
@@ -32,7 +33,22 @@ var docDefinition = {
     }
   ]
 };
+```
 
+margin specification (https://pdfmake.github.io/docs/0.1/document-definition-object/margins/):
+
+```javascript
+// margin: [left, top, right, bottom]
+{ text: 'sample', margin: [ 5, 2, 10, 20 ] },
+
+// margin: [horizontal, vertical]
+{ text: 'another text', margin: [5, 2] },
+
+// margin: equalLeftTopRightBottom
+{ text: 'last one', margin: 5 }
+
+// single-side margins
+{ text: 'sample', marginLeft: 5, marginTop: 2, marginRight: 10, marginBottom: 2 },
 ```
 
 Style Properties:
