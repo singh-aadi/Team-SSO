@@ -12,7 +12,7 @@ interface EnhancedPDFOptions {
   selectedStage: string;
   selectedIndustry: string;
   companyName?: string;
-  // 🌐 NEW: Web enrichment data from Vertex AI Grounding
+   // Web enrichment data from Vertex AI Grounding
   webEnrichment?: {
     validatedMetrics: any;
     additionalCompetitors: any[];
@@ -25,7 +25,7 @@ interface EnhancedPDFOptions {
     webSearchQueries: string[];
     webSources: any[];
   };
-  // 🎯 NEW: VC preferences used for this analysis
+   // VC preferences used for this analysis
   vcPreferencesUsed?: {
     name?: string;
     industry?: string;
@@ -87,6 +87,27 @@ function getScoreStatus(score: number): string {
   return 'CRITICAL ISSUES';
 }
 
+// Strip unsupported glyphs (emoji, smart quotes, symbols) before drawing to PDF
+function sanitizeText(value: any, fallback = ''): string {
+   if (value === null || value === undefined) {
+      return fallback;
+   }
+
+  let text = String(value);
+
+  text = text.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+
+  text = text
+      .replace(/[\u2018\u2019\u2032]/g, "'")
+      .replace(/[\u201C\u201D\u2033]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[\u2022\u2023\u25E6]/g, '- ')
+      .replace(/[\u2122]/g, '')
+      .replace(/[\u202F\u00A0]/g, ' ');
+
+   return text.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
+}
+
 // Visual Score Bar Generator
 function drawScoreBar(
   doc: PDFKit.PDFDocument, 
@@ -110,13 +131,13 @@ function drawScoreBar(
      .fillColor(color)
      .fill();
   
-  // Score text overlay
-  if (showLabel) {
-    doc.fontSize(14)
-       .font('Helvetica-Bold')
-       .fillColor(COLORS.white)
-       .text(score.toFixed(1), x + 10, y + 8);
-  }
+   // Score text overlay
+   if (showLabel) {
+      doc.fontSize(14)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.white)
+          .text('KEY METRICS VCs EVALUATE', x + 10, y + (height / 2) - 7);
+   }
   
   // Border
   doc.rect(x, y, width, height)
@@ -131,7 +152,7 @@ function drawScoreBar(
 function extractCompanyName(deck: any, analysis: any, providedName?: string): string {
   // Priority 1: Provided company name (from route)
   if (providedName && providedName.trim()) {
-    console.log(`✅ Using provided company name: "${providedName}"`);
+      console.log(`[OK] Using provided company name: "${providedName}"`);
     return providedName.trim();
   }
 
@@ -145,14 +166,14 @@ function extractCompanyName(deck: any, analysis: any, providedName?: string): st
       .replace(/\s+/g, ' '); // Normalize spaces
     
     if (cleaned.length > 2) {
-      console.log(`✅ Extracted from filename: "${cleaned}"`);
+         console.log(`[OK] Extracted from filename: "${cleaned}"`);
       return cleaned;
     }
   }
 
   // Priority 3: Database company name (ONLY if filename extraction failed)
   if (deck.company_name && deck.company_name.trim()) {
-    console.log(`⚠️ Using database company name (filename extraction failed): "${deck.company_name}"`);
+      console.log(`[WARN] Using database company name (filename extraction failed): "${deck.company_name}"`);
     return deck.company_name.trim();
   }
 
@@ -162,13 +183,13 @@ function extractCompanyName(deck: any, analysis: any, providedName?: string): st
     // Look for patterns like "Company X is..." or "The company X..."
     const match = overall.recommendation.match(/\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})\s+(?:is|offers|provides|delivers)/);
     if (match && match[1] && match[1].length > 3 && match[1].length < 50) {
-      console.log(`⚠️ Extracted from analysis: "${match[1]}"`);
+         console.log(`[WARN] Extracted from analysis: "${match[1]}"`);
       return match[1];
     }
   }
 
   // Fallback
-  console.warn(`❌ No company name found, using fallback: "Startup Company"`);
+   console.warn(`[ERROR] No company name found, using fallback: "Startup Company"`);
   return 'Startup Company';
 }
 
@@ -238,16 +259,16 @@ async function generateCompanyIntroduction(
 
     const analysisContext = contextParts.join('\n\n');
 
-    // 🔍 DEBUG: Log what we're sending to AI
-    console.log('\n🤖 === AI INTRODUCTION GENERATION ===');
-    console.log('📊 Analysis context length:', analysisContext.length, 'chars');
-    console.log('📋 Context parts:', contextParts.length, 'sections');
+      // DEBUG: Log what we're sending to AI
+      console.log('\n[AI] === AI INTRODUCTION GENERATION ===');
+      console.log('[STATS] Analysis context length:', analysisContext.length, 'chars');
+      console.log('[INFO] Context parts:', contextParts.length, 'sections');
     if (analysisContext.length < 100) {
-      console.warn('⚠️  WARNING: Very little analysis data available!');
-      console.warn('   Context:', analysisContext);
+         console.warn('[WARN] Very little analysis data available!');
+         console.warn('   Context:', analysisContext);
     } else {
-      console.log('✅ Sufficient analysis data available');
-      console.log('📝 Preview:', analysisContext.substring(0, 200) + '...');
+         console.log('[OK] Sufficient analysis data available');
+         console.log('[PREVIEW]:', analysisContext.substring(0, 200) + '...');
     }
 
     const prompt = `You are an investment analyst writing a detailed company introduction. 
@@ -298,7 +319,7 @@ If analysis data is LIMITED, still be SPECIFIC about what you DO know. Infer pro
 
 Write the introduction now. Use "${companyName}" as the company name. Make it SPECIFIC.`;
 
-    console.log('📤 Sending to Gemini...');
+   console.log('[AI] Sending prompt to Gemini...');
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -307,15 +328,15 @@ Write the introduction now. Use "${companyName}" as the company name. Make it SP
     // Clean up any markdown or formatting
     introduction = introduction.replace(/```/g, '').replace(/\*\*/g, '').trim();
 
-    console.log(`✅ Generated AI introduction: ${introduction.length} chars`);
-    console.log(`📝 Full introduction:\n${introduction}`);
+      console.log(`[OK] Generated AI introduction: ${introduction.length} chars`);
+      console.log(`[PREVIEW] Full introduction:\n${introduction}`);
     console.log('=====================================\n');
     
-    // ⚠️ VALIDATION: Check if it's still generic
+      // VALIDATION: Check if it's still generic
     const genericPhrases = ['seeking investment', 'demonstrated clear value', 'identified a significant market'];
     const isGeneric = genericPhrases.some(phrase => introduction.toLowerCase().includes(phrase));
     if (isGeneric) {
-      console.warn('⚠️  WARNING: AI generated generic text! Re-prompting with stricter instructions...');
+         console.warn('[WARN] AI generated generic text! Re-prompting with stricter instructions...');
       
       // RETRY with even more aggressive prompt
       const retryPrompt = `The previous introduction was too generic. Write a NEW introduction for ${companyName} that is HIGHLY SPECIFIC.
@@ -336,14 +357,14 @@ Make it factual, specific, and data-driven. If a detail isn't in the analysis, i
       const retryResult = await model.generateContent(retryPrompt);
       const retryResponse = await retryResult.response;
       introduction = retryResponse.text().trim().replace(/```/g, '').replace(/\*\*/g, '');
-      console.log(`🔄 Retry generated: ${introduction.length} chars`);
-      console.log(`📝 Retry introduction:\n${introduction}\n`);
+         console.log(`[RETRY] Generated: ${introduction.length} chars`);
+         console.log(`[RETRY] Introduction:\n${introduction}\n`);
     }
 
     return introduction;
 
   } catch (error) {
-    console.error('❌ Error generating AI introduction:', error);
+      console.error('[ERROR] Error generating AI introduction:', error);
     
     // Fallback to template-based introduction
     return `${companyName} is a ${stage.toLowerCase()}-stage ${industry.toLowerCase()} company seeking investment to scale operations and capture market share. Based on pitch deck analysis, the company has demonstrated a clear value proposition and identified a significant market opportunity. This report provides a comprehensive investment readiness assessment across key dimensions including problem-solution fit, market size, traction metrics, team capabilities, and financial projections.`;
@@ -389,12 +410,12 @@ function drawCircularScore(
 export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<string> {
   const { deck, analysis, selectedStage, selectedIndustry, companyName: providedCompanyName } = options;
   
-  // ✅ STEP 1: Extract proper company name
+   // STEP 1: Extract proper company name
   const companyName = extractCompanyName(deck, analysis, providedCompanyName);
-  console.log(`\n🏢 Final company name: "${companyName}"\n`);
+   console.log(`\n[COMPANY] Final company name: "${companyName}"\n`);
   
-  // ✅ STEP 2: Generate AI introduction (async - will complete before rendering)
-  console.log('🤖 Generating AI-powered company introduction...');
+   // STEP 2: Generate AI introduction (async - will complete before rendering)
+   console.log('[AI] Generating AI-powered company introduction...');
   const aiIntroduction = await generateCompanyIntroduction(
     companyName,
     analysis,
@@ -423,45 +444,51 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
         }
       });
 
+            const originalText = doc.text.bind(doc);
+            (doc as PDFKit.PDFDocument & { __sanitized?: boolean }).text = ((text: any, ...args: any[]) => {
+               const cleaned = sanitizeText(text);
+               return originalText(cleaned, ...args);
+            }) as typeof doc.text;
+
       const stream = fs.createWriteStream(outputPath);
       doc.pipe(stream);
 
-      // 🔍 COMPREHENSIVE DATA VALIDATION - Verify Gemini AI data is present
+   // COMPREHENSIVE DATA VALIDATION - Verify Gemini AI data is present
       console.log('\n' + '='.repeat(80));
-      console.log('📊 ENHANCED PDF GENERATION - DATA SOURCE VALIDATION');
+   console.log('ENHANCED PDF GENERATION - DATA SOURCE VALIDATION');
       console.log('='.repeat(80));
-      console.log('🏢 Company:', companyName || deck.company_name || 'Unknown');
-      console.log('📁 Deck ID:', deck.id);
-      console.log('🎯 Industry:', selectedIndustry, '| Stage:', selectedStage);
+   console.log('Company:', companyName || deck.company_name || 'Unknown');
+   console.log('Deck ID:', deck.id);
+   console.log('Industry:', selectedIndustry, '| Stage:', selectedStage);
       console.log('-'.repeat(80));
       
-      console.log('📦 Analysis Object Structure:');
-      console.log('   • analysis exists:', !!analysis);
-      console.log('   • analysis.analysis exists:', !!analysis?.analysis);
-      console.log('   • analysis.sso_score:', analysis?.sso_score || 'MISSING');
+   console.log('Analysis Object Structure:');
+   console.log('   - analysis exists:', !!analysis);
+   console.log('   - analysis.analysis exists:', !!analysis?.analysis);
+   console.log('   - analysis.sso_score:', analysis?.sso_score || 'MISSING');
       
       const overall = analysis?.analysis?.overall || {};
       const analyzedSections = analysis?.analysis?.sections || [];
       
-      console.log('\n🎯 Overall Analysis (from Gemini):');
-      console.log('   • overallScore:', overall.overallScore || 'MISSING');
-      console.log('   • recommendation:', overall.recommendation ? `${overall.recommendation.length} chars` : 'MISSING');
-      console.log('   • strengths:', Array.isArray(overall.strengths) ? `${overall.strengths.length} items` : 'MISSING');
-      console.log('   • weaknesses:', Array.isArray(overall.weaknesses) ? `${overall.weaknesses.length} items` : 'MISSING');
-      console.log('   • keyInsights:', Array.isArray(overall.keyInsights) ? `${overall.keyInsights.length} items` : 'MISSING');
+         console.log('\nOverall Analysis (from Gemini):');
+         console.log('   - overallScore:', overall.overallScore || 'MISSING');
+         console.log('   - recommendation:', overall.recommendation ? `${overall.recommendation.length} chars` : 'MISSING');
+         console.log('   - strengths:', Array.isArray(overall.strengths) ? `${overall.strengths.length} items` : 'MISSING');
+         console.log('   - weaknesses:', Array.isArray(overall.weaknesses) ? `${overall.weaknesses.length} items` : 'MISSING');
+         console.log('   - keyInsights:', Array.isArray(overall.keyInsights) ? `${overall.keyInsights.length} items` : 'MISSING');
       
-      console.log('\n📋 Section Analysis (from Gemini):');
-      console.log('   • Total sections:', analyzedSections.length);
+         console.log('\nSection Analysis (from Gemini):');
+         console.log('   - Total sections:', analyzedSections.length);
       if (analyzedSections.length > 0) {
-        console.log('   • Section names:');
+            console.log('   - Section names:');
         analyzedSections.forEach((s: any, i: number) => {
           console.log(`     ${i + 1}. ${s.sectionName} (Score: ${s.sectionScore}, Feedback: ${s.feedback?.length || 0} chars)`);
         });
       } else {
-        console.warn('   ⚠️  WARNING: NO SECTIONS FOUND - PDF will use fallback data!');
+            console.warn('   WARNING: NO SECTIONS FOUND - PDF will use fallback data!');
       }
       
-      console.log('\n🚨 DATA QUALITY CHECK:');
+         console.log('\nDATA QUALITY CHECK:');
       const hasRealData = (
         !!overall.recommendation ||
         (Array.isArray(overall.keyInsights) && overall.keyInsights.length > 0) ||
@@ -469,12 +496,12 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
       );
       
       if (hasRealData) {
-        console.log('   ✅ PASS: Gemini AI analysis data detected');
-        console.log('   ✅ PDF will contain REAL AI-generated insights');
+            console.log('   PASS: Gemini AI analysis data detected');
+            console.log('   PASS: PDF will contain real AI-generated insights');
       } else {
-        console.error('   ❌ FAIL: No Gemini data found!');
-        console.error('   ❌ PDF will mostly contain generic fallback content');
-        console.error('   ❌ Check if deck analysis completed successfully');
+            console.error('   FAIL: No Gemini data found!');
+            console.error('   FAIL: PDF will mostly contain generic fallback content');
+            console.error('   FAIL: Check if deck analysis completed successfully');
       }
       
       console.log('='.repeat(80) + '\n');
@@ -528,9 +555,9 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
       doc.addPage();
       addRecommendations(doc, analysis, selectedStage, selectedIndustry);
 
-      // 🌐 NEW: WEB ENRICHMENT PAGES (if available)
+         // WEB ENRICHMENT PAGES (if available)
       if (options.webEnrichment) {
-        console.log('✓ Adding web enrichment pages...');
+            console.log('Adding web enrichment pages...');
 
         // Data Sources Breakdown
         if (options.webEnrichment.dataSources) {
@@ -552,7 +579,7 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
           renderFactCheckSummary(doc, options.webEnrichment.factChecks);
         }
 
-        console.log('✓ Web enrichment pages added!');
+            console.log('Web enrichment pages added.');
       }
 
       // PAGE: Appendix
@@ -569,7 +596,7 @@ export async function generateEnhancedPDF(options: EnhancedPDFOptions): Promise<
       doc.end();
 
       stream.on('finish', () => {
-        console.log(`✓ Enhanced PDF generated: ${outputPath}`);
+   console.log(`Enhanced PDF generated: ${outputPath}`);
         resolve(outputPath);
       });
       stream.on('error', (error) => {
@@ -618,11 +645,13 @@ function addCoverPage(
      .fillColor(COLORS.primaryLight)
      .text('INVESTMENT READINESS REPORT', 0, 80, { align: 'center', width: doc.page.width });
 
+  const headerTaglineY = 140;
+
   // Subtitle with professional tagline
-  doc.fontSize(14)
-     .font('Helvetica')
-     .fillColor(COLORS.primaryLight)
-     .text('Powered by Team SSO Intelligence Engine', 0, 135, { align: 'center', width: doc.page.width });
+  doc.fontSize(11)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.mediumDark)
+     .text('TARGET METRICS FOR THIS STAGE', 50, headerTaglineY);
 
   // ==============================
   // COMPANY INFORMATION SECTION
@@ -640,10 +669,10 @@ function addCoverPage(
   doc.roundedRect(centerX - 160, badgeY, 150, badgeHeight, 6)
      .fillColor(COLORS.indigo)
      .fill();
-  doc.fontSize(14)
+  doc.fontSize(12)
      .font('Helvetica-Bold')
-     .fillColor(COLORS.white)
-     .text(industry, centerX - 160, badgeY + 11, { width: 150, align: 'center' });
+     .fillColor(COLORS.mediumDark)
+     .text('WHAT VCs LOOK FOR', 50, headerTaglineY + 18);
   
   // Stage Badge
   doc.roundedRect(centerX + 10, badgeY, 150, badgeHeight, 6)
@@ -667,7 +696,7 @@ function addCoverPage(
   doc.fontSize(14)
      .font('Helvetica-Bold')
      .fillColor(COLORS.dark)
-     .text('SSO READINESS SCORE™', centerX - 120, circleY + 130, { width: 240, align: 'center' });
+     .text('SSO READINESS SCORE', centerX - 120, circleY + 130, { width: 240, align: 'center' });
 
   // ==============================
   // STATUS BADGE (Investor Ready, etc.)
@@ -708,7 +737,7 @@ function addCoverPage(
   doc.fontSize(10)
      .font('Helvetica')
      .fillColor(COLORS.success)
-     .text('✓ Strongest:', 80, previewY + 25);
+     .text('Strongest:', 80, previewY + 25);
   doc.fontSize(10)
      .fillColor(COLORS.dark)
      .text(`${topSection.sectionName} (${(topSection.sectionScore || 0).toFixed(1)}/100)`, 160, previewY + 25);
@@ -717,7 +746,7 @@ function addCoverPage(
   doc.fontSize(10)
      .font('Helvetica')
      .fillColor(COLORS.danger)
-     .text('⚠ Needs Work:', 80, previewY + 45);
+     .text('Needs Work:', 80, previewY + 45);
   doc.fontSize(10)
      .fillColor(COLORS.dark)
      .text(`${bottomSection.sectionName} (${(bottomSection.sectionScore || 0).toFixed(1)}/100)`, 160, previewY + 45);
@@ -749,11 +778,11 @@ function addCoverPage(
   doc.fontSize(8)
      .font('Helvetica')
      .fillColor(COLORS.lighter)
-     .text('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 50, footerY + 40, { align: 'center', width: doc.page.width - 100 });
+     .text('--------------------------------------------------------------', 50, footerY + 40, { align: 'center', width: doc.page.width - 100 });
   
   doc.fontSize(8)
      .fillColor(COLORS.medium)
-     .text('Powered by Team SSO Intelligence Engine • Gemini AI Analysis • Investor-Grade Insights', 50, footerY + 50, { width: doc.page.width - 100, align: 'center' });
+     .text('Powered by Team SSO Intelligence Engine | Gemini AI Analysis | Investor-Grade Insights', 50, footerY + 50, { width: doc.page.width - 100, align: 'center' });
 }
 
 // ============================================================================
@@ -812,16 +841,16 @@ function addCompanyIntroduction(
   doc.fontSize(10)
      .font('Helvetica-Bold')
      .fillColor(COLORS.indigo)
-     .text(`📊 ${industry}`, 65, tagY);
+     .text(`Industry: ${industry}`, 65, tagY);
 
   doc.fontSize(10)
      .fillColor(COLORS.teal)
-     .text(`💰 ${stage}`, 220, tagY);
+     .text(`Stage: ${stage}`, 220, tagY);
 
   const deckDate = deck.uploaded_at ? new Date(deck.uploaded_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A';
   doc.fontSize(9)
      .fillColor(COLORS.medium)
-     .text(`📅 Analyzed: ${deckDate}`, doc.page.width - 180, tagY);
+     .text(`Analyzed: ${deckDate}`, doc.page.width - 180, tagY);
 
   currentY += headerBoxHeight + 25;
 
@@ -831,16 +860,16 @@ function addCompanyIntroduction(
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('🏢 About the Company', 50, currentY);
+     .text('Company Summary', 50, currentY);
 
   currentY = doc.y + 12;
 
   // Use the AI-generated introduction passed to this function
-  console.log('\n📄 === COMPANY INTRODUCTION PAGE ===');
-  console.log('   ✅ Using AI-generated introduction');
-  console.log('   � Introduction length:', aiIntroduction.length, 'chars');
-  console.log('   📝 Preview:', aiIntroduction.substring(0, 150) + '...');
-  console.log('   ====================================\n');
+   console.log('\n[PDF] === COMPANY INTRODUCTION PAGE ===');
+   console.log('   - Using AI-generated introduction');
+   console.log('   - Introduction length:', aiIntroduction.length, 'chars');
+   console.log('   - Preview:', aiIntroduction.substring(0, 150) + '...');
+   console.log('   ====================================\n');
 
   doc.fontSize(11)
      .font('Helvetica')
@@ -859,7 +888,7 @@ function addCompanyIntroduction(
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('⚡ Key Highlights', 50, currentY);
+     .text('Key Highlights', 50, currentY);
 
   currentY = doc.y + 15;
 
@@ -869,26 +898,23 @@ function addCompanyIntroduction(
     .slice(0, 3);
 
   const colWidth = (doc.page.width - 120) / 3;
-  const highlights = [
-    {
-      icon: '🎯',
-      title: 'Industry',
-      value: industry,
-      subtitle: 'Target Market'
-    },
-    {
-      icon: '💵',
-      title: 'Stage',
-      value: stage,
-      subtitle: 'Funding Round'
-    },
-    {
-      icon: '⭐',
-      title: 'Top Strength',
-      value: topSections[0]?.sectionName || 'N/A',
-      subtitle: `${(topSections[0]?.sectionScore || 0).toFixed(1)}/100`
-    }
-  ];
+   const highlights = [
+      {
+         title: 'Industry',
+         value: industry,
+         subtitle: 'Target Market'
+      },
+      {
+         title: 'Stage',
+         value: stage,
+         subtitle: 'Funding Round'
+      },
+      {
+         title: 'Top Strength',
+         value: topSections[0]?.sectionName || 'N/A',
+         subtitle: `${(topSections[0]?.sectionScore || 0).toFixed(1)}/100`
+      }
+   ];
 
   highlights.forEach((highlight, i) => {
     const xPos = 50 + (i * (colWidth + 10));
@@ -903,27 +929,23 @@ function addCompanyIntroduction(
        .lineWidth(1.5)
        .stroke();
 
-    // Icon
-    doc.fontSize(24)
-       .text(highlight.icon, xPos + colWidth/2 - 12, currentY + 12);
-
     // Title
     doc.fontSize(10)
        .font('Helvetica-Bold')
        .fillColor(COLORS.medium)
-       .text(highlight.title, xPos + 5, currentY + 45, { width: colWidth - 10, align: 'center' });
+       .text(highlight.title, xPos + 5, currentY + 20, { width: colWidth - 10, align: 'center' });
 
     // Value
     doc.fontSize(12)
        .font('Helvetica-Bold')
        .fillColor(COLORS.dark)
-       .text(highlight.value, xPos + 5, currentY + 58, { width: colWidth - 10, align: 'center' });
+       .text(highlight.value, xPos + 5, currentY + 40, { width: colWidth - 10, align: 'center' });
 
     // Subtitle
     doc.fontSize(8)
        .font('Helvetica')
        .fillColor(COLORS.medium)
-       .text(highlight.subtitle, xPos + 5, currentY + 73, { width: colWidth - 10, align: 'center' });
+       .text(highlight.subtitle, xPos + 5, currentY + 58, { width: colWidth - 10, align: 'center' });
   });
 
   currentY += 100;
@@ -934,7 +956,7 @@ function addCompanyIntroduction(
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('📑 Pitch Deck Structure', 50, currentY);
+     .text('Pitch Deck Structure', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -961,17 +983,17 @@ function addCompanyIntroduction(
     const scoreColor = getScoreColor(score);
 
     // Checkmark or warning
-    const icon = score >= 70 ? '✓' : score >= 50 ? '•' : '⚠';
-    doc.fontSize(10)
+    const indicator = score >= 70 ? 'Strong' : score >= 50 ? 'Fair' : 'Risk';
+    doc.fontSize(9)
        .font('Helvetica-Bold')
        .fillColor(scoreColor)
-       .text(icon, xPos, yPos);
+       .text(indicator, xPos, yPos);
 
     // Section name
     doc.fontSize(9)
        .font('Helvetica')
        .fillColor(COLORS.dark)
-       .text(section.sectionName, xPos + 15, yPos, { width: 200 });
+       .text(section.sectionName, xPos + 42, yPos, { width: 170 });
   });
 
   currentY += sectionsPerCol * 20 + 20;
@@ -983,7 +1005,7 @@ function addCompanyIntroduction(
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor(COLORS.purple)
-       .text('💡 Analysis Methodology', 50, currentY);
+       .text('Analysis Methodology', 50, currentY);
 
     currentY = doc.y + 10;
 
@@ -991,7 +1013,7 @@ function addCompanyIntroduction(
        .font('Helvetica')
        .fillColor(COLORS.mediumDark)
        .text(
-         'This report uses the SSO Readiness™ framework, which evaluates pitch decks across multiple dimensions including market opportunity validation, competitive positioning, business model viability, team credibility, traction metrics, and financial projections. Scores are calibrated against industry-specific benchmarks and stage-appropriate expectations.',
+      'This report uses the SSO Readiness framework, which evaluates pitch decks across multiple dimensions including market opportunity validation, competitive positioning, business model viability, team credibility, traction metrics, and financial projections. Scores are calibrated against industry-specific benchmarks and stage-appropriate expectations.',
          50,
          currentY,
          { width: doc.page.width - 100, align: 'justify', lineGap: 2 }
@@ -1103,18 +1125,18 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('📊 SCORE BREAKDOWN BY COMPONENT', 50, currentY);
+     .text('SCORE BREAKDOWN BY COMPONENT', 50, currentY);
 
   currentY = doc.y + 12;
 
   // Add component scores (like normal PDF) - from overall analysis
-  const componentScores = [
-    { label: 'Problem & Solution', score: overall?.problemScore || 0, icon: '🎯' },
-    { label: 'Market Opportunity', score: overall?.marketScore || 0, icon: '📈' },
-    { label: 'Traction & Growth', score: overall?.tractionScore || 0, icon: '🚀' },
-    { label: 'Team & Execution', score: overall?.teamScore || 0, icon: '👥' },
-    { label: 'Business Model & Financials', score: overall?.financialsScore || 0, icon: '💰' }
-  ];
+   const componentScores = [
+      { label: 'Problem & Solution', score: overall?.problemScore || 0 },
+      { label: 'Market Opportunity', score: overall?.marketScore || 0 },
+      { label: 'Traction & Growth', score: overall?.tractionScore || 0 },
+      { label: 'Team & Execution', score: overall?.teamScore || 0 },
+      { label: 'Business Model & Financials', score: overall?.financialsScore || 0 }
+   ];
 
   componentScores.forEach((component) => {
     const compScore = parseFloat((component.score || 0).toFixed(1));
@@ -1124,7 +1146,7 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
     doc.fontSize(11)
        .font('Helvetica-Bold')
        .fillColor(COLORS.dark)
-       .text(`${component.icon} ${component.label}`, 60, currentY);
+       .text(component.label, 60, currentY);
 
     // Score bar (mini version)
     const miniBarWidth = 150;
@@ -1167,7 +1189,7 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor(COLORS.indigo)
-       .text('📋 SECTION SCORES', 50, currentY);
+          .text('SECTION SCORES', 50, currentY);
 
     currentY = doc.y + 10;
   }
@@ -1185,7 +1207,7 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
     doc.fontSize(11)
        .font('Helvetica-Bold')
        .fillColor(COLORS.dark)
-       .text(section.sectionName, 60, currentY);
+        .text('KEY TAKEAWAYS', 50, currentY);
 
     // Score bar (mini version)
     const miniBarWidth = 150;
@@ -1205,10 +1227,10 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
        .fill();
 
     // Score text
-    doc.fontSize(10)
-       .font('Helvetica-Bold')
-       .fillColor(COLORS.white)
-       .text(sectionScore.toFixed(1), miniBarX + 5, miniBarY + 3);
+     doc.fontSize(14)
+        .font('Helvetica-Bold')
+        .fillColor(COLORS.success)
+        .text('KEY STRENGTHS', 50, currentY);
 
     // Border
     doc.rect(miniBarX, miniBarY, miniBarWidth, miniBarHeight)
@@ -1224,10 +1246,10 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
   // ==============================
   // KEY STRENGTHS (Detailed)
   // ==============================
-  doc.fontSize(16)
+  doc.fontSize(14)
      .font('Helvetica-Bold')
-     .fillColor(COLORS.success)
-     .text('✓ KEY STRENGTHS', 50, currentY);
+     .fillColor(COLORS.danger)
+     .text('AREAS REQUIRING IMPROVEMENT', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -1239,10 +1261,10 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
          .fillColor(COLORS.success)
          .fill();
 
-      doc.fontSize(10)
-         .font('Helvetica')
-         .fillColor(COLORS.dark)
-         .text(strength, 75, currentY, { width: doc.page.width - 125, lineGap: 2 });
+        doc.fontSize(16)
+           .font('Helvetica-Bold')
+           .fillColor(COLORS.primary)
+           .text('INVESTMENT READINESS ASSESSMENT', 50, currentY);
       
       currentY = doc.y + 10;
     });
@@ -1262,7 +1284,7 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.danger)
-     .text('⚠ AREAS REQUIRING IMPROVEMENT', 50, currentY);
+   .text('AREAS REQUIRING IMPROVEMENT', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -1298,7 +1320,7 @@ function addExecutiveSummary(doc: PDFKit.PDFDocument, deck: any, analysis: any) 
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor(COLORS.indigo)
-       .text('💡 INVESTMENT READINESS ASSESSMENT', 50, currentY);
+   .text('INVESTMENT READINESS ASSESSMENT', 50, currentY);
 
     currentY = doc.y + 12;
 
@@ -1404,7 +1426,7 @@ function addIndustryBenchmarks(doc: PDFKit.PDFDocument, stage: string, industry:
   doc.fontSize(15)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('📊 KEY METRICS VCs EVALUATE', 50, currentY);
+   .text('KEY METRICS VCs EVALUATE', 50, currentY);
 
   currentY = doc.y + 15;
 
@@ -1434,7 +1456,7 @@ function addIndustryBenchmarks(doc: PDFKit.PDFDocument, stage: string, industry:
   doc.fontSize(15)
      .font('Helvetica-Bold')
      .fillColor(COLORS.success)
-     .text(`✓ ${stage.toUpperCase()} STAGE EXPECTATIONS`, 50, currentY);
+   .text(`${stage.toUpperCase()} STAGE EXPECTATIONS`, 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -1467,7 +1489,7 @@ function addIndustryBenchmarks(doc: PDFKit.PDFDocument, stage: string, industry:
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor(COLORS.primary)
-       .text('🎯 TARGET METRICS FOR THIS STAGE', 50, currentY);
+   .text('TARGET METRICS FOR THIS STAGE', 50, currentY);
     
     currentY = doc.y + 15;
 
@@ -1521,7 +1543,7 @@ function addIndustryBenchmarks(doc: PDFKit.PDFDocument, stage: string, industry:
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor('#6366f1')
-     .text('💼 WHAT VCs LOOK FOR', 50, currentY);
+   .text('WHAT VCs LOOK FOR', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -1671,7 +1693,7 @@ function addVCPreferencesSection(
       const formulaParts = vcPreferences.criteria.map((c: any) => {
         const criterionName = c.name.toLowerCase().replace(/ /g, '');
         const weight = (c.weight * 100).toFixed(0);
-        return `(${criterionName}Score × ${weight}%)`;
+   return `(${criterionName}Score x ${weight}%)`;
       });
       formula += formulaParts.join(' + ');
     } else {
@@ -1707,7 +1729,7 @@ function addVCPreferencesSection(
        .font('Helvetica-Oblique')
        .fillColor(COLORS.medium)
        .text(
-         '✓ All scores were validated against the weighted formula to ensure mathematical accuracy.',
+      'All scores were validated against the weighted formula to ensure mathematical accuracy.',
          50,
          currentY,
          { width: doc.page.width - 100, align: 'center' }
@@ -1897,7 +1919,7 @@ function addSectionDetail(doc: PDFKit.PDFDocument, section: any, isFirstOnPage: 
         doc.fontSize(11)
            .font('Helvetica-Bold')
            .fillColor(COLORS.success)
-           .text('✓ What\'s Working:', 50, currentY);
+            .text("What's Working:", 50, currentY);
 
         currentY = doc.y + 8;
 
@@ -1925,7 +1947,7 @@ function addSectionDetail(doc: PDFKit.PDFDocument, section: any, isFirstOnPage: 
         doc.fontSize(11)
            .font('Helvetica-Bold')
            .fillColor(COLORS.danger)
-           .text('⚠ Needs Improvement:', score >= 6 ? 310 : 50, improvementY);
+            .text('Needs Improvement:', score >= 6 ? 310 : 50, improvementY);
 
         let improvY = improvementY + 18;
 
@@ -2001,15 +2023,19 @@ function addVerticalMetrics(
      .lineWidth(2)
      .stroke();
 
-  doc.fontSize(10)
-     .font('Helvetica')
-     .fillColor(COLORS.mediumDark)
-     .text(
-       `As a ${industry} company at ${stage} stage, investors will evaluate you against specific industry benchmarks. These metrics are critical for demonstrating market traction, product-market fit, and scalability potential in your vertical.`,
-       65,
-       currentY + 12,
-       { width: doc.page.width - 130, align: 'justify', lineGap: 2 }
-     );
+  doc.fontSize(16)
+     .font('Helvetica-Bold')
+     .fillColor(COLORS.primary)
+     .text('CRITICAL METRICS FOR YOUR INDUSTRY', 50, currentY);
+   doc.fontSize(9)
+       .font('Helvetica')
+       .fillColor(COLORS.mediumDark)
+       .text(
+          `As a ${industry} company at ${stage} stage, investors will evaluate you against specific industry benchmarks. These metrics are critical for demonstrating market traction, product-market fit, and scalability potential in your vertical.`,
+          65,
+          currentY + 12,
+          { width: doc.page.width - 130, align: 'justify', lineGap: 2 }
+       );
 
   currentY += contextHeight + 25;
 
@@ -2019,7 +2045,7 @@ function addVerticalMetrics(
   doc.fontSize(15)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('📊 CRITICAL METRICS FOR YOUR INDUSTRY', 50, currentY);
+     .text('METRIC COVERAGE CHECKLIST', 50, currentY);
 
   currentY = doc.y + 15;
 
@@ -2032,7 +2058,7 @@ function addVerticalMetrics(
 
     // Status indicator
     const statusColor = isCovered ? COLORS.success : COLORS.danger;
-    const statusIcon = isCovered ? '✓' : '✗';
+   const statusIcon = isCovered ? 'COVERED' : 'MISSING';
 
     doc.circle(62, currentY + 5, 5)
        .fillColor(statusColor)
@@ -2060,7 +2086,7 @@ function addVerticalMetrics(
   doc.fontSize(15)
      .font('Helvetica-Bold')
      .fillColor(COLORS.success)
-       .text(`✓ ${stage.toUpperCase()} STAGE BENCHMARKS`, 50, currentY);
+   .text(`${stage.toUpperCase()} STAGE BENCHMARKS`, 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -2083,7 +2109,7 @@ function addVerticalMetrics(
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor(COLORS.primary)
-       .text('🎯 TARGET BENCHMARKS', 50, currentY);
+   .text('TARGET BENCHMARKS', 50, currentY);
 
     currentY = doc.y + 12;
 
@@ -2141,7 +2167,7 @@ function addVerticalMetrics(
     doc.fontSize(13)
        .font('Helvetica-Bold')
        .fillColor(COLORS.purple)
-       .text('💼 WHAT INVESTORS WANT TO SEE', 50, currentY);
+   .text('WHAT INVESTORS WANT TO SEE', 50, currentY);
 
     currentY = doc.y + 10;
 
@@ -2188,64 +2214,64 @@ function addStrengthsWeaknesses(doc: PDFKit.PDFDocument, analysis: any) {
   let currentY = 115;
 
   // Strengths
-  doc.fontSize(18)
+  doc.fontSize(14)
      .font('Helvetica-Bold')
-     .fillColor('#10b981')
-     .text('✓ KEY STRENGTHS', 50, currentY);
+     .fillColor(COLORS.success)
+     .text('KEY STRENGTHS', 50, currentY);
 
   currentY = doc.y + 12;
 
   const strengths = overall?.strengths || [];
   if (strengths.length > 0) {
     strengths.forEach((strength: string, i: number) => {
-      doc.fontSize(11)
-         .font('Helvetica')
-         .fillColor('#1e293b')
-         .text(`${i + 1}. ${strength}`, 70, currentY, { width: doc.page.width - 120 });
+        doc.fontSize(14)
+           .font('Helvetica-Bold')
+           .fillColor(COLORS.danger)
+           .text('AREAS FOR IMPROVEMENT', 50, currentY);
       currentY = doc.y + 10;
     });
   } else {
-    doc.fontSize(11)
-       .font('Helvetica')
-       .fillColor('#64748b')
-       .text('No specific strengths identified in the analysis.', 70, currentY);
+     doc.fontSize(14)
+        .font('Helvetica-Bold')
+        .fillColor(COLORS.purple)
+        .text('CRITICAL GAPS TO ADDRESS', 50, currentY);
     currentY = doc.y + 10;
   }
 
   currentY += 20;
 
   // Weaknesses
-  doc.fontSize(18)
+  doc.fontSize(14)
      .font('Helvetica-Bold')
-     .fillColor('#ef4444')
-     .text('⚠ AREAS FOR IMPROVEMENT', 50, currentY);
+     .fillColor(COLORS.danger)
+     .text('IMMEDIATE PRIORITIES (0-30 days)', 50, currentY);
 
   currentY = doc.y + 12;
 
   const weaknesses = overall?.weaknesses || [];
   if (weaknesses.length > 0) {
     weaknesses.forEach((weakness: string, i: number) => {
-      doc.fontSize(11)
-         .font('Helvetica')
-         .fillColor('#1e293b')
-         .text(`${i + 1}. ${weakness}`, 70, currentY, { width: doc.page.width - 120 });
+        doc.fontSize(14)
+           .font('Helvetica-Bold')
+           .fillColor(COLORS.warning)
+           .text('SHORT-TERM ACTIONS (1-3 months)', 50, currentY);
       currentY = doc.y + 10;
     });
   } else {
-    doc.fontSize(11)
-       .font('Helvetica')
-       .fillColor('#64748b')
-       .text('No specific weaknesses identified in the analysis.', 70, currentY);
+     doc.fontSize(14)
+        .font('Helvetica-Bold')
+        .fillColor(COLORS.indigo)
+        .text('STRATEGIC IMPROVEMENTS (3-6 months)', 50, currentY);
     currentY = doc.y + 10;
   }
 
   currentY += 20;
 
   // Critical Gaps Analysis
-  doc.fontSize(16)
+  doc.fontSize(14)
      .font('Helvetica-Bold')
-     .fillColor('#f59e0b')
-     .text('🎯 CRITICAL GAPS TO ADDRESS', 50, currentY);
+     .fillColor(COLORS.success)
+     .text('NEXT STEPS', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -2301,7 +2327,7 @@ function addRecommendations(
   doc.fontSize(17)
      .font('Helvetica-Bold')
      .fillColor('#ef4444')
-     .text('🚨 IMMEDIATE PRIORITIES (0-30 days)', 50, currentY);
+     .text('IMMEDIATE PRIORITIES (0-30 days)', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -2326,7 +2352,7 @@ function addRecommendations(
   doc.fontSize(17)
      .font('Helvetica-Bold')
      .fillColor('#f59e0b')
-     .text('⚡ SHORT-TERM ACTIONS (1-3 months)', 50, currentY);
+     .text('SHORT-TERM ACTIONS (1-3 months)', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -2351,7 +2377,7 @@ function addRecommendations(
   doc.fontSize(17)
      .font('Helvetica-Bold')
      .fillColor('#3b82f6')
-     .text('🎯 STRATEGIC IMPROVEMENTS (3-6 months)', 50, currentY);
+     .text('STRATEGIC IMPROVEMENTS (3-6 months)', 50, currentY);
 
   currentY = doc.y + 12;
 
@@ -2376,7 +2402,7 @@ function addRecommendations(
   doc.fontSize(14)
      .font('Helvetica-Bold')
      .fillColor('#10b981')
-     .text('✓ NEXT STEPS', 50, currentY);
+   .text('NEXT STEPS', 50, currentY);
 
   currentY = doc.y + 10;
 
@@ -2412,7 +2438,7 @@ function addAppendix(doc: PDFKit.PDFDocument, industry: string, stage: string) {
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor('#3b82f6')
-     .text('About the SSO Readiness Score™', 50, currentY);
+   .text('About the SSO Readiness Score', 50, currentY);
 
   currentY = doc.y + 10;
 
@@ -2449,17 +2475,17 @@ function addAppendix(doc: PDFKit.PDFDocument, industry: string, stage: string) {
     doc.fontSize(10)
        .font('Helvetica')
        .fillColor('#1e293b')
-       .text(`• ${item}`, 70, currentY);
+   .text(`- ${item}`, 70, currentY);
     currentY = doc.y + 6;
   });
 
   currentY += 20;
 
   // Glossary
-  doc.fontSize(16)
+  doc.fontSize(18)
      .font('Helvetica-Bold')
-     .fillColor('#3b82f6')
-     .text('Key Terms', 50, currentY);
+     .fillColor(COLORS.primary)
+     .text('Data Sources', 50, 50);
 
   currentY = doc.y + 10;
 
@@ -2517,7 +2543,7 @@ function addAppendix(doc: PDFKit.PDFDocument, industry: string, stage: string) {
 }
 
 // ============================================================================
-// 🌐 WEB ENRICHMENT SECTIONS (NEW - VERTEX AI GROUNDING)
+// WEB ENRICHMENT SECTIONS (NEW - VERTEX AI GROUNDING)
 // ============================================================================
 
 /**
@@ -2534,7 +2560,7 @@ function renderDataSourcesBreakdown(
   doc.fontSize(24)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('📊 Data Sources', 50, 50);
+     .text('Data Sources', 50, 50);
 
   doc.fontSize(12)
      .font('Helvetica')
@@ -2565,7 +2591,7 @@ function renderDataSourcesBreakdown(
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.white)
-     .text(`📄 ${dataSources.fromPDF}%`, 70, currentY + 28);
+     .text(`${dataSources.fromPDF}%`, 70, currentY + 28);
 
   doc.fontSize(10)
      .font('Helvetica')
@@ -2581,7 +2607,7 @@ function renderDataSourcesBreakdown(
   doc.fontSize(16)
      .font('Helvetica-Bold')
      .fillColor(COLORS.white)
-     .text(`🌐 ${dataSources.fromWeb}%`, 70, currentY + 98);
+     .text(`${dataSources.fromWeb}%`, 70, currentY + 98);
 
   doc.fontSize(10)
      .font('Helvetica')
@@ -2632,7 +2658,7 @@ function renderFactCheckSummary(
   doc.fontSize(24)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('✅ Fact-Check Summary', 50, 50);
+     .text('Fact-Check Summary', 50, 50);
 
   doc.fontSize(12)
      .font('Helvetica')
@@ -2641,12 +2667,12 @@ function renderFactCheckSummary(
 
   let currentY = 120;
 
-  // ✅ VERIFIED CLAIMS
+   // VERIFIED CLAIMS
   if (factChecks.verified && factChecks.verified.length > 0) {
     doc.fontSize(16)
        .font('Helvetica-Bold')
        .fillColor(COLORS.success)
-       .text(`✅ VERIFIED CLAIMS (${factChecks.verified.length})`, 50, currentY);
+       .text(`Verified Claims (${factChecks.verified.length})`, 50, currentY);
 
     currentY += 25;
 
@@ -2654,7 +2680,7 @@ function renderFactCheckSummary(
       doc.fontSize(10)
          .font('Helvetica')
          .fillColor(COLORS.dark)
-         .text(`• ${fc.claim}`, 60, currentY, { width: doc.page.width - 120 });
+         .text(`- ${fc.claim}`, 60, currentY, { width: doc.page.width - 120 });
 
       currentY = doc.y + 8;
     });
@@ -2662,12 +2688,12 @@ function renderFactCheckSummary(
     currentY += 20;
   }
 
-  // ⚠️ DISCREPANCIES
+   // DISCREPANCIES
   if (factChecks.discrepancies && factChecks.discrepancies.length > 0) {
     doc.fontSize(16)
        .font('Helvetica-Bold')
        .fillColor(COLORS.warning)
-       .text(`⚠️ DISCREPANCIES (${factChecks.discrepancies.length})`, 50, currentY);
+       .text(`Discrepancies (${factChecks.discrepancies.length})`, 50, currentY);
 
     currentY += 25;
 
@@ -2676,7 +2702,7 @@ function renderFactCheckSummary(
       doc.fontSize(10)
          .font('Helvetica-Bold')
          .fillColor(COLORS.dark)
-         .text(`• ${fc.claim}`, 60, currentY, { width: doc.page.width - 120 });
+         .text(`- ${fc.claim}`, 60, currentY, { width: doc.page.width - 120 });
 
       currentY = doc.y + 3;
 
@@ -2684,14 +2710,14 @@ function renderFactCheckSummary(
       doc.fontSize(9)
          .font('Helvetica')
          .fillColor(COLORS.mediumDark)
-         .text(`  📄 Deck: ${fc.pdfSource}`, 70, currentY, { width: doc.page.width - 130 });
+         .text(`  Deck: ${fc.pdfSource}`, 70, currentY, { width: doc.page.width - 130 });
 
       currentY = doc.y + 2;
 
       doc.fontSize(9)
          .font('Helvetica')
          .fillColor(COLORS.mediumDark)
-         .text(`  🌐 Web: ${fc.webValidation}`, 70, currentY, { width: doc.page.width - 130 });
+         .text(`  Web: ${fc.webValidation}`, 70, currentY, { width: doc.page.width - 130 });
 
       currentY = doc.y + 12;
 
@@ -2705,12 +2731,12 @@ function renderFactCheckSummary(
     currentY += 20;
   }
 
-  // ❓ UNVERIFIED
+   // UNVERIFIED
   if (factChecks.unverified && factChecks.unverified.length > 0) {
     doc.fontSize(16)
        .font('Helvetica-Bold')
        .fillColor(COLORS.medium)
-       .text(`❓ UNVERIFIED (${factChecks.unverified.length})`, 50, currentY);
+       .text(`Unverified (${factChecks.unverified.length})`, 50, currentY);
 
     currentY += 25;
 
@@ -2718,7 +2744,7 @@ function renderFactCheckSummary(
       doc.fontSize(10)
          .font('Helvetica')
          .fillColor(COLORS.mediumDark)
-         .text(`• ${fc.claim} (no public data available)`, 60, currentY, { width: doc.page.width - 120 });
+         .text(`- ${fc.claim} (no public data available)`, 60, currentY, { width: doc.page.width - 120 });
 
       currentY = doc.y + 8;
     });
@@ -2743,7 +2769,7 @@ function renderWebValidatedMetrics(
   doc.fontSize(24)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('🔍 Web-Validated Metrics', 50, 50);
+     .text('Web-Validated Metrics', 50, 50);
 
   doc.fontSize(12)
      .font('Helvetica')
@@ -2772,7 +2798,7 @@ function renderWebValidatedMetrics(
     doc.fontSize(11)
        .font('Helvetica-Bold')
        .fillColor(COLORS.primary)
-       .text('📄 Pitch Deck:', 60, currentY);
+       .text('Pitch Deck:', 60, currentY);
 
     doc.fontSize(11)
        .font('Helvetica')
@@ -2785,7 +2811,7 @@ function renderWebValidatedMetrics(
     doc.fontSize(11)
        .font('Helvetica-Bold')
        .fillColor(COLORS.teal)
-       .text('🌐 Web Sources:', 60, currentY);
+       .text('Web Sources:', 60, currentY);
 
     doc.fontSize(11)
        .font('Helvetica')
@@ -2795,8 +2821,8 @@ function renderWebValidatedMetrics(
     currentY += 20;
 
     // Match indicator
-    const matchColor = val.match ? COLORS.success : COLORS.warning;
-    const matchText = val.match ? '✅ VERIFIED' : '⚠️ DISCREPANCY';
+   const matchColor = val.match ? COLORS.success : COLORS.warning;
+   const matchText = val.match ? 'VERIFIED' : 'DISCREPANCY';
 
     doc.fontSize(10)
        .font('Helvetica-Bold')
@@ -2839,7 +2865,7 @@ function renderIndustryBenchmarks(
   doc.fontSize(24)
      .font('Helvetica-Bold')
      .fillColor(COLORS.primary)
-     .text('📊 Industry Benchmarks', 50, 50);
+     .text('Industry Benchmarks', 50, 50);
 
   doc.fontSize(12)
      .font('Helvetica')
@@ -2892,13 +2918,12 @@ function renderIndustryBenchmarks(
 
     // Performance
     const isGood = bench.performance.includes('better');
-    const perfColor = isGood ? COLORS.success : COLORS.warning;
-    const perfIcon = isGood ? '🚀' : '⚠️';
+   const perfColor = isGood ? COLORS.success : COLORS.warning;
 
     doc.fontSize(11)
        .font('Helvetica-Bold')
        .fillColor(perfColor)
-       .text(`${perfIcon} ${bench.performance}`, 60, currentY);
+   .text(bench.performance, 60, currentY);
 
     currentY += 30;
 

@@ -18,6 +18,7 @@
   "author": "LetsVenture",
   "license": "MIT",
   "dependencies": {
+    "@google-cloud/speech": "^7.2.1",
     "@google-cloud/vertexai": "^1.10.0",
     "@google/generative-ai": "^0.24.1",
     "bcrypt": "^5.1.1",

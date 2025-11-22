@@ -37,6 +37,7 @@ pool.on('connect', () => {
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected database error:', err.message);
+  console.warn('⚠️  App will continue but DB operations will fail');
   // Don't exit - let the app handle individual query errors
 });
 
@@ -49,7 +50,8 @@ export const query = async (text: string, params?: any[]): Promise<QueryResult> 
     console.log('Executed query', { text, duration, rows: res.rowCount });
     return res;
   } catch (error) {
-    console.error('Database query error:', error);
+    console.error('❌ Database query error:', error);
+    console.error('💡 TIP: Make sure PostgreSQL is running on', process.env.DB_HOST || 'localhost', ':', process.env.DB_PORT || '5432');
     throw error;
   }
 };

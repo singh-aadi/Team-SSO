@@ -19,6 +19,7 @@ interface AuthContextType {
   needsRoleSelection: boolean;
   login: (response: any) => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<boolean>;
+  quickLoginAs: (role: 'founder' | 'vc') => void;
   logout: () => void;
   updateUserRole: (role: 'founder' | 'vc') => Promise<void>;
   fetchUserRole: () => Promise<void>;
@@ -38,24 +39,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const navigate = useNavigate();
 
   // Dummy test accounts - ONLY FOR DEVELOPMENT
+  // Pre-configured with roles to skip role selection modal
   const testAccounts = [
+    {
+      email: 'vc@startup-scout.com',
+      password: 'vc123',
+      name: 'VC Partner',
+      id: 'vc-001',
+      role: 'vc' as const
+    },
+    {
+      email: 'founder@startup-scout.com',
+      password: 'founder123',
+      name: 'Founder',
+      id: 'founder-001',
+      role: 'founder' as const
+    },
     {
       email: 'demo@startup-scout.com',
       password: 'demo123',
       name: 'Demo User',
-      id: 'demo-001'
+      id: 'demo-001',
+      role: 'vc' as const
     },
     {
       email: 'admin@startup-scout.com',
       password: 'admin123',
       name: 'Admin User',
-      id: 'admin-001'
-    },
-    {
-      email: 'vc@startup-scout.com',
-      password: 'vc123',
-      name: 'VC Partner',
-      id: 'vc-001'
+      id: 'admin-001',
+      role: 'founder' as const
     }
   ];
 
@@ -150,33 +162,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       name: googleResponse.name,
       email: googleResponse.email,
       picture: googleResponse.picture,
+      role: 'vc', // Default to VC role for Google sign-in (you can change this)
     };
     
-    // Create/fetch user in backend
-    try {
-      const response = await fetch(`${API_URL}/auth/user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: userData.email,
-          name: userData.name,
-          picture: userData.picture,
-          googleId: userData.id,
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (data.success && data.data.user) {
-        // Update user data with backend info including role
-        const backendUser = data.data.user;
-        userData.role = backendUser.user_type;
-      }
-    } catch (error) {
-      console.error('Error creating/fetching user:', error);
-    }
+    // Set role immediately (bypass role selection modal)
+    setUserRole('vc');
+    setNeedsRoleSelection(false);
     
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
@@ -194,33 +185,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         id: account.id,
         name: account.name,
         email: account.email,
+        role: account.role, // Pre-assign role from test account
       };
       
-      // Create/fetch user in backend
-      try {
-        const response = await fetch(`${API_URL}/auth/user`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: userData.email,
-            name: userData.name,
-            picture: null,
-            googleId: null,
-          }),
-        });
-
-        const data = await response.json();
-        
-        if (data.success && data.data.user) {
-          // Update user data with backend info including role
-          const backendUser = data.data.user;
-          userData.role = backendUser.user_type;
-        }
-      } catch (error) {
-        console.error('Error creating/fetching user:', error);
-      }
+      // Set role immediately from test account (bypass backend check)
+      setUserRole(account.role);
+      setNeedsRoleSelection(false); // Skip role selection modal
       
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
@@ -229,6 +199,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     
     return false;
+  };
+
+  // Quick login helper - sets a demo user with the requested role (for testing)
+  const quickLoginAs = (role: 'founder' | 'vc') => {
+    const account = testAccounts.find(acc => acc.role === role);
+    const userData: User = {
+      id: account?.id || `demo-${role}`,
+      name: account?.name || (role === 'vc' ? 'VC Demo' : 'Founder Demo'),
+      email: account?.email || `${role}@startup-scout.com`,
+      role: role,
+    };
+
+    setUserRole(role);
+    setNeedsRoleSelection(false);
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+    navigate('/dashboard');
   };
 
   const logout = () => {
@@ -247,6 +234,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         needsRoleSelection,
         login,
         loginWithEmail,
+        quickLoginAs,
         logout,
         updateUserRole,
         fetchUserRole,

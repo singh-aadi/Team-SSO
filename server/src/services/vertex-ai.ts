@@ -98,13 +98,13 @@ export async function analyzeWithGrounding(
       ],
       tools: [
         {
-          googleSearchRetrieval: {}, // Simplified - let Vertex AI decide when to search
-        },
+          googleSearch: {} as any, // NEW API - replaces deprecated googleSearchRetrieval
+        } as any,
       ],
     };
 
     console.log('🔍 [Vertex AI] Sending request with Grounding enabled...');
-    console.log('   Tool: googleSearchRetrieval (automatic mode)');
+    console.log('   Tool: googleSearch (automatic mode)');
     console.log('   Prompt length:', prompt.length, 'chars');
     
     const response = await model.generateContent(request);
@@ -557,8 +557,8 @@ Return ONLY valid JSON.`;
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       tools: [
         {
-          googleSearchRetrieval: {}, // Simplified - automatic grounding
-        },
+          googleSearch: {} as any, // NEW API - replaces deprecated googleSearchRetrieval
+        } as any,
       ],
     };
 

@@ -1422,18 +1422,34 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 <span>Export Report</span>
               </button>
               {/* Dropdown menu */}
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                {/* Enhanced PDF Option (Premium) */}
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                {/* PREMIUM REPORT - 25-30 Pages */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/enhanced?stage=${encodeURIComponent(selectedStage)}&industry=${encodeURIComponent(selectedIndustry)}`}
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/premium`}
                   download
-                  className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 first:rounded-t-lg border-b border-slate-100"
+                  className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 first:rounded-t-lg border-b border-slate-100"
+                >
+                  <div className="flex flex-col">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="h-4 w-4 text-purple-600" />
+                      <span className="font-bold">Premium Report</span>
+                    </div>
+                    <span className="text-xs text-slate-500 ml-6">25-30 pages comprehensive</span>
+                  </div>
+                  <span className="text-xs bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-0.5 rounded font-semibold">PREMIUM</span>
+                </a>
+
+                {/* Enhanced PDF Option */}
+                <a
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/pdf`}
+                  download
+                  className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-b border-slate-100"
                 >
                   <div className="flex items-center space-x-2">
                     <FileText className="h-4 w-4 text-blue-600" />
                     <span className="font-semibold">Enhanced PDF</span>
                   </div>
-                  <span className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-0.5 rounded">NEW</span>
+                  <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">WEB DATA</span>
                 </a>
                 
                 {/* Standard Export Options */}
@@ -1448,18 +1464,10 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 <a
                   href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/md`}
                   download
-                  className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Download as Markdown</span>
-                </a>
-                <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/pdf`}
-                  download
                   className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50 last:rounded-b-lg"
                 >
                   <FileText className="h-4 w-4" />
-                  <span>Download as PDF</span>
+                  <span>Download as Markdown</span>
                 </a>
               </div>
             </div>

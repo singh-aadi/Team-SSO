@@ -716,6 +716,11 @@ router.get('/:id', async (req: Request, res: Response) => {
       };
       
       console.log('✓ Analysis object created with', sections.length, 'sections');
+      console.log('🎯 Deck Intelligence Score:', {
+        sso_score_01: deck.sso_score,
+        sso_score_100: (deck.sso_score * 100).toFixed(1),
+        overallScore: deck.dual_pdf_analysis?.overallScore
+      });
     } else {
       console.log('❌ Not creating analysis object - missing data or status not completed');
     }
@@ -894,6 +899,17 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
     console.log(`   Company: ${deck.company_name || 'NOT SET'}`);
     console.log(`   Stage: ${stage}, Industry: ${industry}`);
     console.log(`   Analysis status: ${deck.analysis_status}`);
+    
+    // 🔍 SCORE CONSISTENCY CHECK
+    console.log('\n🎯 SCORE SOURCE VERIFICATION:');
+    console.log(`   deck.sso_score (DB): ${deck.sso_score} (0-1 scale)`);
+    console.log(`   deck.sso_score * 100: ${(deck.sso_score * 100).toFixed(1)}/100`);
+    console.log(`   deck.dual_pdf_analysis.overallScore: ${deck.dual_pdf_analysis?.overallScore}/100`);
+    if (Math.abs((deck.sso_score * 100) - (deck.dual_pdf_analysis?.overallScore || 0)) > 0.1) {
+      console.warn(`   ⚠️  MISMATCH DETECTED! DB score and analysis score differ!`);
+    } else {
+      console.log(`   ✅ Scores match - consistent across sources`);
+    }
 
     // Get sections from database (same as normal PDF!)
     const sectionsResult = await query(`
@@ -989,6 +1005,113 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/decks/:id/report/premium - Generate premium 25-30 page PDF report
+// IMPORTANT: This must come BEFORE /:format route to avoid being caught as a format parameter
+router.get('/:id/report/premium', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`\n📊 [Premium Report] Generating premium report for deck ${id}...`);
+
+    // Get deck with analysis
+    const deckResult = await query(`
+      SELECT d.*, c.name as company_name 
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1
+    `, [id]);
+
+    if (deckResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Deck not found' });
+    }
+
+    const deck = deckResult.rows[0];
+
+    if (!deck.dual_pdf_analysis || deck.analysis_status !== 'completed') {
+      return res.status(400).json({ error: 'Analysis not completed for this deck. Please analyze the deck first.' });
+    }
+
+    // Extract company name
+    const extractedCompanyName = deck.filename
+      .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '')
+      .replace(/[-_()]/g, ' ')
+      .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd|may|june|july|aug|sep|oct|nov|dec|\d{4})\b/gi, '')
+      .trim();
+    
+    const finalCompanyName = (extractedCompanyName && extractedCompanyName.length > 2) 
+      ? extractedCompanyName 
+      : (deck.company_name || 'Startup Company');
+
+    console.log(`   Company: ${finalCompanyName}`);
+    console.log(`   Extracting deck text for deep analysis...`);
+
+    // Get the original deck text for premium analysis
+    const deckPath = path.join(__dirname, '../../', deck.file_url);
+    let deckText = '';
+    
+    try {
+      if (deck.file_url.endsWith('.pdf')) {
+        const { extractTextFromPDF } = await import('../services/ai-enhanced');
+        deckText = await extractTextFromPDF(deckPath);
+      } else {
+        // For non-PDF files, use extracted text if available
+        deckText = deck.extracted_text || 'Deck text not available';
+      }
+    } catch (extractError) {
+      console.warn(`⚠️  Could not extract deck text: ${extractError}`);
+      deckText = JSON.stringify(deck.dual_pdf_analysis); // Fallback to analysis data
+    }
+
+    console.log(`   Deck text extracted: ${deckText.length} characters`);
+    console.log(`   Starting premium AI orchestration...`);
+
+    // Generate premium analysis using AI orchestrator
+    const { orchestratePremiumAnalysis } = await import('../services/vertex-ai-orchestrator');
+    const premiumData = await orchestratePremiumAnalysis(deckText, finalCompanyName);
+
+    // 🔧 FIX: Use stored overallScore for consistency across all reports
+    // The initial analysis already calculated the score, premium report should display the SAME score
+    if (deck.dual_pdf_analysis && deck.dual_pdf_analysis.overallScore) {
+      console.log(`   ⚠️  Overriding AI-generated score with stored score for consistency`);
+      console.log(`      AI generated: ${premiumData.overallScore}/100`);
+      console.log(`      Stored score: ${deck.dual_pdf_analysis.overallScore}/100`);
+      premiumData.overallScore = deck.dual_pdf_analysis.overallScore;
+    }
+
+    console.log(`   ✅ Premium analysis complete!`);
+    console.log(`   Generating PDF report...`);
+
+    // Generate premium PDF
+    const { generatePremiumPDF } = await import('../services/premium-report-generator');
+    const pdfPath = path.join(__dirname, '../../uploads', `${id}_premium_report.pdf`);
+    
+    await generatePremiumPDF(premiumData, deck.filename, pdfPath);
+
+    console.log(`   ✅ Premium PDF generated: ${pdfPath}`);
+
+    // Send PDF to client
+    const companyFileName = finalCompanyName
+      .replace(/[^a-zA-Z0-9\s-]/g, '')
+      .replace(/\s+/g, '_');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${companyFileName}_Premium_Analysis.pdf"`);
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+    fileStream.on('end', () => {
+      // Clean up temp file
+      fs.unlinkSync(pdfPath);
+    });
+  } catch (error) {
+    console.error('❌ [Premium Report] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate premium report',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // GET /api/decks/:id/report/:format - Download report in specified format (txt, md, pdf)
 router.get('/:id/report/:format', async (req: Request, res: Response) => {
   try {
@@ -998,7 +1121,7 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid format. Use txt, md, or pdf' });
     }
 
-    // Get deck with full analysis
+    // Get deck with full analysis + web enrichment
     const deckResult = await query(`
       SELECT d.*, c.name as company_name 
       FROM pitch_decks d
@@ -1041,11 +1164,11 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
       ? extractedCompanyName 
       : (deck.company_name || 'Startup Company');
 
-    console.log(`\n📊 Regular Report - Company Name Extraction:`);
+    console.log(`\n📊 Enhanced Report Generation - Company: ${finalCompanyName}`);
     console.log(`   Filename: "${deck.filename}"`);
     console.log(`   Database name: "${deck.company_name || 'NULL'}"`);
     console.log(`   Extracted name: "${extractedCompanyName}"`);
-    console.log(`   ✅ Final name: "${finalCompanyName}"\n`);
+    console.log(`   Has web enrichment: ${!!deck.web_enrichment}`);
 
     const reportData = {
       deck: {
@@ -1056,7 +1179,8 @@ router.get('/:id/report/:format', async (req: Request, res: Response) => {
         analyzed_at: deck.analyzed_at
       },
       analysis: deck.dual_pdf_analysis,
-      sections: sections
+      sections: sections,
+      webEnrichment: deck.web_enrichment || undefined  // ✅ Include web enrichment data
     };
 
     const { generateTextReport, generateMarkdownReport, generatePDFReport } = await import('../services/report-generator');

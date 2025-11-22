@@ -106,11 +106,24 @@ export function LoginPage() {
           </form>
 
           {/* Demo Credentials Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-xs text-blue-800">
-            <p className="font-semibold mb-1">Demo Accounts:</p>
-            <p>📧 <strong>demo@startup-scout.com</strong> / password: <strong>demo123</strong></p>
-            <p>📧 <strong>admin@startup-scout.com</strong> / password: <strong>admin123</strong></p>
-            <p>📧 <strong>vc@startup-scout.com</strong> / password: <strong>vc123</strong></p>
+          <div className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-300 rounded-lg p-4 text-xs">
+            <p className="font-bold mb-2 text-gray-800 text-sm">🔑 Test Credentials (Pre-Configured Roles):</p>
+            
+            <div className="space-y-2">
+              <div className="bg-white/70 p-2 rounded border-l-4 border-purple-500">
+                <p className="font-semibold text-purple-700">🎯 VC MODE:</p>
+                <p className="text-gray-700">📧 <strong>vc@startup-scout.com</strong></p>
+                <p className="text-gray-700">🔒 <strong>vc123</strong></p>
+              </div>
+              
+              <div className="bg-white/70 p-2 rounded border-l-4 border-green-500">
+                <p className="font-semibold text-green-700">🚀 FOUNDER MODE:</p>
+                <p className="text-gray-700">📧 <strong>founder@startup-scout.com</strong></p>
+                <p className="text-gray-700">🔒 <strong>founder123</strong></p>
+              </div>
+            </div>
+            
+            <p className="mt-2 text-gray-600 italic">✨ No role selection needed - direct access!</p>
           </div>
 
           {/* Divider */}
