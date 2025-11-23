@@ -5,6 +5,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -39,7 +40,7 @@ export async function scrapeSourceWithAI(
   console.log(`📍 URL: ${sourceUrl}`);
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: getActiveGeminiModel() });
 
     const prompt = `You are a startup intelligence analyst. Analyze the following website to extract information about startups, funding announcements, new launches, and relevant news.
 

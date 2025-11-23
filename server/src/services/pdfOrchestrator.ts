@@ -17,6 +17,7 @@
  */
 
 import { VertexAI, GenerateContentResponse } from '@google-cloud/vertexai';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const vertexAI = new VertexAI({
   project: process.env.GOOGLE_CLOUD_PROJECT || 'projectsso-473108',
@@ -88,7 +89,7 @@ interface AgenticPDFContent {
  */
 async function planPDFContent(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.3, // Lower temp for structured planning
       maxOutputTokens: 2048,
@@ -149,7 +150,7 @@ Return a JSON object with this structure:
  */
 async function generateExecutiveSummary(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.7, // Higher temp for creative writing
       maxOutputTokens: 4096,
@@ -212,7 +213,7 @@ Return JSON:
  */
 async function generateVisualRecommendations(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.5,
       maxOutputTokens: 2048,
@@ -281,7 +282,7 @@ Return JSON:
  */
 async function generateNarrativeInsights(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 3072,
@@ -338,7 +339,7 @@ Return JSON:
  */
 async function generateRiskAssessment(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.6,
       maxOutputTokens: 2048,
@@ -393,7 +394,7 @@ Return JSON:
  */
 async function generateActionItems(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.5,
       maxOutputTokens: 2048,
@@ -447,7 +448,7 @@ Return JSON:
  */
 async function generateInvestmentThesis(request: PDFContentRequest): Promise<any> {
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 2048,

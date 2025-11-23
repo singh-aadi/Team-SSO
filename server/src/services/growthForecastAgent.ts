@@ -27,6 +27,7 @@
 
 import { VertexAI } from '@google-cloud/vertexai';
 import { Pool } from 'pg';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 // Lazy-load VertexAI to ensure environment variables are loaded
 let vertexAI: VertexAI | null = null;
@@ -139,7 +140,7 @@ async function extractMetricsFromDeck(
   // Extract metrics from analysis using AI
   const vertex = getVertexAI();
   const model = vertex.preview.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       maxOutputTokens: 2048,
       temperature: 0.3,
@@ -231,7 +232,7 @@ export async function generateGrowthForecast(
   // Step 3: Use Vertex AI for intelligent forecasting
   const vertex = getVertexAI();
   const model = vertex.preview.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       maxOutputTokens: 8192,
       temperature: 0.6, // Moderate creativity for forecasting

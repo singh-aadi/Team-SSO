@@ -12,10 +12,11 @@
  */
 
 import { VertexAI } from '@google-cloud/vertexai';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const PROJECT_ID = 'projectsso-473108';
 const LOCATION = 'us-central1';
-const MODEL = 'gemini-2.0-flash-exp';
+const MODEL = getActiveGeminiModel();
 
 const vertexAI = new VertexAI({
   project: PROJECT_ID,

@@ -19,6 +19,7 @@ import {
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
 import { useAuth } from '../context/AuthContext';
+import { useGeminiModel } from '../context/GeminiModelContext';
 import { EvaluationWizard } from './EvaluationWizard';
 
 interface DeckIntelligenceProps {
@@ -27,6 +28,7 @@ interface DeckIntelligenceProps {
 
 export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const { user } = useAuth(); // Get the logged-in user
+  const { modelInfo } = useGeminiModel(); // Get current AI model info
   
   // Wizard Mode
   const [useWizardMode, setUseWizardMode] = useState(false);
@@ -1646,7 +1648,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
 
           <div className="bg-gradient-to-br from-blue-800 to-teal-600 text-white rounded-lg p-6">
             <h3 className="font-semibold mb-2">AI-Powered Analysis</h3>
-            <p className="text-sm text-blue-100 mb-4">Gemini Pro Intelligence</p>
+            <p className="text-sm text-blue-100 mb-1">{modelInfo.name}</p>
+            <p className="text-xs text-blue-200 mb-4 opacity-80">{modelInfo.description}</p>
             <div className="space-y-3">
               {overall?.keyInsights?.slice(0, 3).map((insight, i) => (
                 <div key={i} className="flex justify-between">

@@ -18,6 +18,7 @@
 
 import { VertexAI } from '@google-cloud/vertexai';
 import { Pool } from 'pg';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 // Lazy-load VertexAI to ensure environment variables are loaded
 let vertexAI: VertexAI | null = null;
@@ -112,7 +113,7 @@ export async function generateAdaptivePrompt(
 ): Promise<GeneratedPrompt> {
   const vertex = getVertexAI();
   const model = vertex.preview.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       maxOutputTokens: 8192,
       temperature: 0.4, // Lower temperature for more deterministic prompt generation

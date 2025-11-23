@@ -5,10 +5,11 @@ import path from 'path';
 import { VertexAI } from '@google-cloud/vertexai';
 // @ts-ignore - pptx2json doesn't have TypeScript definitions
 import pptx2json from 'pptx2json';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const PROJECT_ID = 'projectsso-473108';
 const LOCATION = 'us-central1';
-const MODEL = 'gemini-2.0-flash-exp';
+const MODEL = getActiveGeminiModel();
 
 /**
  * Extract text content from various file formats

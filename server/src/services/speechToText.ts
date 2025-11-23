@@ -17,6 +17,7 @@
 import { SpeechClient, protos } from '@google-cloud/speech';
 import fs from 'fs';
 import path from 'path';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const client = new SpeechClient({
   projectId: process.env.GOOGLE_CLOUD_PROJECT || 'projectsso-473108',
@@ -229,7 +230,7 @@ export async function summarizeTranscript(
   });
 
   const model = vertexAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: getActiveGeminiModel(),
     generationConfig: {
       temperature: 0.5,
       maxOutputTokens: 2048,

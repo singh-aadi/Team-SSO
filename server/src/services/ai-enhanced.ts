@@ -10,6 +10,7 @@ import pptx2json from 'pptx2json';
 import { analyzeWithGrounding } from './vertex-ai';
 import { enrichWithWebSearch, extractMetricsFromText } from './grounding';
 import { mergeSourcesAndValidate, formatForPDF } from './dual-source-analyzer';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -351,8 +352,9 @@ export async function extractTextFromDocument(filePath: string): Promise<string>
 // Analyze PDF images using Gemini Vision (for pitch decks with graphs/charts)
 export async function analyzePDFImages(pdfPath: string): Promise<string> {
   try {
-    // Use Gemini 2.0 Flash - latest model with vision support
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    // Use dynamically selected Gemini model
+    const modelName = getActiveGeminiModel();
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     // Read PDF as base64
     const pdfBuffer = fs.readFileSync(pdfPath);
@@ -404,7 +406,7 @@ Format as a detailed analysis focusing on QUANTITATIVE data from visuals.`;
 // Parse checklist PDF to extract structured items
 export async function parseChecklist(checklistText: string): Promise<ChecklistItem[]> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `You are parsing a founder checklist document. This document typically contains:
 - Unit economics requirements (CAC, LTV, LTV/CAC ratio, payback period)
@@ -488,9 +490,9 @@ export async function analyzeDualPDFs(
     console.log('Parsing checklist requirements...');
     const checklistItems = await parseChecklist(checklistText);
 
-    // Step 4: Comprehensive analysis using Gemini 2.0 Flash
+    // Step 4: Comprehensive analysis using Gemini 2.5 Flash
     console.log('Performing comprehensive AI analysis...');
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const weightedInstructions = buildWeightedEvaluationInstructions(vcPreferences);
 
@@ -709,7 +711,7 @@ export async function analyzePitchDeckFromPDF(
     // Single PDF analysis - create a minimal checklist verification
     const visualAnalysis = await analyzePDFImages(pdfPath);
     
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     const weightedInstructions = buildWeightedEvaluationInstructions(vcPreferences);
     
@@ -1079,7 +1081,7 @@ export async function comparePitchDecks(
 
     // Now do comparative analysis with Gemini
     console.log('⚖️ Running comparative analysis...');
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     // Safely extract data with fallbacks
     const deck1Score = deck1Analysis.analysis?.overallScore || 0;

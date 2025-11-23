@@ -9,11 +9,12 @@
  */
 
 import { VertexAI, GenerateContentRequest, Content, Part } from '@google-cloud/vertexai';
+import { getActiveGeminiModel } from '../utils/gemini-model';
 
 // Configuration
 const PROJECT_ID = 'projectsso-473108';
 const LOCATION = 'us-central1'; // Vertex AI region
-const MODEL = 'gemini-2.0-flash-exp'; // Gemini 2.0 Flash
+const MODEL = getActiveGeminiModel(); // Gemini 2.0 Flash
 
 // Initialize Vertex AI client
 const vertexAI = new VertexAI({
@@ -168,7 +169,7 @@ export async function analyzeWithGrounding(
       console.log('   1. Check Vertex AI logs in Cloud Console');
       console.log('   2. Verify "Generative AI - Grounding with Google Search" API is enabled');
       console.log('   3. Try simpler prompt with explicit "search for X" instructions');
-      console.log('   4. Check if grounding is available for gemini-2.0-flash-exp model');
+      console.log('   4. Check if grounding is available for gemini-2.5-flash model');
       console.log('='.repeat(80) + '\n');
     }
 
