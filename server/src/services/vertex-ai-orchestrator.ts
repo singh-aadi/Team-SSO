@@ -301,17 +301,21 @@ export async function orchestratePremiumAnalysis(
         console.warn('⚠️  First parse attempt failed, trying repair...');
         console.warn(`   Error: ${firstParseError.message}`);
         
-        // Try to repair JSON by removing the vcAlignmentAnalysis section if it's causing issues
-        if (jsonText.includes('"vcAlignmentAnalysis"')) {
-          console.log('   Attempting to remove vcAlignmentAnalysis section...');
-          jsonText = jsonText.replace(/"vcAlignmentAnalysis"\s*:\s*\{[^}]*\}/g, '');
-          jsonText = jsonText.replace(/,\s*,/g, ','); // Fix double commas
-          jsonText = jsonText.replace(/,(\s*})/g, '$1'); // Remove trailing commas again
-        }
+        // 🔧 REMOVED: The aggressive regex that strips vcAlignmentAnalysis
+        // Instead, try basic JSON cleanup only
+        jsonText = jsonText.replace(/,\s*,/g, ','); // Fix double commas
+        jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+        jsonText = jsonText.replace(/\s+/g, ' '); // Normalize whitespace
         
         // Second attempt
-        premiumData = JSON.parse(jsonText);
-        console.log('   ✅ JSON repaired and parsed successfully');
+        try {
+          premiumData = JSON.parse(jsonText);
+          console.log('   ✅ JSON repaired and parsed successfully');
+        } catch (secondParseError: any) {
+          console.error('   ❌ JSON repair failed. Returning partial data structure.');
+          // Return minimal valid structure so PDF generation doesn't crash
+          throw new Error('Failed to parse premium analysis after repair attempt');
+        }
       }
       
     } catch (parseError: any) {
@@ -648,9 +652,11 @@ Execute web searches FIRST, then analyze the deck, then synthesize into JSON.
 ${vcPreferences || vcContextIntelligence ? `
 ---
 
-🎯 **ADDITIONAL TASK: VC ALIGNMENT ANALYSIS**
+🎯 **CRITICAL REQUIREMENT: VC ALIGNMENT ANALYSIS**
 
-After completing the main JSON above, add ONE MORE top-level field called "vcAlignmentAnalysis" with the following structure:
+YOU MUST include a top-level field called "vcAlignmentAnalysis" in your JSON response. This is MANDATORY, not optional.
+
+Add this field to the JSON structure with the following format:
 
 "vcAlignmentAnalysis": {
   ${vcPreferences?.dealbreakers && vcPreferences.dealbreakers.length > 0 ? `
