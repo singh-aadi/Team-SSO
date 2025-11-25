@@ -11,6 +11,7 @@ import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { DeckIntelligence } from './components/DeckIntelligence';
 import { BenchmarkEngine } from './components/BenchmarkEngine';
+import { BenchmarkAnalysis } from './components/BenchmarkAnalysis';
 import { Glossary } from './components/Glossary';
 import { FounderJourney } from './components/FounderJourney';
 import { VCJourney } from './components/VCJourney';
@@ -88,6 +89,7 @@ function MainLayout() {
             <Route path="/dashboard" element={<Dashboard userType={userType} />} />
             <Route path="/decks" element={<DeckIntelligence userType={userType} />} />
             <Route path="/benchmarks" element={<BenchmarkEngine userType={userType} />} />
+            <Route path="/sector-benchmarks" element={<BenchmarkAnalysis />} />
             <Route path="/glossary" element={<Glossary />} />
             <Route path="/founder-journey" element={<FounderJourney />} />
             <Route path="/vc-journey" element={<VCJourney />} />

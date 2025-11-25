@@ -314,7 +314,7 @@ export function Dashboard({ userType }: DashboardProps) {
                           {isCompleted && analysis.sso_score 
                             ? `SSO Score™: ${analysis.sso_score}/10`
                             : isProcessing ? 'Analyzing...' :
-                            isFailed ? 'Analysis failed' : 'Pending analysis'}
+                            isFailed ? (analysis.error_message || 'Analysis failed') : 'Pending analysis'}
                         </p>
                       </div>
                     </div>
@@ -366,7 +366,7 @@ export function Dashboard({ userType }: DashboardProps) {
                         <p className="text-sm text-slate-600">
                           {isCompleted ? 'Analysis completed' : 
                            isProcessing ? 'Processing...' :
-                           isFailed ? 'Analysis failed' : 'Pending analysis'}
+                           isFailed ? (comparison.error_message || 'Analysis failed') : 'Pending analysis'}
                         </p>
                       </div>
                     </div>

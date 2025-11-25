@@ -296,7 +296,10 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           } else if (data.analysis_status === 'failed') {
             clearInterval(poll);
             setComparingDecks(false);
-            setError('Comparison analysis failed. Please try again.');
+            const errorMsg = data.error_message 
+              ? `Comparison failed: ${data.error_message}` 
+              : 'Comparison analysis failed. Please try again.';
+            setError(errorMsg);
           }
         }
 
@@ -359,7 +362,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         checklistFile, 
         companyId, 
         userId,
-        importedContext // Pass the context here
+        importedContext, // Pass the context here
+        selectedIndustry, // Pass selected industry
+        selectedStage // Pass selected stage
       );
       
       setCurrentDeck(deck);

@@ -16,6 +16,30 @@ import { getActiveGeminiModel } from '../utils/gemini-model';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+interface MetricValue {
+  value: number | null;
+  unit: string;
+  period?: string;
+}
+
+interface ExtractedMetrics {
+  common: {
+    revenue?: MetricValue | null;
+    growth_rate?: MetricValue | null;
+    cac?: MetricValue | null;
+    ltv?: MetricValue | null;
+    ltv_cac_ratio?: MetricValue | null;
+    burn_rate?: MetricValue | null;
+    runway?: MetricValue | null;
+    gross_margin?: MetricValue | null;
+    employees?: MetricValue | null;
+    funding_raised?: MetricValue | null;
+  };
+  sector_specific: {
+    [key: string]: MetricValue | null;
+  };
+}
+
 interface AnalysisResult {
   problemScore: number;
   solutionScore: number;
@@ -30,6 +54,7 @@ interface AnalysisResult {
   recommendation: string;
   checklistVerification: ChecklistVerification;
   visualInsights: string[];
+  extractedMetrics?: ExtractedMetrics;
 }
 
 interface ChecklistVerification {
@@ -654,6 +679,15 @@ Your task: Perform a comprehensive due diligence analysis by:
 - Cross-referencing claims in the deck with checklist evidence
 - Identifying gaps, red flags, and strong signals
 - **CRITICAL: Calculate the overall score using the EXACT weighted formula specified above**
+- **EXTRACT ALL QUANTITATIVE METRICS** from the deck (revenue, growth rate, CAC, LTV, burn rate, etc.) in structured format for benchmarking
+
+⚠️ METRICS EXTRACTION REQUIREMENTS:
+- Search the ENTIRE deck text and visual analysis for ALL numeric metrics
+- Extract exact values (e.g., "$2.5M ARR", "180% YoY growth", "CAC of $250")
+- If a metric is mentioned as a range, use the midpoint or most conservative estimate
+- Convert all monetary values to raw numbers (e.g., "$2.5M" → 2500000)
+- Mark metrics as null if not found - do NOT make up numbers
+- For sector-specific metrics, identify relevant KPIs based on the company's industry
 
 ⚠️ BEFORE YOU RESPOND: Verify your overallScore calculation matches the weighted formula!
 
@@ -681,7 +715,24 @@ Provide your analysis in JSON format:
       "missingItems": ["List checklist requirements NOT found in pitch deck"],
       "verifiedItems": ["List checklist requirements confirmed in pitch deck"]
     },
-    "visualInsights": ["List 3-5 key takeaways from charts, graphs, financial projections"]
+    "visualInsights": ["List 3-5 key takeaways from charts, graphs, financial projections"],
+    "extractedMetrics": {
+      "common": {
+        "revenue": { "value": <number>, "unit": "USD", "period": "ARR|MRR|annual" } OR null,
+        "growth_rate": { "value": <number>, "unit": "percent", "period": "YoY|MoM" } OR null,
+        "cac": { "value": <number>, "unit": "USD" } OR null,
+        "ltv": { "value": <number>, "unit": "USD" } OR null,
+        "ltv_cac_ratio": { "value": <number>, "unit": "ratio" } OR null,
+        "burn_rate": { "value": <number>, "unit": "USD", "period": "monthly" } OR null,
+        "runway": { "value": <number>, "unit": "months" } OR null,
+        "gross_margin": { "value": <number>, "unit": "percent" } OR null,
+        "employees": { "value": <number>, "unit": "count" } OR null,
+        "funding_raised": { "value": <number>, "unit": "USD" } OR null
+      },
+      "sector_specific": {
+        "Add any sector-specific metrics you find (e.g., for AI: model_accuracy, dataset_size, api_calls; for SaaS: churn_rate, net_revenue_retention, mrr_growth)"
+      }
+    }
   },
   "sections": [
     {

@@ -136,7 +136,9 @@ class ApiService {
     checklistFile: File, 
     companyId: string, 
     userId: string,
-    additionalContext?: any
+    additionalContext?: any,
+    industry?: string,
+    stage?: string
   ): Promise<PitchDeck> {
     console.log('📤 Uploading dual PDFs:', {
       deckName: deckFile.name,
@@ -145,6 +147,8 @@ class ApiService {
       checklistSize: checklistFile.size,
       companyId,
       userId,
+      industry,
+      stage,
       hasContext: !!additionalContext
     });
 
@@ -153,6 +157,14 @@ class ApiService {
     formData.append('checklist', checklistFile);
     formData.append('company_id', companyId);
     formData.append('uploaded_by', userId);
+    
+    // Include industry and stage from frontend selection
+    if (industry) {
+      formData.append('industry', industry);
+    }
+    if (stage) {
+      formData.append('stage', stage);
+    }
     
     // Include additional context if provided
     if (additionalContext) {

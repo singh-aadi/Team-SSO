@@ -3,13 +3,12 @@
 import { 
   LayoutDashboard, 
   FileText, 
-  TrendingUp, 
   BookOpen, 
   Rocket,
   Briefcase,
   Sliders,
-  Construction,
-  Radar
+  Radar,
+  BarChart3
 } from 'lucide-react';
 
 export interface NavItem {
@@ -48,18 +47,10 @@ export const FOUNDER_NAV: NavItem[] = [
     description: 'Track your startup milestones'
   },
   {
-    path: '/benchmarks',
-    label: 'Industry Benchmarks',
-    icon: TrendingUp,
-    description: 'Compare your startup against industry standards and competitors. Benchmark your metrics, growth rates, and unit economics against similar companies in your sector.',
-    isWIP: true,
-    upcomingFeatures: [
-      'Real-time industry metrics comparison',
-      'Competitor performance tracking',
-      'Stage-specific benchmark ranges',
-      'Custom peer group selection',
-      'Market positioning insights'
-    ]
+    path: '/sector-benchmarks',
+    label: 'Sector Benchmarking',
+    icon: BarChart3,
+    description: 'Compare against top 10 companies in your sector with AI-powered insights'
   }
 ];
 
@@ -111,18 +102,10 @@ export const VC_NAV: NavItem[] = [
     ]
   },
   {
-    path: '/benchmarks',
-    label: 'Industry Benchmarks',
-    icon: Construction,
-    description: 'Compare startups against industry standards and competitors. Access real-time market data, growth benchmarks, and positioning insights for informed investment decisions.',
-    isWIP: true,
-    upcomingFeatures: [
-      'Real-time industry metrics comparison',
-      'Competitor performance tracking',
-      'Stage-specific benchmark ranges',
-      'Market trend analysis',
-      'Investment thesis validation'
-    ]
+    path: '/sector-benchmarks',
+    label: 'Sector Benchmarking',
+    icon: BarChart3,
+    description: 'Compare against top 10 companies per sector with AI-powered insights'
   }
 ];
 

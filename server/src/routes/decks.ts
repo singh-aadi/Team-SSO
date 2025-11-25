@@ -214,7 +214,46 @@ router.post('/upload-dual', upload.fields([
 
     const deckFile = files.deck[0];
     const checklistFile = files.checklist[0];
-    const { company_id, uploaded_by, additional_context } = req.body;
+    const { company_id, uploaded_by, additional_context, industry, stage } = req.body;
+    
+    console.log('📝 Upload metadata:', {
+      company_id,
+      industry,
+      stage,
+      hasContext: !!additional_context
+    });
+    
+    // Update company industry and stage if provided from frontend
+    if (company_id && (industry || stage)) {
+      try {
+        const updateFields: string[] = [];
+        const updateValues: any[] = [];
+        let paramIndex = 1;
+        
+        if (industry) {
+          updateFields.push(`industry = $${paramIndex++}`);
+          updateValues.push(industry);
+        }
+        if (stage) {
+          updateFields.push(`stage = $${paramIndex++}`);
+          updateValues.push(stage);
+        }
+        
+        updateValues.push(company_id); // Add company_id as last parameter
+        
+        const updateQuery = `
+          UPDATE companies 
+          SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $${paramIndex}
+        `;
+        
+        await query(updateQuery, updateValues);
+        console.log(`✅ Updated company ${company_id} with industry: ${industry}, stage: ${stage}`);
+      } catch (err) {
+        console.error('⚠️ Failed to update company industry/stage:', err);
+        // Continue with upload even if company update fails
+      }
+    }
     
     // Parse additional context if provided
     let parsedContext = null;
@@ -401,13 +440,15 @@ router.post('/upload-dual', upload.fields([
             SET analysis_status = 'completed', 
                 sso_score = $1, 
                 dual_pdf_analysis = $2,
-                web_enrichment = $3,
-                vc_preferences_used = $4,
+                extracted_metrics = $3,
+                web_enrichment = $4,
+                vc_preferences_used = $5,
                 analyzed_at = CURRENT_TIMESTAMP
-            WHERE id = $5
+            WHERE id = $6
           `, [
             analysis.overallScore / 100, 
             JSON.stringify(analysis), // Store full overallAnalysis object
+            analysis.extractedMetrics ? JSON.stringify(analysis.extractedMetrics) : null, // Store extracted metrics for benchmarking
             JSON.stringify({
               validatedMetrics: webEnrichment.validatedMetrics,
               additionalCompetitors: webEnrichment.additionalCompetitors,
@@ -425,6 +466,13 @@ router.post('/upload-dual', upload.fields([
           console.log(`   Overall Score: ${analysis.overallScore}/100`);
           console.log(`   Confidence: ${webEnrichment.confidence.overall}`);
           console.log(`   Web sources: ${groundingMetadata?.webSources?.length || 0}`);
+          if (analysis.extractedMetrics && analysis.extractedMetrics.common) {
+            const commonMetricsCount = Object.keys(analysis.extractedMetrics.common).filter(k => {
+              const key = k as keyof typeof analysis.extractedMetrics.common;
+              return analysis.extractedMetrics!.common[key] !== null && analysis.extractedMetrics!.common[key] !== undefined;
+            }).length;
+            console.log(`   📊 Extracted Metrics: ${commonMetricsCount} common metrics found`);
+          }
           if (vcPreferences) {
             console.log(`   🎯 VC Preferences: "${vcPreferences.preferencesName}" (${vcPreferences.industry})`);
           }
@@ -434,26 +482,55 @@ router.post('/upload-dual', upload.fields([
             SET analysis_status = 'completed', 
                 sso_score = $1, 
                 dual_pdf_analysis = $2,
-                vc_preferences_used = $3,
+                extracted_metrics = $3,
+                vc_preferences_used = $4,
                 analyzed_at = CURRENT_TIMESTAMP
-            WHERE id = $4
+            WHERE id = $5
           `, [
             analysis.overallScore / 100, 
             JSON.stringify(analysis), // Store full overallAnalysis object
+            analysis.extractedMetrics ? JSON.stringify(analysis.extractedMetrics) : null, // Store extracted metrics for benchmarking
             vcPreferences ? JSON.stringify(vcPreferences) : null,
             deckId
           ]);
 
           console.log(`✅ DUAL PDF Analysis complete for deck ${deckId}!`);
           console.log(`   Overall Score: ${analysis.overallScore}/100`);
+          if (analysis.extractedMetrics && analysis.extractedMetrics.common) {
+            const commonMetricsCount = Object.keys(analysis.extractedMetrics.common).filter(k => {
+              const key = k as keyof typeof analysis.extractedMetrics.common;
+              return analysis.extractedMetrics!.common[key] !== null && analysis.extractedMetrics!.common[key] !== undefined;
+            }).length;
+            console.log(`   📊 Extracted Metrics: ${commonMetricsCount} common metrics found`);
+          }
           if (vcPreferences) {
-            console.log(`   🎯 VC Preferences: "${vcPreferences.preferencesName}" (${vcPreferences.industry})`);
+            console.log(`   🎯 VC Preferences: "${vcPreferences.preferencesName}" (${vcPreferences.industry}"`);
           }
         }        console.log(`   Checklist Items Verified: ${analysis.checklistVerification.verifiedItems.length}`);
         console.log(`   Recommendation: ${analysis.recommendation}`);
       } catch (error) {
         console.error(`❌ Dual PDF Analysis failed for deck ${deckId}:`, error);
-        await query(`UPDATE pitch_decks SET analysis_status = 'failed' WHERE id = $1`, [deckId]);
+        
+        // Determine failure reason for user-friendly error message
+        let errorReason = 'Analysis Failed';
+        if (error instanceof Error) {
+          if (error.message.includes('Insufficient text content')) {
+            errorReason = 'Unreadable PDF';
+          } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+            errorReason = 'API Rate Limit';
+          } else if (error.message.includes('timeout')) {
+            errorReason = 'Analysis Timeout';
+          } else if (error.message.includes('parse') || error.message.includes('JSON')) {
+            errorReason = 'AI Parse Error';
+          }
+        }
+        
+        await query(`
+          UPDATE pitch_decks 
+          SET analysis_status = 'failed',
+              error_message = $2
+          WHERE id = $1
+        `, [deckId, errorReason]);
       }
     }, 1000);
 
@@ -697,10 +774,22 @@ router.get('/:id', async (req: Request, res: Response) => {
       analysis_status: deck.analysis_status,
       has_dual_pdf_analysis: !!deck.dual_pdf_analysis,
       dual_pdf_analysis_type: typeof deck.dual_pdf_analysis,
-      sections_count: sectionsResult.rows.length
+      sections_count: sectionsResult.rows.length,
+      analyzed_at: deck.analyzed_at,
+      sso_score: deck.sso_score
     });
     
-    if (deck.dual_pdf_analysis && deck.analysis_status === 'completed') {
+    // More detailed condition check
+    const hasDualPdfAnalysis = deck.dual_pdf_analysis && typeof deck.dual_pdf_analysis === 'object';
+    const isCompleted = deck.analysis_status === 'completed';
+    
+    console.log('🔍 Analysis creation conditions:', {
+      hasDualPdfAnalysis,
+      isCompleted,
+      willCreateAnalysis: hasDualPdfAnalysis && isCompleted
+    });
+    
+    if (hasDualPdfAnalysis && isCompleted) {
       // Transform sections from database rows to frontend format
       const sections = sectionsResult.rows.map(row => ({
         sectionName: row.section_name,
@@ -729,7 +818,11 @@ router.get('/:id', async (req: Request, res: Response) => {
         overallScore: deck.dual_pdf_analysis?.overallScore
       });
     } else {
-      console.log('❌ Not creating analysis object - missing data or status not completed');
+      console.log('❌ Not creating analysis object - missing data or status not completed', {
+        has_dual_pdf_analysis: !!deck.dual_pdf_analysis,
+        analysis_status: deck.analysis_status,
+        expected_status: 'completed'
+      });
     }
 
     res.json({

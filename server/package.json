@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "db:migrate": "node -r tsx/register src/db/migrate.ts",
-    "db:seed": "node -r tsx/register src/db/seed.ts"
+    "db:seed": "node -r tsx/register src/db/seed.ts",
+    "populate-sectors": "tsx populate-sectors.ts"
   },
   "keywords": [
     "vc",
