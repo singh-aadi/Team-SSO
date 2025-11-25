@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, FileText, Trash2, Sparkles, AlertCircle, CheckCircle, XCircle, Clock, ArrowLeft, Send } from 'lucide-react';
+import { Upload, FileText, Trash2, Sparkles, AlertCircle, CheckCircle, XCircle, Clock, ArrowLeft, Send, Mail, BookOpen, FileStack, MessageSquare } from 'lucide-react';
 import { vcContextApi, ContextItem, ContextSummary } from '../services/vcContextApi';
 import { useNavigate, useParams } from 'react-router';
 
@@ -7,12 +7,18 @@ interface Props {
   deckId?: string;
   companyName?: string;
   embedded?: boolean; // When true, hides navigation and makes it wizard-friendly
+  onContextUpdate?: () => void; // Callback when context is updated
+  globalMode?: boolean; // When true, works without deck selection (for VC Mode)
 }
 
-export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Company', embedded = false }: Props) {
+export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Company', embedded = false, onContextUpdate, globalMode = false }: Props) {
   const params = useParams();
-  const deckId = propDeckId || params.deckId;
   const navigate = useNavigate();
+  
+  // In global mode, use a special UUID for the global context deck
+  // This matches the deck created in migration 008_add_global_vc_context_deck.sql
+  const GLOBAL_VC_CONTEXT_ID = '00000000-0000-0000-0000-000000000002';
+  const deckId = globalMode ? GLOBAL_VC_CONTEXT_ID : (propDeckId || params.deckId);
   const [items, setItems] = useState<ContextItem[]>([]);
   const [summary, setSummary] = useState<ContextSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -147,47 +153,55 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
     }
   };
 
-  const handleExportToDeckIntelligence = () => {
+  const handleExportToDeckIntelligence = async () => {
+    const currentDeckId = deckId || selectedDeckId;
+    
+    if (!currentDeckId) {
+      setError('Please select a deck first');
+      return;
+    }
+
     if (!summary) {
       setError('Please generate an AI summary before exporting');
       return;
     }
 
-    try {
-      // Create context object to export
-      const contextToExport = {
-        deckId,
-        companyName,
-        summary: {
-          executiveSummary: summary.executiveSummary,
-          keyInsights: summary.keyInsights,
-          opportunities: summary.opportunities,
-          risks: summary.risks,
-          teamAssessment: summary.teamAssessment,
-          nextSteps: summary.nextSteps,
-          recommendation: summary.recommendation
-        },
-        items: items.map(item => ({
-          fileName: item.file_name,
-          fileType: item.file_type,
-          uploadDate: item.created_at,
-          contentLength: item.content_length
-        })),
-        exportedAt: new Date().toISOString(),
-        itemCount: items.length
-      };
+    setLoading(true);
+    setError(null);
 
-      // Store in localStorage
-      localStorage.setItem('importedContext', JSON.stringify(contextToExport));
+    try {
+      // Call API to export to database
+      const response = await fetch('http://localhost:3000/api/vc-context/export-to-deck-intelligence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: currentDeckId,
+          userId: '1' // TODO: Get from auth context
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Export failed');
+      }
+
+      const data = await response.json();
+      console.log('✅ Context exported to Deck Intelligence:', data);
       
-      console.log('✅ Context exported to Deck Intelligence:', contextToExport);
       setExportSuccess(true);
       
-      // Hide success message after 3 seconds
-      setTimeout(() => setExportSuccess(false), 3000);
+      // Notify parent component
+      if (onContextUpdate) {
+        onContextUpdate();
+      }
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => setExportSuccess(false), 5000);
     } catch (err: any) {
       console.error('Export failed:', err);
-      setError('Failed to export context');
+      setError(err.message || 'Failed to export context');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -248,8 +262,8 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
           </div>
         )}
 
-        {/* Deck Selector (when no deckId prop provided) */}
-        {!deckId && availableDecks.length > 0 && (
+        {/* Deck Selector (when no deckId prop provided AND not in global mode) */}
+        {!globalMode && !deckId && availableDecks.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <label className="block text-sm font-medium text-slate-900 mb-2">
               Select a Deck to Manage Context
@@ -308,6 +322,82 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
               disabled={uploading}
             />
           </label>
+        </div>
+
+        {/* Import from Apps */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Import from Apps</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Connect your tools to automatically import meeting notes, emails, and documents
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Gmail */}
+            <button
+              onClick={() => setError('Gmail integration coming soon! For now, export emails as PDF and upload them.')}
+              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors group"
+            >
+              <div className="p-2 bg-red-50 rounded-lg group-hover:bg-red-100">
+                <Mail className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-medium text-slate-900">Gmail</p>
+                <p className="text-xs text-slate-500">Import email threads</p>
+              </div>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Coming Soon</span>
+            </button>
+
+            {/* Slack */}
+            <button
+              onClick={() => setError('Slack integration coming soon! For now, copy/paste conversations into a text file.')}
+              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors group"
+            >
+              <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100">
+                <MessageSquare className="h-5 w-5 text-purple-600" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-medium text-slate-900">Slack</p>
+                <p className="text-xs text-slate-500">Import conversations</p>
+              </div>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Coming Soon</span>
+            </button>
+
+            {/* Notion */}
+            <button
+              onClick={() => setError('Notion integration coming soon! For now, export pages as PDF or Markdown.')}
+              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 transition-colors group"
+            >
+              <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-slate-100">
+                <BookOpen className="h-5 w-5 text-slate-700" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-medium text-slate-900">Notion</p>
+                <p className="text-xs text-slate-500">Import pages & databases</p>
+              </div>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Coming Soon</span>
+            </button>
+
+            {/* Obsidian */}
+            <button
+              onClick={() => setError('Obsidian integration coming soon! For now, copy vault files and upload as .txt or .md.')}
+              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors group"
+            >
+              <div className="p-2 bg-indigo-50 rounded-lg group-hover:bg-indigo-100">
+                <FileStack className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-medium text-slate-900">Obsidian</p>
+                <p className="text-xs text-slate-500">Import vault notes</p>
+              </div>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Coming Soon</span>
+            </button>
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-800">
+              💡 <strong>Tip:</strong> While we build these integrations, you can manually export data from these apps and upload as files above.
+            </p>
+          </div>
         </div>
 
         {/* Context Items */}
@@ -407,12 +497,25 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
                       Opportunities
                     </h3>
                     <ul className="space-y-2">
-                      {summary.opportunities?.map((opp, idx) => (
-                        <li key={idx} className="flex items-start space-x-2 text-sm">
-                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                          <span className="text-slate-700">{opp}</span>
-                        </li>
-                      ))}
+                      {summary.opportunities?.map((opp, idx) => {
+                        const text = typeof opp === 'string' ? opp : opp.insight;
+                        const impact = typeof opp === 'object' && opp.impact;
+                        return (
+                          <li key={idx} className="flex items-start space-x-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <span className="text-slate-700">{text}</span>
+                              {impact && (
+                                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                  impact === 'High' ? 'bg-green-100 text-green-700' :
+                                  impact === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{impact}</span>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
 
@@ -421,12 +524,26 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
                       Risk Factors
                     </h3>
                     <ul className="space-y-2">
-                      {summary.risks?.map((risk, idx) => (
-                        <li key={idx} className="flex items-start space-x-2 text-sm">
-                          <AlertCircle className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
-                          <span className="text-slate-700">{risk}</span>
-                        </li>
-                      ))}
+                      {summary.risks?.map((risk, idx) => {
+                        const text = typeof risk === 'string' ? risk : risk.concern;
+                        const severity = typeof risk === 'object' && risk.severity;
+                        return (
+                          <li key={idx} className="flex items-start space-x-2 text-sm">
+                            <AlertCircle className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <span className="text-slate-700">{text}</span>
+                              {severity && (
+                                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                  severity === 'Critical' ? 'bg-red-100 text-red-700' :
+                                  severity === 'High' ? 'bg-orange-100 text-orange-700' :
+                                  severity === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{severity}</span>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 </div>
@@ -448,12 +565,25 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
                       Recommended Next Steps
                     </h3>
                     <ul className="space-y-2">
-                      {summary.nextSteps.map((step, idx) => (
-                        <li key={idx} className="flex items-start space-x-3">
-                          <span className="text-slate-400 font-mono text-sm mt-0.5">{idx + 1}.</span>
-                          <span className="text-slate-700">{step}</span>
-                        </li>
-                      ))}
+                      {summary.nextSteps.map((step, idx) => {
+                        const text = typeof step === 'string' ? step : step.action;
+                        const priority = typeof step === 'object' && step.priority;
+                        return (
+                          <li key={idx} className="flex items-start space-x-3">
+                            <span className="text-slate-400 font-mono text-sm mt-0.5">{idx + 1}.</span>
+                            <div className="flex-1">
+                              <span className="text-slate-700">{text}</span>
+                              {priority && (
+                                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
+                                  priority === 'Critical' ? 'bg-red-100 text-red-700' :
+                                  priority === 'High' ? 'bg-orange-100 text-orange-700' :
+                                  'bg-blue-100 text-blue-700'
+                                }`}>{priority}</span>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
@@ -485,19 +615,22 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
                   >
                     {loading ? 'Regenerating...' : '🔄 Regenerate Summary'}
                   </button>
-                  <span className="text-xs text-slate-500 ml-3">
-                    Generated {new Date(summary.generatedAt).toLocaleString()}
-                  </span>
+                  {summary.generatedAt && (
+                    <span className="text-xs text-slate-500 ml-3">
+                      Generated {new Date(summary.generatedAt).toLocaleString()}
+                    </span>
+                  )}
                 </div>
 
                 {/* Export to Deck Intelligence */}
                 <div className="pt-4 border-t border-slate-200">
                   <button
                     onClick={handleExportToDeckIntelligence}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+                    disabled={loading}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
                   >
                     <Send className="h-5 w-5" />
-                    <span>Export to Deck Intelligence</span>
+                    <span>{loading ? 'Exporting...' : 'Export to Deck Intelligence'}</span>
                   </button>
                   <p className="text-sm text-slate-500 mt-2">
                     Send this context to enhance pitch deck analysis with background information

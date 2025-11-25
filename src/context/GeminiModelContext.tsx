@@ -4,7 +4,7 @@ export type GeminiModel =
   | 'gemini-2.0-flash'
   | 'gemini-2.5-flash'
   | 'gemini-2.5-pro'
-  | 'gemini-3-pro';
+  | 'gemini-3-pro-preview';
 
 interface GeminiModelContextType {
   selectedModel: GeminiModel;
@@ -38,8 +38,8 @@ const MODEL_INFO = {
     speed: 'Medium',
     cost: 'Medium'
   },
-  'gemini-3-pro': {
-    name: 'Gemini 3 Pro',
+  'gemini-3-pro-preview': {
+    name: 'Gemini 3 Pro Preview',
     description: 'Most intelligent multimodal model',
     speed: 'Medium',
     cost: 'Premium'
@@ -55,7 +55,7 @@ export function GeminiModelProvider({ children }: { children: ReactNode }) {
       'gemini-2.0-flash',
       'gemini-2.5-flash',
       'gemini-2.5-pro',
-      'gemini-3-pro'
+      'gemini-3-pro-preview'
     ];
     if (saved && validModels.includes(saved)) {
       return saved;

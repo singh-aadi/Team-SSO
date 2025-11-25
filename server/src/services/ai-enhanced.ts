@@ -4,6 +4,8 @@ import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import * as fs from 'fs';
 import * as path from 'path';
+import crypto from 'crypto';
+import { getCache, wrapCache, setCache } from './cache';
 // @ts-ignore - pptx2json doesn't have TypeScript definitions
 import pptx2json from 'pptx2json';
 // 🌐 NEW: Vertex AI with Grounding for web-validated analysis
@@ -69,7 +71,7 @@ interface VCPreferences {
 
 // Helper function to build weighted evaluation instructions based on VC preferences
 function buildWeightedEvaluationInstructions(preferences?: VCPreferences): string {
-  if (!preferences || !preferences.criteria || preferences.criteria.length === 0) {
+  if (!preferences || !preferences.criteria) {
     // Default equal weighting
     return `Use standard VC evaluation criteria with balanced weighting across all dimensions.
 
@@ -77,19 +79,31 @@ function buildWeightedEvaluationInstructions(preferences?: VCPreferences): strin
 Calculate the overall score as an average of all section scores (Team, Market, Product, Traction, etc.).`;
   }
 
-  let instructions = `**═══════════════════════════════════════════════════════════**\n`;
-  instructions += `**MANDATORY WEIGHTED SCORING - READ CAREFULLY**\n`;
-  instructions += `**═══════════════════════════════════════════════════════════**\n\n`;
+  const criteria = preferences.criteria;
   
-  instructions += `⚠️ THE VC HAS SET CUSTOM WEIGHTS. YOU MUST USE THESE EXACT VALUES:\n\n`;
-  
-  // Build the criteria map and formula
-  const criteriaMap: { [key: string]: { weight: number; field: string } } = {};
-  const formulaParts: string[] = [];
-  let totalWeight = 0;
-  
-  // First pass: Show weights prominently with field mapping
-  preferences.criteria.forEach(criterion => {
+  // Check if criteria is old format (array) or new format (object)
+  if (Array.isArray(criteria)) {
+    // OLD FORMAT - Handle array of criteria with weights
+    if (criteria.length === 0) {
+      return `Use standard VC evaluation criteria with balanced weighting across all dimensions.
+
+**SCORING METHODOLOGY:**
+Calculate the overall score as an average of all section scores (Team, Market, Product, Traction, etc.).`;
+    }
+
+    let instructions = `**═══════════════════════════════════════════════════════════**\n`;
+    instructions += `**MANDATORY WEIGHTED SCORING - READ CAREFULLY**\n`;
+    instructions += `**═══════════════════════════════════════════════════════════**\n\n`;
+    
+    instructions += `⚠️ THE VC HAS SET CUSTOM WEIGHTS. YOU MUST USE THESE EXACT VALUES:\n\n`;
+    
+    // Build the criteria map and formula
+    const criteriaMap: { [key: string]: { weight: number; field: string } } = {};
+    const formulaParts: string[] = [];
+    let totalWeight = 0;
+    
+    // First pass: Show weights prominently with field mapping
+    criteria.forEach(criterion => {
     const weight = criterion.weight;
     const field = mapCriteriaToScoreField(criterion.name);
     const decimal = (weight / 100).toFixed(2);
@@ -192,7 +206,53 @@ Calculate the overall score as an average of all section scores (Team, Market, P
   instructions += `5. ✓ If a weight is 100%, overallScore = that section's score exactly\n`;
   instructions += `6. ✓ Double-check your math before responding\n\n`;
 
-  return instructions;
+    return instructions;
+  } else {
+    // NEW FORMAT - Handle object with dealbreakers, patterns, context_weights, thesis_alignment
+    const newCriteria = criteria as any; // Type cast since this is the new format
+    
+    let instructions = `**═══════════════════════════════════════════════════════════**\n`;
+    instructions += `**VC ADVANCED EVALUATION CRITERIA ACTIVE**\n`;
+    instructions += `**═══════════════════════════════════════════════════════════**\n\n`;
+    
+    // Handle dealbreakers
+    if (newCriteria.dealbreakers && Array.isArray(newCriteria.dealbreakers) && newCriteria.dealbreakers.length > 0) {
+      instructions += `⚠️ **DEALBREAKERS (Auto-reject if found):**\n`;
+      newCriteria.dealbreakers.forEach((db: any) => {
+        instructions += `   - ${db.criterion}: ${db.description}\n`;
+      });
+      instructions += `\n`;
+    }
+    
+    // Handle patterns
+    if (newCriteria.patterns && Array.isArray(newCriteria.patterns) && newCriteria.patterns.length > 0) {
+      instructions += `🎯 **POSITIVE PATTERNS TO LOOK FOR:**\n`;
+      newCriteria.patterns.forEach((pattern: any) => {
+        instructions += `   - ${pattern.pattern}: ${pattern.description}\n`;
+      });
+      instructions += `\n`;
+    }
+    
+    // Handle thesis alignment
+    if (newCriteria.thesis_alignment) {
+      instructions += `🎯 **INVESTMENT THESIS:**\n${newCriteria.thesis_alignment}\n\n`;
+    }
+    
+    // Handle context weights if available
+    if (newCriteria.context_weights && typeof newCriteria.context_weights === 'object') {
+      instructions += `⚠️ **CUSTOM WEIGHTS:**\n`;
+      for (const [key, value] of Object.entries(newCriteria.context_weights)) {
+        if (typeof value === 'number') {
+          instructions += `   - ${key}: ${value}%\n`;
+        }
+      }
+      instructions += `\n`;
+    }
+    
+    instructions += `Use these criteria to guide your evaluation and highlight any matches or concerns.\n\n`;
+    
+    return instructions;
+  }
 }
 
 // Helper function to map criteria names to score field names
@@ -211,7 +271,21 @@ function mapCriteriaToScoreField(criteriaName: string): string {
 
 // Function to validate and correct overall score based on VC preferences
 function validateAndCorrectScore(analysis: AnalysisResult, preferences?: VCPreferences): void {
-  if (!preferences || !preferences.criteria || preferences.criteria.length === 0) {
+  if (!preferences || !preferences.criteria) {
+    console.log('ℹ️ No VC preferences - keeping AI calculated score');
+    return;
+  }
+
+  const criteria = preferences.criteria;
+  
+  // Check if using new format (object) or old format (array)
+  if (!Array.isArray(criteria)) {
+    // New format - no validation needed yet
+    console.log('ℹ️ Using new VC preferences format - keeping AI calculated score');
+    return;
+  }
+  
+  if (criteria.length === 0) {
     console.log('ℹ️ No VC preferences - keeping AI calculated score');
     return;
   }
@@ -233,7 +307,7 @@ function validateAndCorrectScore(analysis: AnalysisResult, preferences?: VCPrefe
   console.log('   tractionScore:', analysis.tractionScore);
   console.log('   financialsScore:', analysis.financialsScore);
 
-  preferences.criteria.forEach(criterion => {
+  criteria.forEach(criterion => {
     const field = mapCriteriaToScoreField(criterion.name);
     const score = scoreMap[field];
     const weight = criterion.weight / 100;
@@ -469,29 +543,79 @@ export async function analyzeDualPDFs(
   vcPreferencesUsed?: VCPreferences;
 }> {
   try {
-    console.log(`Starting dual PDF analysis for ${companyName}...`);
+    console.log(`🚀 Starting PARALLEL dual PDF analysis for ${companyName}...`);
+    const startTime = Date.now();
 
-    // Step 1: Extract text from both documents (PDF or Word)
-    console.log('Extracting text from pitch deck...');
-    const deckText = await extractTextFromDocument(deckPath);
-    
-    console.log('Extracting text from checklist...');
-    const checklistText = await extractTextFromDocument(checklistPath);
+    // Compute file hashes for caching
+    let deckHash = '';
+    let checklistHash = '';
+    try {
+      const deckBuf = fs.readFileSync(deckPath);
+      deckHash = crypto.createHash('sha256').update(deckBuf).digest('hex');
+    } catch (e) {
+      console.warn('Could not hash deck file for caching:', String(e));
+    }
+    try {
+      const checklistBuf = fs.readFileSync(checklistPath);
+      checklistHash = crypto.createHash('sha256').update(checklistBuf).digest('hex');
+    } catch (e) {
+      console.warn('Could not hash checklist file for caching:', String(e));
+    }
+
+    const analysisCacheKey = `analysis:${deckHash}:${checklistHash}`;
+    // Try returning full analysis from cache
+    const cachedAnalysis = await getCache<any>(analysisCacheKey);
+    if (cachedAnalysis) {
+      console.log('🗄️  Full analysis cache HIT — returning cached result');
+      return cachedAnalysis;
+    }
+
+    // ⚡ OPTIMIZATION: Parallel data extraction (with caching for extracted results)
+    console.log('📥 Extracting data in parallel (with cache)...');
+    const extractedDeckKey = `extracted:${deckHash}`;
+    const extractedChecklistKey = `extracted_checklist:${checklistHash}`;
+
+    const deckExtractionPromise = wrapCache(extractedDeckKey, 86400, async () => {
+      const text = await extractTextFromDocument(deckPath);
+      const visuals = await analyzePDFImages(deckPath);
+      return { text, visuals };
+    }).catch(err => {
+      console.error('Error during cached deck extraction:', err);
+      return { text: '', visuals: [] };
+    });
+
+    const checklistExtractionPromise = wrapCache(extractedChecklistKey, 86400, async () => {
+      const text = await extractTextFromDocument(checklistPath);
+      return { text };
+    }).catch(err => {
+      console.error('Error during cached checklist extraction:', err);
+      return { text: '' };
+    });
+
+    const [deckExtraction, checklistExtraction] = await Promise.all([
+      deckExtractionPromise,
+      checklistExtractionPromise
+    ]);
+
+    const deckText = deckExtraction?.text || '';
+    const visualAnalysis = deckExtraction?.visuals || [];
+    const checklistText = checklistExtraction?.text || '';
+
+    console.log(`✅ Parallel extraction complete in ${Date.now() - startTime}ms`);
 
     if (!deckText || deckText.length < 100) {
       throw new Error('Insufficient text content extracted from pitch deck');
     }
 
-    // Step 2: Analyze visual elements from pitch deck
-    console.log('Analyzing visual elements (charts, graphs, images)...');
-    const visualAnalysis = await analyzePDFImages(deckPath);
+    // ⚡ OPTIMIZATION: Parse checklist in parallel with AI model setup
+    console.log('📋 Parsing checklist...');
+    const checklistPromise = parseChecklist(checklistText);
 
-    // Step 3: Parse checklist requirements
-    console.log('Parsing checklist requirements...');
-    const checklistItems = await parseChecklist(checklistText);
+    // ⚡ OPTIMIZATION: Get checklist items (was started in parallel earlier)
+    const checklistItems = await checklistPromise;
 
     // Step 4: Comprehensive analysis using Gemini 2.5 Flash
-    console.log('Performing comprehensive AI analysis...');
+    console.log('🤖 Performing comprehensive AI analysis...');
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const weightedInstructions = buildWeightedEvaluationInstructions(vcPreferences);
@@ -678,6 +802,22 @@ Provide your analysis in JSON format:
     validateAndCorrectScore(parsedResponse.overallAnalysis, vcPreferences);
 
     console.log('Analysis complete!');
+
+    // Cache full analysis for 7 days (604800 seconds)
+    try {
+      const resultToCache = {
+        analysis: parsedResponse.overallAnalysis,
+        sections: parsedResponse.sections,
+        checklistItems: checklistItems,
+        vcPreferencesUsed: vcPreferences,
+      };
+      if (analysisCacheKey) {
+        await setCache(analysisCacheKey, resultToCache, 604800);
+        console.log('🗄️  Stored full analysis in cache:', analysisCacheKey);
+      }
+    } catch (e) {
+      console.warn('Failed to cache analysis result:', String(e));
+    }
 
     return {
       analysis: parsedResponse.overallAnalysis,

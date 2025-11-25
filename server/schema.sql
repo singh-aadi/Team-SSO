@@ -138,3 +138,72 @@ CREATE TRIGGER update_watchlist_updated_at BEFORE UPDATE ON vc_watchlist
 
 CREATE TRIGGER update_portfolio_updated_at BEFORE UPDATE ON vc_portfolio
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =======================================
+-- VC MODE AGENTIC SYSTEM TABLES
+-- =======================================
+
+-- VC Preferences Table (Enhanced for Agentic System)
+CREATE TABLE IF NOT EXISTS vc_preferences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(255) NOT NULL,
+    preferences_name VARCHAR(255) NOT NULL DEFAULT 'Default',
+    industry VARCHAR(100),
+    criteria JSONB NOT NULL, -- Full criteria structure from wizard
+    dealbreakers JSONB, -- Array of dealbreaker strings
+    positive_patterns JSONB, -- Array of positive pattern strings
+    investment_thesis TEXT, -- Investment thesis statement
+    context_weights JSONB, -- Weight mapping for evaluation areas
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, preferences_name)
+);
+
+-- VC Context Documents Table (Meeting notes, transcripts, research)
+CREATE TABLE IF NOT EXISTS vc_context_documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deck_id UUID REFERENCES pitch_decks(id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL,
+    document_type VARCHAR(50) CHECK (document_type IN ('meeting_notes', 'transcript', 'research', 'other')),
+    filename VARCHAR(255),
+    content TEXT NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- VC Evaluations Table (Stores agentic evaluation results)
+CREATE TABLE IF NOT EXISTS vc_evaluations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deck_id UUID REFERENCES pitch_decks(id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL,
+    evaluation_data JSONB NOT NULL, -- Full agentic evaluation result
+    proceed_recommendation BOOLEAN NOT NULL,
+    confidence_score DECIMAL(3, 2) NOT NULL, -- 0.00 to 1.00
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Deck Intelligence Context Table (For integration with Deck Intelligence)
+CREATE TABLE IF NOT EXISTS deck_intelligence_context (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deck_id UUID REFERENCES pitch_decks(id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL,
+    vc_mode_evaluation JSONB, -- Exported VC Mode evaluation
+    vc_context_data JSONB, -- Exported VC Context (meeting notes, transcripts)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(deck_id, user_id)
+);
+
+-- Create Indexes for VC Mode Tables
+CREATE INDEX idx_vc_preferences_user ON vc_preferences(user_id);
+CREATE INDEX idx_vc_context_deck ON vc_context_documents(deck_id);
+CREATE INDEX idx_vc_context_user ON vc_context_documents(user_id);
+CREATE INDEX idx_vc_evaluations_deck ON vc_evaluations(deck_id);
+CREATE INDEX idx_vc_evaluations_user ON vc_evaluations(user_id);
+CREATE INDEX idx_deck_intelligence_deck ON deck_intelligence_context(deck_id);
+
+-- Apply Triggers to VC Mode Tables
+CREATE TRIGGER update_vc_preferences_updated_at BEFORE UPDATE ON vc_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_deck_intelligence_updated_at BEFORE UPDATE ON deck_intelligence_context
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

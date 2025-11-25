@@ -48,7 +48,7 @@ if (-not $FrontendOnly) {
         --max-instances 10 `
         --timeout 300 `
         --add-cloudsql-instances "projectsso-473108:us-central1:team-sso-db" `
-        --set-env-vars "NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=projectsso-473108:us-central1:team-sso-db,DB_NAME=teamsso_db,DB_USER=postgres,GOOGLE_CLOUD_PROJECT=projectsso-473108,GOOGLE_CLOUD_LOCATION=us-central1,GCS_BUCKET_NAME=pitch-decks" `
+        --set-env-vars "NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=projectsso-473108:us-central1:team-sso-db,DB_NAME=teamsso_db,DB_USER=postgres,GOOGLE_CLOUD_PROJECT=projectsso-473108,GOOGLE_CLOUD_LOCATION=us-central1,GCS_BUCKET_NAME=pitch-decks,REDIS_HOST=10.88.25.123,REDIS_PORT=6379" `
         --service-account "team-SSO-backend-sa@projectsso-473108.iam.gserviceaccount.com"
     
     $BACKEND_URL = gcloud run services describe $BACKEND_SERVICE --region $REGION --format="value(status.url)"

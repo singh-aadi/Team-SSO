@@ -1,5 +1,5 @@
 /**
- * 🎯 VERTEX AI ORCHESTRATOR FOR PREMIUM REPORTS
+ * 🎯 GEMINI AI ORCHESTRATOR FOR PREMIUM REPORTS
  * 
  * Deep intelligence extraction for 25-30 page comprehensive reports:
  * - Company background & mission
@@ -9,24 +9,22 @@
  * - 6 core metrics + industry-specific KPIs
  * - Competitive positioning
  * - Risk assessment & opportunities
+ * 
+ * 🔧 FIXED: Now uses Gemini AI Studio API (via GEMINI_API_KEY) instead of Vertex AI
  */
 
-import { VertexAI } from '@google-cloud/vertexai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getActiveGeminiModel } from '../utils/gemini-model';
 
-const PROJECT_ID = 'projectsso-473108';
-const LOCATION = 'us-central1';
 const MODEL = getActiveGeminiModel();
 
-const vertexAI = new VertexAI({
-  project: PROJECT_ID,
-  location: LOCATION,
-});
+// Initialize Gemini AI (same as other services)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-const model = vertexAI.getGenerativeModel({
+const model = genAI.getGenerativeModel({
   model: MODEL,
   generationConfig: {
-    maxOutputTokens: 8192,
+    maxOutputTokens: 16384, // 🔧 INCREASED from 8192 for deeper VC alignment analysis
     temperature: 0.3,
     topP: 0.9,
     topK: 40,
@@ -180,65 +178,155 @@ export interface PremiumReportData {
     targetOwnership: string;
   };
   
+  // 🎯 AGENTIC FLAGGING RESULTS (NEW)
+  vcAlignmentAnalysis?: {
+    dealbreakerFlags: Array<{
+      dealbreaker: string;
+      matched: boolean;
+      reasoning: string;
+      severity: 'critical' | 'high' | 'medium' | 'low';
+      evidenceFromDeck: string[];
+    }>;
+    positivePatternMatches: Array<{
+      pattern: string;
+      matched: boolean;
+      reasoning: string;
+      strength: 'strong' | 'moderate' | 'weak';
+      evidenceFromDeck: string[];
+    }>;
+    thesisAlignment: {
+      score: number; // 0-100
+      alignmentAreas: string[];
+      misalignmentAreas: string[];
+      overallAssessment: string;
+    };
+    contextIntelligenceInsights?: Array<{
+      insightType: 'company' | 'market' | 'people' | 'pattern';
+      insight: string;
+      relevanceToDeck: string;
+      actionableImplication: string;
+    }>;
+  };
+  
   overallScore: number;
   confidence: string;
   dataSources: string[];
 }
 
 /**
- * 🧠 ORCHESTRATE PREMIUM ANALYSIS
+ * 🧠 ORCHESTRATE PREMIUM ANALYSIS WITH VC CONTEXT & PREFERENCES
  * Extract comprehensive intelligence from deck with sector-specific deep dive
+ * 
+ * 🎯 AGENTIC FLOW:
+ * - Uses VC Context Intelligence to inform analysis
+ * - Applies VC Preferences to flag dealbreakers/patterns
+ * - Returns detailed flagging results showing what matched and why
  */
 export async function orchestratePremiumAnalysis(
   deckText: string,
-  companyName: string
+  companyName: string,
+  vcContextIntelligence?: any,
+  vcPreferences?: any
 ): Promise<PremiumReportData> {
-  console.log('🎯 [Premium Orchestrator] Starting deep analysis...');
+  console.log('🎯 [Premium Orchestrator] Starting AGENTIC deep analysis...');
   console.log(`   Company: ${companyName}`);
   console.log(`   Deck text length: ${deckText.length} chars`);
+  
+  if (vcContextIntelligence) {
+    console.log(`   🧠 Using VC Context Intelligence (${vcContextIntelligence.items?.length || 0} items)`);
+  }
+  
+  if (vcPreferences) {
+    console.log(`   🎯 Using VC Preferences: "${vcPreferences.preferencesName || 'Custom'}"`);
+    if (vcPreferences.dealbreakers) {
+      console.log(`      ⚠️  ${vcPreferences.dealbreakers.length} dealbreakers to check`);
+    }
+    if (vcPreferences.positivePatterns) {
+      console.log(`      ✓ ${vcPreferences.positivePatterns.length} positive patterns to look for`);
+    }
+  }
 
-  const prompt = buildPremiumAnalysisPrompt(deckText, companyName);
+  const prompt = buildPremiumAnalysisPrompt(deckText, companyName, vcContextIntelligence, vcPreferences);
 
   try {
-    const request = {
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: prompt }],
-        },
-      ],
-      tools: [
-        {
-          googleSearch: {} as any, // NEW API - replaces deprecated googleSearchRetrieval
-        } as any,
-      ],
-    };
+    console.log('🔍 [Premium Orchestrator] Sending AGENTIC request to Gemini AI...');
+    
+    // 🔧 FIXED: Use standard Gemini AI Studio API (no googleSearch tool support)
+    const result = await model.generateContent(prompt);
+    const response = result.response;
 
-    console.log('🔍 [Premium Orchestrator] Sending request to Vertex AI...');
-    const response = await model.generateContent(request);
-
-    const candidate = response.response.candidates?.[0];
-    if (!candidate) {
-      throw new Error('No response from Vertex AI');
+    if (!response || !response.text) {
+      throw new Error('No response from Gemini AI');
     }
 
-    const analysisText = candidate.content.parts
-      .map((part: any) => (part.text ? part.text : ''))
-      .join('\n');
+    const analysisText = response.text();
 
     console.log('📊 [Premium Orchestrator] Parsing response...');
+    console.log(`   Response length: ${analysisText.length} chars`);
 
     // Parse JSON from response
     let premiumData: PremiumReportData;
     try {
       const jsonMatch = analysisText.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch) {
-        premiumData = JSON.parse(jsonMatch[1]);
-      } else {
-        premiumData = JSON.parse(analysisText);
+      let jsonText = jsonMatch ? jsonMatch[1] : analysisText;
+      
+      // 🔧 AGGRESSIVE JSON CLEANING
+      jsonText = jsonText
+        .replace(/```json/g, '') // Remove any leftover markdown
+        .replace(/```/g, '')
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/\\n/g, ' ') // Replace escaped newlines
+        .replace(/\n/g, ' ') // Remove actual newlines
+        .replace(/\r/g, '') // Remove carriage returns
+        .replace(/\t/g, ' ') // Remove tabs
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/\\"/g, '"') // Fix escaped quotes
+        .replace(/\\'/g, "'") // Fix escaped single quotes
+        .trim();
+      
+      // Try to find JSON object boundaries
+      const firstBrace = jsonText.indexOf('{');
+      const lastBrace = jsonText.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonText = jsonText.substring(firstBrace, lastBrace + 1);
       }
-    } catch (parseError) {
+      
+      console.log(`   Cleaned JSON length: ${jsonText.length} chars`);
+      
+      // Try to parse
+      try {
+        premiumData = JSON.parse(jsonText);
+      } catch (firstParseError: any) {
+        console.warn('⚠️  First parse attempt failed, trying repair...');
+        console.warn(`   Error: ${firstParseError.message}`);
+        
+        // Try to repair JSON by removing the vcAlignmentAnalysis section if it's causing issues
+        if (jsonText.includes('"vcAlignmentAnalysis"')) {
+          console.log('   Attempting to remove vcAlignmentAnalysis section...');
+          jsonText = jsonText.replace(/"vcAlignmentAnalysis"\s*:\s*\{[^}]*\}/g, '');
+          jsonText = jsonText.replace(/,\s*,/g, ','); // Fix double commas
+          jsonText = jsonText.replace(/,(\s*})/g, '$1'); // Remove trailing commas again
+        }
+        
+        // Second attempt
+        premiumData = JSON.parse(jsonText);
+        console.log('   ✅ JSON repaired and parsed successfully');
+      }
+      
+    } catch (parseError: any) {
       console.error('❌ [Premium Orchestrator] Failed to parse:', parseError);
+      console.error('   Error message:', parseError.message);
+      console.error('   First 500 chars:', analysisText.substring(0, 500));
+      console.error('   Last 500 chars:', analysisText.substring(Math.max(0, analysisText.length - 500)));
+      
+      // Find the error position if available
+      const match = parseError.message.match(/position (\d+)/);
+      if (match) {
+        const errorPos = parseInt(match[1]);
+        console.error('   Error context:', analysisText.substring(Math.max(0, errorPos - 100), Math.min(analysisText.length, errorPos + 100)));
+      }
+      
       throw new Error('Failed to parse premium analysis');
     }
 
@@ -246,6 +334,17 @@ export async function orchestratePremiumAnalysis(
     console.log(`   Overall Score: ${premiumData.overallScore}/100`);
     console.log(`   Sector: ${premiumData.sectorClassification.primarySector}`);
     console.log(`   Sub-sectors: ${premiumData.sectorClassification.subSectors.join(', ')}`);
+    
+    // 🔍 DEBUG: Check if VC Alignment Analysis was returned
+    if (premiumData.vcAlignmentAnalysis) {
+      console.log(`   🎯 VC Alignment Analysis FOUND in response!`);
+      console.log(`      Dealbreaker Flags: ${premiumData.vcAlignmentAnalysis.dealbreakerFlags?.length || 0}`);
+      console.log(`      Positive Patterns: ${premiumData.vcAlignmentAnalysis.positivePatternMatches?.length || 0}`);
+      console.log(`      Has Thesis Alignment: ${!!premiumData.vcAlignmentAnalysis.thesisAlignment}`);
+      console.log(`      Context Insights: ${premiumData.vcAlignmentAnalysis.contextIntelligenceInsights?.length || 0}`);
+    } else {
+      console.log(`   ⚠️  VC Alignment Analysis NOT in response (this is why PDF section is empty!)`);
+    }
 
     return premiumData;
   } catch (error) {
@@ -255,10 +354,80 @@ export async function orchestratePremiumAnalysis(
 }
 
 /**
- * 📝 BUILD PREMIUM ANALYSIS PROMPT
+ * 📝 BUILD PREMIUM ANALYSIS PROMPT WITH VC CONTEXT & PREFERENCES
  */
-function buildPremiumAnalysisPrompt(deckText: string, companyName: string): string {
+function buildPremiumAnalysisPrompt(
+  deckText: string, 
+  companyName: string,
+  vcContextIntelligence?: any,
+  vcPreferences?: any
+): string {
   const currentYear = new Date().getFullYear();
+
+  // Build VC Context section if available
+  let vcContextSection = '';
+  if (vcContextIntelligence) {
+    vcContextSection = `\n\n🧠 **VC CONTEXT INTELLIGENCE (USE THIS TO INFORM YOUR ANALYSIS):**
+
+**Investment Thesis:**
+${vcContextIntelligence.summary || 'No thesis available'}
+
+**Companies in Portfolio/Network:**
+${vcContextIntelligence.items?.filter((item: any) => item.type === 'company').map((item: any) => 
+  `- ${item.title}: ${item.content}`).join('\n') || 'None'}
+
+**Market Insights:**
+${vcContextIntelligence.items?.filter((item: any) => item.type === 'market').map((item: any) => 
+  `- ${item.title}: ${item.content}`).join('\n') || 'None'}
+
+**People Network:**
+${vcContextIntelligence.items?.filter((item: any) => item.type === 'people').map((item: any) => 
+  `- ${item.title}: ${item.content}`).join('\n') || 'None'}
+
+**Decision Patterns:**
+${vcContextIntelligence.items?.filter((item: any) => item.type === 'pattern').map((item: any) => 
+  `- ${item.title}: ${item.content}`).join('\n') || 'None'}
+`;
+  }
+
+  // Build VC Preferences section if available
+  let vcPreferencesSection = '';
+  if (vcPreferences) {
+    vcPreferencesSection = `\n\n🎯 **VC EVALUATION PREFERENCES (CRITICALLY IMPORTANT - CHECK THESE):**
+
+**Preferences Name:** ${vcPreferences.preferencesName || 'Custom Evaluation'}
+**Target Industry:** ${vcPreferences.industry || 'All'}
+
+${vcPreferences.investmentThesis ? `**Investment Thesis:**
+${vcPreferences.investmentThesis}
+` : ''}
+
+${vcPreferences.dealbreakers && vcPreferences.dealbreakers.length > 0 ? `
+⚠️ **DEALBREAKERS (AUTO-REJECT IF FOUND):**
+${vcPreferences.dealbreakers.map((db: string, idx: number) => `${idx + 1}. ${db}`).join('\n')}
+
+**YOU MUST:**
+- Check each dealbreaker against the deck
+- Flag any that match with CRITICAL severity
+- Provide specific evidence from the deck for each match
+` : ''}
+
+${vcPreferences.positivePatterns && vcPreferences.positivePatterns.length > 0 ? `
+✓ **POSITIVE PATTERNS (ACTIVELY LOOK FOR THESE):**
+${vcPreferences.positivePatterns.map((pp: string, idx: number) => `${idx + 1}. ${pp}`).join('\n')}
+
+**YOU MUST:**
+- Identify which positive patterns are present
+- Rate match strength (strong/moderate/weak)
+- Provide evidence from the deck for each match
+` : ''}
+
+${vcPreferences.contextWeights ? `
+**EVALUATION WEIGHTS:**
+${JSON.stringify(vcPreferences.contextWeights, null, 2)}
+` : ''}
+`;
+  }
 
   return `You are a senior venture capital analyst creating a COMPREHENSIVE INVESTMENT REPORT.
 
@@ -273,7 +442,7 @@ function buildPremiumAnalysisPrompt(deckText: string, companyName: string): stri
 ---
 
 **PITCH DECK CONTENT:**
-${deckText.substring(0, 20000)}${deckText.length > 20000 ? '... (truncated)' : ''}
+${deckText.substring(0, 20000)}${deckText.length > 20000 ? '... (truncated)' : ''}${vcContextSection}${vcPreferencesSection}
 
 ---
 
@@ -450,7 +619,6 @@ Extract COMPREHENSIVE intelligence for a 25-30 page premium investment report.
     "recommendedAction": "INVEST/PASS/MONITOR - with reasoning",
     "targetOwnership": "X% for $Y investment"
   },
-  
   "overallScore": 82,
   "confidence": "HIGH/MEDIUM/LOW",
   "dataSources": ["Deck", "Crunchbase", "LinkedIn", "Company website", "etc."]
@@ -473,5 +641,60 @@ Extract COMPREHENSIVE intelligence for a 25-30 page premium investment report.
 
 7. **Depth**: Provide 2-3 sentence explanations, not just bullet points
 
-Execute web searches FIRST, then analyze the deck, then synthesize into JSON.`;
+8. **JSON FORMAT**: Return ONLY valid JSON. No markdown. No code blocks. No extra text. Just pure JSON starting with { and ending with }.
+
+Execute web searches FIRST, then analyze the deck, then synthesize into JSON.
+
+${vcPreferences || vcContextIntelligence ? `
+---
+
+🎯 **ADDITIONAL TASK: VC ALIGNMENT ANALYSIS**
+
+After completing the main JSON above, add ONE MORE top-level field called "vcAlignmentAnalysis" with the following structure:
+
+"vcAlignmentAnalysis": {
+  ${vcPreferences?.dealbreakers && vcPreferences.dealbreakers.length > 0 ? `
+  "dealbreakerFlags": [
+    // For EACH dealbreaker in the list below, create one object:
+    {
+      "dealbreaker": "EXACT text from dealbreaker list",
+      "matched": true or false,
+      "reasoning": "Why this does or doesn't apply to this deck (2-3 sentences)",
+      "severity": "critical",
+      "evidenceFromDeck": ["Specific quote from deck", "Another quote"]
+    }
+  ],
+  
+  DEALBREAKERS TO CHECK:
+  ${vcPreferences.dealbreakers.map((db: string, i: number) => `${i + 1}. "${db}"`).join('\n  ')}
+  ` : ''}
+  
+  ${vcPreferences?.positivePatterns && vcPreferences.positivePatterns.length > 0 ? `
+  "positivePatternMatches": [
+    // For EACH positive pattern in the list below, create one object:
+    {
+      "pattern": "EXACT text from pattern list",
+      "matched": true or false,
+      "reasoning": "How this pattern appears (or doesn't) in the deck",
+      "strength": "strong" or "moderate" or "weak",
+      "evidenceFromDeck": ["Quote supporting this", "Another quote"]
+    }
+  ],
+  
+  PATTERNS TO LOOK FOR:
+  ${vcPreferences.positivePatterns.map((pp: string, i: number) => `${i + 1}. "${pp}"`).join('\n  ')}
+  ` : ''}
+  
+  ${vcPreferences?.investmentThesis ? `
+  "thesisAlignment": {
+    "score": 0-100,
+    "alignmentAreas": ["Where deck aligns", "Another alignment"],
+    "misalignmentAreas": ["Where it doesn't align", "Another gap"],
+    "overallAssessment": "2-3 sentences summary"
+  }
+  ` : ''}
+}
+
+**IMPORTANT**: Keep the vcAlignmentAnalysis section SIMPLE and SHORT. Maximum 2 evidence quotes per item.
+` : ''}`;
 }

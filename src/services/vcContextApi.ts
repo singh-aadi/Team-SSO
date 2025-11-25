@@ -13,20 +13,79 @@ export interface ContextItem {
 }
 
 export interface ContextSummary {
-  id: string;
-  deckId: string;
+  id?: string;
+  deckId?: string;
+  generatedAt?: string;
+  
+  // Executive Layer
   executiveSummary: string;
+  investmentThesis?: string;
+  
+  // Market Intelligence
+  marketAnalysis?: {
+    marketSize: string;
+    marketGrowth: string;
+    competitiveLandscape: string;
+    marketTiming: string;
+    moatPotential: string;
+  };
+  
+  // Team Assessment
+  teamIntelligence?: {
+    founderQuality: string;
+    domainExpertise: string;
+    executionCapability: string;
+    coachability: string;
+    previousExits: string;
+  };
+  teamAssessment?: string; // Legacy format
+  
+  // Business Model
+  businessModelAnalysis?: {
+    revenueModel: string;
+    unitEconomics: string;
+    scalability: string;
+    capitalEfficiency: string;
+    burnRate: string;
+  };
+  
+  // Strategic Insights
   keyInsights: string[];
-  opportunities: string[];
-  risks: string[];
-  teamAssessment: string;
-  nextSteps: string[];
+  
+  // Opportunities & Strengths
+  opportunities: Array<{
+    category?: string;
+    insight: string;
+    impact?: 'High' | 'Medium' | 'Low';
+  }> | string[]; // Support both old and new format
+  
+  // Risks & Concerns
+  risks: Array<{
+    category?: string;
+    concern: string;
+    severity?: 'Critical' | 'High' | 'Medium' | 'Low';
+    mitigation?: string;
+  }> | string[]; // Support both old and new format
+  
+  // Due Diligence Actions
+  nextSteps: Array<{
+    priority?: 'Critical' | 'High' | 'Medium';
+    action: string;
+    rationale?: string;
+  }> | string[]; // Support both old and new format
+  
+  // Investment Recommendation
   recommendation: {
-    decision: 'Proceed' | 'Pause' | 'Pass';
+    decision: 'Strong Proceed' | 'Proceed with Caution' | 'Pause & Re-evaluate' | 'Pass' | 'Proceed' | 'Pause';
     confidence: number;
     rationale: string;
+    valuation_guidance?: string;
+    deal_terms_advice?: string;
   };
-  generatedAt: string;
+  
+  // Supporting Evidence
+  quotes?: string[];
+  dataPoints?: string[];
 }
 
 export const vcContextApi = {

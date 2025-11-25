@@ -211,7 +211,8 @@ export async function generatePremiumPDF(
         { section: 'Risk Assessment', page: 20 },
         { section: 'Growth Opportunities', page: 22 },
         { section: 'Investment Thesis', page: 24 },
-        { section: 'Data Sources & Methodology', page: 26 },
+        { section: 'VC Alignment Analysis (NEW)', page: 26 },
+        { section: 'Data Sources & Methodology', page: 28 },
       ];
       
       tocItems.forEach(item => {
@@ -723,6 +724,356 @@ export async function generatePremiumPDF(
       doc.fontSize(12).font('Helvetica-Bold')
          .text(data.investmentThesis.recommendedAction, doc.x + 15, recBoxY + 35);
       doc.y = recBoxY + 70;
+
+      // ============================================================
+      // 🎯 NEW: VC ALIGNMENT ANALYSIS (IF AVAILABLE)
+      // ============================================================
+      if (data.vcAlignmentAnalysis) {
+        doc.addPage();
+        drawSectionHeader('VC ALIGNMENT ANALYSIS');
+        
+        doc.fontSize(10).font('Helvetica').fillColor(COLORS.text).text(
+          'This section evaluates how well this startup aligns with your specific investment preferences, ' +
+          'dealbreakers, positive patterns, and thesis. Each finding includes evidence from the pitch deck.',
+          { paragraphGap: 10 }
+        );
+        doc.moveDown(1.5);
+
+        // ============================================================
+        // DEALBREAKER FLAGS (if available)
+        // ============================================================
+        if (data.vcAlignmentAnalysis.dealbreakerFlags && data.vcAlignmentAnalysis.dealbreakerFlags.length > 0) {
+          checkPageBreak(100);
+          drawSubheader('DEALBREAKER CHECK');
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.textLight).text(
+            'Critical criteria that would automatically disqualify this investment.',
+            { paragraphGap: 8, align: 'left' }
+          );
+          doc.moveDown(0.5);
+
+          const leftMargin = 60;
+          const boxWidth = doc.page.width - 120;
+
+          data.vcAlignmentAnalysis.dealbreakerFlags.forEach((flag, idx) => {
+            checkPageBreak(130);
+            
+            const boxY = doc.y;
+            const boxHeight = 110;
+            
+            // Color based on match status
+            const bgColor = flag.matched ? '#fee2e2' : '#d1fae5';
+            const borderColor = flag.matched ? COLORS.danger : COLORS.success;
+            const statusText = flag.matched ? 'MATCHED - CRITICAL' : 'NOT MATCHED - Safe';
+            const statusIcon = flag.matched ? 'X' : 'OK';
+            
+            // Draw box
+            doc.roundedRect(leftMargin, boxY, boxWidth, boxHeight, 5)
+               .fillAndStroke(bgColor, borderColor);
+            
+            // Status indicator
+            doc.fontSize(11).font('Helvetica-Bold').fillColor(borderColor)
+               .text(`[${statusIcon}] ${statusText}`, leftMargin + 15, boxY + 12, { align: 'left' });
+            
+            // Dealbreaker text
+            doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
+               .text(`Dealbreaker: ${flag.dealbreaker}`, leftMargin + 15, boxY + 32, { 
+                 width: boxWidth - 30, 
+                 align: 'left' 
+               });
+            
+            // Reasoning
+            doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+               .text(`Reasoning: ${flag.reasoning}`, leftMargin + 15, boxY + 52, { 
+                 width: boxWidth - 30, 
+                 align: 'left' 
+               });
+            
+            // Evidence (if available and matched)
+            if (flag.evidenceFromDeck && flag.evidenceFromDeck.length > 0) {
+              doc.fontSize(8).font('Helvetica-Oblique').fillColor(COLORS.textLight)
+                 .text(`Evidence: ${flag.evidenceFromDeck[0].substring(0, 120)}`, leftMargin + 15, boxY + 85, { 
+                   width: boxWidth - 30, 
+                   align: 'left' 
+                 });
+            }
+            
+            doc.y = boxY + boxHeight + 15;
+            doc.x = leftMargin;
+          });
+          
+          doc.moveDown(1.5);
+        }
+
+        // ============================================================
+        // POSITIVE PATTERN MATCHES (if available)
+        // ============================================================
+        if (data.vcAlignmentAnalysis.positivePatternMatches && data.vcAlignmentAnalysis.positivePatternMatches.length > 0) {
+          checkPageBreak(100);
+          drawSubheader('POSITIVE PATTERN MATCHES');
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.textLight).text(
+            'Favorable characteristics you actively look for in investment opportunities.',
+            { paragraphGap: 8, align: 'left' }
+          );
+          doc.moveDown(0.5);
+
+          const leftMargin = 60;
+          const boxWidth = doc.page.width - 120;
+
+          data.vcAlignmentAnalysis.positivePatternMatches.forEach((pattern, idx) => {
+            checkPageBreak(130);
+            
+            const boxY = doc.y;
+            const boxHeight = 110;
+            
+            // Color based on match status and strength
+            let bgColor = '#fef3c7';
+            let borderColor = COLORS.warning;
+            let statusText = 'NOT MATCHED';
+            
+            if (pattern.matched) {
+              if (pattern.strength === 'strong') {
+                bgColor = '#d1fae5';
+                borderColor = COLORS.success;
+                statusText = 'STRONG MATCH';
+              } else if (pattern.strength === 'moderate') {
+                bgColor = '#e0f2fe';
+                borderColor = COLORS.secondary;
+                statusText = 'MODERATE MATCH';
+              } else {
+                bgColor = '#fef3c7';
+                borderColor = COLORS.warning;
+                statusText = 'WEAK MATCH';
+              }
+            }
+            
+            const statusIcon = pattern.matched ? 'YES' : 'NO';
+            
+            // Draw box
+            doc.roundedRect(leftMargin, boxY, boxWidth, boxHeight, 5)
+               .fillAndStroke(bgColor, borderColor);
+            
+            // Status indicator
+            doc.fontSize(11).font('Helvetica-Bold').fillColor(borderColor)
+               .text(`[${statusIcon}] ${statusText}`, leftMargin + 15, boxY + 12, { align: 'left' });
+            
+            // Pattern text
+            doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
+               .text(`Pattern: ${pattern.pattern}`, leftMargin + 15, boxY + 32, { 
+                 width: boxWidth - 30, 
+                 align: 'left' 
+               });
+            
+            // Reasoning
+            doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+               .text(`Assessment: ${pattern.reasoning}`, leftMargin + 15, boxY + 52, { 
+                 width: boxWidth - 30, 
+                 align: 'left' 
+               });
+            
+            // Evidence (if available and matched)
+            if (pattern.matched && pattern.evidenceFromDeck && pattern.evidenceFromDeck.length > 0) {
+              doc.fontSize(8).font('Helvetica-Oblique').fillColor(COLORS.textLight)
+                 .text(`Evidence: ${pattern.evidenceFromDeck[0].substring(0, 120)}`, leftMargin + 15, boxY + 85, { 
+                   width: boxWidth - 30, 
+                   align: 'left' 
+                 });
+            }
+            
+            doc.y = boxY + boxHeight + 15;
+            doc.x = leftMargin;
+          });
+          
+          doc.moveDown(1.5);
+        }
+
+        // ============================================================
+        // THESIS ALIGNMENT (if available)
+        // ============================================================
+        if (data.vcAlignmentAnalysis.thesisAlignment) {
+          checkPageBreak(200);
+          drawSubheader('INVESTMENT THESIS ALIGNMENT');
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.textLight).text(
+            'How well does this startup fit your investment thesis and strategic focus?',
+            { paragraphGap: 8, align: 'left' }
+          );
+          doc.moveDown(0.5);
+          
+          const thesis = data.vcAlignmentAnalysis.thesisAlignment;
+          const leftMargin = 60;
+          const pageWidth = doc.page.width;
+          const boxWidth = pageWidth - 120;
+          
+          // Alignment Score with visual bar
+          doc.fontSize(11).font('Helvetica-Bold').fillColor(COLORS.text)
+             .text(`Thesis Alignment Score: ${thesis.score}/100`, leftMargin, doc.y, { align: 'left' });
+          doc.moveDown(0.5);
+          
+          const scoreBarY = doc.y;
+          const scoreBarWidth = 350;
+          const scorePct = thesis.score / 100;
+          
+          // Background bar
+          doc.rect(leftMargin, scoreBarY, scoreBarWidth, 15).fill('#e5e7eb');
+          
+          // Score bar with gradient color
+          const scoreColor = thesis.score >= 75 ? COLORS.success : 
+                            thesis.score >= 50 ? COLORS.warning : COLORS.danger;
+          doc.fillColor(scoreColor).rect(leftMargin, scoreBarY, scoreBarWidth * scorePct, 15).fill();
+          
+          // Score text
+          doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
+             .text(`${thesis.score}%`, leftMargin + scoreBarWidth + 15, scoreBarY + 2, { align: 'left' });
+          
+          doc.y = scoreBarY + 35;
+          doc.x = leftMargin;
+          
+          // Aligned Areas (Green box)
+          if (thesis.alignmentAreas && thesis.alignmentAreas.length > 0) {
+            checkPageBreak(85);
+            const alignBoxY = doc.y;
+            doc.roundedRect(leftMargin, alignBoxY, boxWidth, 65, 5)
+               .fillAndStroke('#d1fae5', COLORS.success);
+            doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.success)
+               .text('[ALIGNED AREAS]', leftMargin + 15, alignBoxY + 12, { align: 'left' });
+            doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+               .text(thesis.alignmentAreas.join(' | '), leftMargin + 15, alignBoxY + 32, { 
+                 width: boxWidth - 30, 
+                 align: 'left' 
+               });
+            doc.y = alignBoxY + 80;
+            doc.x = leftMargin;
+          }
+          
+          // Misaligned Areas (Red box)
+          if (thesis.misalignmentAreas && thesis.misalignmentAreas.length > 0) {
+            checkPageBreak(85);
+            const misalignBoxY = doc.y;
+            doc.roundedRect(leftMargin, misalignBoxY, boxWidth, 65, 5)
+               .fillAndStroke('#fee2e2', COLORS.danger);
+            doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.danger)
+               .text('[MISALIGNED AREAS]', leftMargin + 15, misalignBoxY + 12, { align: 'left' });
+            doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+               .text(thesis.misalignmentAreas.join(' | '), leftMargin + 15, misalignBoxY + 32, { 
+                 width: boxWidth - 30, 
+                 align: 'left' 
+               });
+            doc.y = misalignBoxY + 80;
+            doc.x = leftMargin;
+          }
+          
+          // Overall Assessment
+          checkPageBreak(60);
+          doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
+             .text('Overall Assessment:', leftMargin, doc.y, { align: 'left' });
+          doc.moveDown(0.3);
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+             .text(thesis.overallAssessment, leftMargin, doc.y, { 
+               width: boxWidth,
+               align: 'left' 
+             });
+          doc.moveDown(1.5);
+          doc.x = leftMargin;
+        }
+
+        // ============================================================
+        // CONTEXT INTELLIGENCE INSIGHTS (if available)
+        // ============================================================
+        if (data.vcAlignmentAnalysis.contextIntelligenceInsights && 
+            data.vcAlignmentAnalysis.contextIntelligenceInsights.length > 0) {
+          checkPageBreak(100);
+          drawSubheader('INSIGHTS FROM YOUR VC CONTEXT');
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.textLight).text(
+            'Connections and insights derived from your accumulated venture capital knowledge and network.',
+            { paragraphGap: 8 }
+          );
+          doc.moveDown(0.5);
+
+          data.vcAlignmentAnalysis.contextIntelligenceInsights.forEach((insight, idx) => {
+            checkPageBreak(130);
+            
+            const boxY = doc.y;
+            const boxHeight = 110;
+            
+            // Color based on insight type
+            let bgColor = '#e0f2fe'; // Blue default
+            let borderColor = COLORS.secondary;
+            let iconEmoji = '💡';
+            
+            if (insight.insightType === 'company') {
+              bgColor = '#e0f2fe';
+              borderColor = COLORS.secondary;
+              iconEmoji = '🏢';
+            } else if (insight.insightType === 'market') {
+              bgColor = '#ddd6fe';
+              borderColor = '#8b5cf6';
+              iconEmoji = '📊';
+            } else if (insight.insightType === 'people') {
+              bgColor = '#fce7f3';
+              borderColor = '#ec4899';
+              iconEmoji = '👥';
+            } else if (insight.insightType === 'pattern') {
+              bgColor = '#fef3c7';
+              borderColor = COLORS.warning;
+              iconEmoji = '🎯';
+            }
+            
+            // Draw box
+            doc.roundedRect(doc.x, boxY, doc.page.width - 120, boxHeight, 5)
+               .fillAndStroke(bgColor, borderColor);
+            
+            // Type header
+            doc.fontSize(10).font('Helvetica-Bold').fillColor(borderColor)
+               .text(`${insight.insightType.toUpperCase()} INSIGHT`, doc.x + 15, boxY + 10);
+            
+            // Insight text
+            doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text)
+               .text(`Insight: ${insight.insight}`, doc.x + 15, boxY + 28, { width: doc.page.width - 150 });
+            
+            // Relevance
+            doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+               .text(`Relevance: ${insight.relevanceToDeck}`, doc.x + 15, boxY + 52, { width: doc.page.width - 150 });
+            
+            // Actionable implication
+            doc.fontSize(9).font('Helvetica-Bold').fillColor(borderColor)
+               .text(`Action: ${insight.actionableImplication}`, doc.x + 15, boxY + 80, { width: doc.page.width - 150 });
+            
+            doc.y = boxY + boxHeight + 12;
+          });
+          
+          doc.moveDown(1);
+        }
+
+        // Summary box if VC alignment was analyzed
+        checkPageBreak(100);
+        const summaryBoxY = doc.y;
+        doc.roundedRect(doc.x, summaryBoxY, doc.page.width - 120, 80, 5)
+           .fillAndStroke('#f0f9ff', COLORS.primary);
+        doc.fontSize(11).font('Helvetica-Bold').fillColor(COLORS.primary)
+           .text('VC ALIGNMENT SUMMARY', doc.x + 15, summaryBoxY + 12);
+        
+        let summaryText = 'This analysis has been customized based on your investment preferences, dealbreakers, and thesis. ';
+        
+        if (data.vcAlignmentAnalysis.dealbreakerFlags && data.vcAlignmentAnalysis.dealbreakerFlags.some(f => f.matched)) {
+          summaryText += 'WARNING: One or more dealbreakers were matched. ';
+        } else if (data.vcAlignmentAnalysis.dealbreakerFlags) {
+          summaryText += 'All dealbreakers passed. ';
+        }
+        
+        if (data.vcAlignmentAnalysis.positivePatternMatches) {
+          const strongMatches = data.vcAlignmentAnalysis.positivePatternMatches.filter(p => p.matched && p.strength === 'strong').length;
+          if (strongMatches > 0) {
+            summaryText += `Found ${strongMatches} strong positive pattern match(es). `;
+          }
+        }
+        
+        if (data.vcAlignmentAnalysis.thesisAlignment) {
+          summaryText += `Thesis alignment score: ${data.vcAlignmentAnalysis.thesisAlignment.score}/100.`;
+        }
+        
+        doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
+           .text(summaryText, doc.x + 15, summaryBoxY + 35, { width: doc.page.width - 150 });
+        doc.y = summaryBoxY + 90;
+      }
 
       // ============================================================
       // PAGE 26-27: DATA SOURCES & METHODOLOGY

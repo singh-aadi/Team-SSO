@@ -39,8 +39,8 @@ export function CompetitiveInfo() {
       badge: 'Advanced'
     },
     {
-      id: 'gemini-3-pro',
-      name: 'Gemini 3 Pro',
+      id: 'gemini-3-pro-preview',
+      name: 'Gemini 3 Pro Preview',
       description: 'Most intelligent model',
       icon: Sparkles,
       color: 'text-indigo-600',

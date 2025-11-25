@@ -36,8 +36,8 @@ export const GEMINI_MODELS = {
     cost: 'Medium'
   },
   '3-pro': {
-    id: 'gemini-3-pro',
-    name: 'Gemini 3 Pro',
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro Preview',
     description: 'Most advanced multimodal model',
     speed: 'Slower',
     cost: 'High'

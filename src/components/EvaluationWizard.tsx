@@ -9,10 +9,11 @@ import {
   ArrowLeft,
   SkipForward,
   AlertCircle,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { VCContextManager } from './VCContextManager';
-import { VCPreferencesEditor } from './VCPreferencesEditor';
+import { AdvancedVCEvaluation } from './AdvancedVCEvaluation';
 import { api } from '../services/api';
 import { vcContextApi } from '../services/vcContextApi';
 
@@ -183,6 +184,39 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
     startAnalysis();
   };
 
+  const handleExportToDeckIntelligence = async () => {
+    if (!uploadedDeckId) {
+      alert('❌ No deck uploaded yet!');
+      return;
+    }
+
+    try {
+      // First save the preferences (call the save function but don't wait for completion flow)
+      await handleSavePreferences();
+
+      // Export to deck intelligence for the current deck
+      const exportResponse = await fetch('http://localhost:3000/api/vc-agent/export-to-deck-intelligence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: uploadedDeckId,
+          userId: userId
+        })
+      });
+
+      if (!exportResponse.ok) {
+        throw new Error('Failed to export to Deck Intelligence');
+      }
+
+      const result = await exportResponse.json();
+      console.log('✅ VC Preferences exported to Deck Intelligence');
+      alert(`✅ Preferences exported to Deck Intelligence!\n\n${result.message}`);
+    } catch (err: any) {
+      console.error('Failed to export preferences:', err);
+      alert(`❌ Export failed: ${err.message}`);
+    }
+  };
+
   const handleSavePreferences = async () => {
     setError('');
     
@@ -218,15 +252,31 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
 
       if (response.ok) {
         const result = await response.json();
-        console.log('🤖 Prompt regeneration triggered:', result);
+        console.log('✅✅✅ PREFERENCES SAVED SUCCESSFULLY! ✅✅✅');
+        console.log('📊 Result:', result);
+        console.log('🎯 Preference ID:', result.preferenceId);
+        console.log('🤖 Prompt Version:', result.promptVersion);
+        console.log('📝 Criteria sent:', criteriaPayload);
+        console.log('🏭 Industry:', selectedIndustry);
+        console.log('👤 User ID:', userId);
+        
+        // Show visual alert
+        alert(`✅ VC PREFERENCES SAVED!\n\n` +
+              `Preference ID: ${result.preferenceId}\n` +
+              `Prompt Version: ${result.promptVersion}\n` +
+              `Industry: ${selectedIndustry}\n` +
+              `Criteria: ${criteria.length} evaluation areas\n\n` +
+              `These preferences will be used in Premium PDF analysis!`);
+        
         setHasCustomPreferences(true);
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Backend error:', errorData);
+        console.error('❌ Backend error:', errorData);
+        alert(`❌ FAILED TO SAVE PREFERENCES!\n\nError: ${errorData.details || errorData.error}`);
         throw new Error(errorData.details || errorData.error || 'Failed to save preferences');
       }
 
-      console.log('✅ Preferences saved with custom criteria');
+      console.log('✅ Preferences saved with custom criteria - continuing to analysis...');
       startAnalysis();
     } catch (err: any) {
       console.error('Failed to save preferences:', err);
@@ -463,10 +513,9 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
       </div>
 
       <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
-        <VCPreferencesEditor
-          criteria={criteria}
-          onCriteriaChange={setCriteria}
-          embedded={true}
+        <AdvancedVCEvaluation
+          userId={userId}
+          onPreferencesUpdate={() => setHasCustomPreferences(true)}
         />
       </div>
 
@@ -477,7 +526,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
         </div>
       )}
 
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
         <button
           onClick={() => setCurrentStep('context')}
           className="px-6 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg flex items-center space-x-2 transition-colors"
@@ -486,6 +535,14 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
           <span>Back</span>
         </button>
         <div className="flex space-x-3">
+          <button
+            onClick={handleExportToDeckIntelligence}
+            className="px-6 py-3 text-white bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center space-x-2 transition-all font-semibold shadow-md hover:shadow-lg"
+            title="Export preferences to Deck Intelligence"
+          >
+            <Download className="h-5 w-5" />
+            <span>Export to Deck Intelligence</span>
+          </button>
           <button
             onClick={handleSkipPreferences}
             className="px-6 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg flex items-center space-x-2 transition-colors"

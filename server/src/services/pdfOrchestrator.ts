@@ -114,7 +114,15 @@ Analysis Available:
 - Financials: ${request.analysis?.analysis?.sections?.find((s: any) => s.name === 'Financials') ? 'Yes' : 'No'}
 - Risk Assessment: ${request.analysis?.analysis?.sections?.find((s: any) => s.name === 'Risk Assessment') ? 'Yes' : 'No'}
 
-${request.vcPreferences ? `VC Custom Criteria: ${JSON.stringify(request.vcPreferences.criteria.map((c: any) => c.name))}` : ''}
+${request.vcPreferences ? (() => {
+  const criteria = request.vcPreferences.criteria;
+  if (Array.isArray(criteria)) {
+    return `VC Custom Criteria: ${JSON.stringify(criteria.map((c: any) => c.name))}`;
+  } else if (criteria && typeof criteria === 'object') {
+    return `VC Custom Criteria: Using advanced preferences (dealbreakers, patterns, context_weights)`;
+  }
+  return '';
+})() : ''}
 
 Return a JSON object with this structure:
 {

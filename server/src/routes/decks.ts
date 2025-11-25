@@ -307,9 +307,16 @@ router.post('/upload-dual', upload.fields([
                 criteria: prefResult.rows[0].criteria
               };
               console.log(`✅ Loaded VC preferences: "${vcPreferences.preferencesName}"`);
-              console.log(`   Criteria count: ${vcPreferences.criteria?.length || 0}`);
-              if (vcPreferences.criteria?.length > 0) {
-                console.log(`   Weights: ${vcPreferences.criteria.map(c => `${c.name}=${c.weight}%`).join(', ')}`);
+              
+              // Check if it's the new object format or old array format
+              const criteria = vcPreferences.criteria;
+              if (Array.isArray(criteria)) {
+                console.log(`   Criteria count: ${criteria.length || 0}`);
+                if (criteria.length > 0) {
+                  console.log(`   Weights: ${criteria.map(c => `${c.name}=${c.weight}%`).join(', ')}`);
+                }
+              } else if (criteria && typeof criteria === 'object') {
+                console.log(`   Using new VC preferences format (dealbreakers, patterns, context_weights)`);
               }
             } else {
               console.log('ℹ️ No VC preferences found for this user, using defaults');
@@ -927,6 +934,70 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
     console.log(`   Sections found: ${sections.length}`);
     console.log(`   Overall analysis:`, !!deck.dual_pdf_analysis);
 
+    // 🎯 Fetch VC Preferences (if not already in deck record)
+    let vcPreferencesData = deck.vc_preferences_used;
+    if (!vcPreferencesData && deck.user_id) {
+      try {
+        console.log(`🎯 Fetching VC preferences for user: "${deck.user_id}"...`);
+        const prefResult = await query(
+          `SELECT preferences_name, industry, criteria 
+           FROM vc_preferences 
+           WHERE user_id = $1 
+           ORDER BY updated_at DESC 
+           LIMIT 1`,
+          [deck.user_id]
+        );
+        
+        if (prefResult.rows.length > 0) {
+          vcPreferencesData = {
+            preferencesName: prefResult.rows[0].preferences_name,
+            industry: prefResult.rows[0].industry,
+            criteria: prefResult.rows[0].criteria
+          };
+          console.log(`   ✅ VC Preferences loaded: "${vcPreferencesData.preferencesName}"`);
+        }
+      } catch (prefErr) {
+        console.log(`   ℹ️  Could not load VC preferences (optional)`);
+      }
+    }
+
+    // 🎯 Fetch VC Context Intelligence (if available)
+    let vcContextData = null;
+    try {
+      // First try: Check deck_intelligence_context table (exported data)
+      const contextResult = await query(`
+        SELECT vc_context_data
+        FROM deck_intelligence_context
+        WHERE deck_id = $1 AND user_id = $2
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `, ['00000000-0000-0000-0000-000000000002', deck.user_id]); // Global context deck
+
+      if (contextResult.rows.length > 0 && contextResult.rows[0].vc_context_data) {
+        const exportedData = contextResult.rows[0].vc_context_data;
+        vcContextData = exportedData.summary || exportedData;
+        console.log(`   ✅ VC Context Intelligence loaded from deck_intelligence_context`);
+      } else {
+        // Fallback: Try vc_context_summaries table
+        const summaryResult = await query(`
+          SELECT intelligence, summary, created_at
+          FROM vc_context_summaries
+          WHERE deck_id = $1 AND user_id = $2
+          ORDER BY created_at DESC
+          LIMIT 1
+        `, ['00000000-0000-0000-0000-000000000002', deck.user_id]);
+
+        if (summaryResult.rows.length > 0) {
+          const contextRow = summaryResult.rows[0];
+          vcContextData = contextRow.intelligence || contextRow.summary;
+          console.log(`   ✅ VC Context Intelligence loaded from vc_context_summaries`);
+        }
+      }
+    } catch (vcErr) {
+      console.error(`   ⚠️  Error fetching VC Context:`, vcErr);
+      console.log(`   ℹ️  Continuing without VC Context data (optional)`);
+    }
+
     // Build analysis structure (SAME as normal PDF + GET /api/decks/:id)
     const analysisData = {
       sso_score: deck.sso_score,
@@ -953,7 +1024,9 @@ router.get('/:id/report/enhanced', async (req: Request, res: Response) => {
       webEnrichment: deck.web_enrichment || undefined,
       groundingMetadata: deck.web_enrichment?.groundingMetadata || undefined,
       // 🎯 NEW: Include VC preferences used for this analysis
-      vcPreferencesUsed: deck.vc_preferences_used || undefined
+      vcPreferencesUsed: vcPreferencesData || undefined,
+      // 🧠 NEW: Include VC Context Intelligence
+      vcContextIntelligence: vcContextData || undefined
     });
 
     console.log(`✓ Enhanced PDF generated: ${pdfPath}`);
@@ -1063,11 +1136,170 @@ router.get('/:id/report/premium', async (req: Request, res: Response) => {
     }
 
     console.log(`   Deck text extracted: ${deckText.length} characters`);
-    console.log(`   Starting premium AI orchestration...`);
+    console.log(`   📋 DEBUG: deck.uploaded_by = "${deck.uploaded_by}"`);
+    console.log(`   📋 DEBUG: deck.id = "${deck.id}"`);
+    
+    // 🎯 ALWAYS Fetch VC Preferences from vc_preferences table (don't use deck.vc_preferences_used - it's just a name)
+    let vcPreferencesData: any = null;
+    if (deck.uploaded_by) {
+      try {
+        console.log(`🎯 Fetching VC preferences for user: "${deck.uploaded_by}"...`);
+        const prefResult = await query(
+          `SELECT preferences_name, industry, criteria 
+           FROM vc_preferences 
+           WHERE user_id = $1 
+           ORDER BY updated_at DESC 
+           LIMIT 1`,
+          [deck.uploaded_by]
+        );
+        
+        if (prefResult.rows.length > 0) {
+          const row = prefResult.rows[0];
+          // Parse criteria JSONB (contains dealbreakers, patterns, context_weights, thesis_alignment)
+          const criteria = typeof row.criteria === 'string' 
+            ? JSON.parse(row.criteria) 
+            : row.criteria;
+          
+          // 🔧 IMPORTANT: Extract string values from dealbreaker/pattern objects
+          const dealbreakerStrings = (criteria.dealbreakers || []).map((db: any) => 
+            typeof db === 'string' ? db : db.description || db.text || ''
+          ).filter((s: string) => s.length > 0);
+          
+          const patternStrings = (criteria.patterns || []).map((p: any) => 
+            typeof p === 'string' ? p : p.pattern || p.text || p.description || ''
+          ).filter((s: string) => s.length > 0);
+          
+          vcPreferencesData = {
+            preferencesName: row.preferences_name,
+            industry: row.industry,
+            // Extract data from criteria object as STRING ARRAYS (orchestrator expects strings)
+            dealbreakers: dealbreakerStrings,
+            positivePatterns: patternStrings,
+            investmentThesis: criteria.thesis_alignment?.strategic_priorities || criteria.thesis_alignment?.thesis_statement || '',
+            contextWeights: criteria.context_weights || [],
+            targetSectors: criteria.thesis_alignment?.target_sectors || [],
+            targetStages: criteria.thesis_alignment?.target_stages || [],
+            targetGeographies: criteria.thesis_alignment?.geography || criteria.thesis_alignment?.target_geographies || []
+          };
+          console.log(`   ✅ VC Preferences loaded: "${vcPreferencesData.preferencesName}"`);
+          console.log(`      Dealbreakers: ${vcPreferencesData.dealbreakers?.length || 0}`);
+          console.log(`      Positive Patterns: ${vcPreferencesData.positivePatterns?.length || 0}`);
+          console.log(`      Has Thesis: ${!!vcPreferencesData.investmentThesis}`);
+        } else {
+          console.log(`   ℹ️  No VC preferences found for user`);
+        }
+      } catch (prefErr) {
+        console.error(`   ⚠️  Error loading VC preferences:`, prefErr);
+        console.log(`   ℹ️  Will proceed without preferences (optional)`);
+      }
+    } else {
+      // 🔧 FALLBACK: If no uploaded_by, try to find ANY preferences in the system
+      console.log(`   ⚠️  No uploaded_by field - trying to use ANY available preferences...`);
+      try {
+        const anyPrefResult = await query(
+          `SELECT preferences_name, industry, criteria, user_id
+           FROM vc_preferences 
+           ORDER BY updated_at DESC 
+           LIMIT 1`
+        );
+        
+        if (anyPrefResult.rows.length > 0) {
+          const row = anyPrefResult.rows[0];
+          // Parse criteria JSONB
+          const criteria = typeof row.criteria === 'string' 
+            ? JSON.parse(row.criteria) 
+            : row.criteria;
+          
+          // 🔧 IMPORTANT: Extract string values from dealbreaker/pattern objects
+          const dealbreakerStrings = (criteria.dealbreakers || []).map((db: any) => 
+            typeof db === 'string' ? db : db.description || db.text || ''
+          ).filter((s: string) => s.length > 0);
+          
+          const patternStrings = (criteria.patterns || []).map((p: any) => 
+            typeof p === 'string' ? p : p.pattern || p.text || p.description || ''
+          ).filter((s: string) => s.length > 0);
+          
+          vcPreferencesData = {
+            preferencesName: row.preferences_name,
+            industry: row.industry,
+            dealbreakers: dealbreakerStrings,
+            positivePatterns: patternStrings,
+            investmentThesis: criteria.thesis_alignment?.strategic_priorities || criteria.thesis_alignment?.thesis_statement || '',
+            contextWeights: criteria.context_weights || [],
+            targetSectors: criteria.thesis_alignment?.target_sectors || [],
+            targetStages: criteria.thesis_alignment?.target_stages || [],
+            targetGeographies: criteria.thesis_alignment?.geography || criteria.thesis_alignment?.target_geographies || []
+          };
+          console.log(`   ✅ Using fallback VC Preferences from user "${row.user_id}": "${vcPreferencesData.preferencesName}"`);
+          console.log(`      Dealbreakers: ${vcPreferencesData.dealbreakers?.length || 0}`);
+          console.log(`      Positive Patterns: ${vcPreferencesData.positivePatterns?.length || 0}`);
+          console.log(`      Has Thesis: ${!!vcPreferencesData.investmentThesis}`);
+        }
+      } catch (fallbackErr) {
+        console.log(`   ℹ️  No fallback preferences available`);
+      }
+    }
 
-    // Generate premium analysis using AI orchestrator
+    // 🧠 Fetch VC Context Intelligence (if available)
+    let vcContextData: any = null;
+    if (deck.uploaded_by) {
+      try {
+        console.log(`🧠 Fetching VC Context Intelligence for user "${deck.uploaded_by}"...`);
+        
+        // PRIMARY: Check deck_intelligence_context table (exported data)
+        // Try both: 1) This specific deck, 2) Global deck for this user
+        const contextResult = await query(`
+          SELECT vc_context_data, deck_id
+          FROM deck_intelligence_context
+          WHERE user_id = $1 
+            AND (deck_id = $2 OR deck_id = $3)
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `, [deck.uploaded_by, deck.id, '00000000-0000-0000-0000-000000000002']);
+
+        if (contextResult.rows.length > 0 && contextResult.rows[0].vc_context_data) {
+          const exportedData = contextResult.rows[0].vc_context_data;
+          vcContextData = exportedData.summary || exportedData;
+          console.log(`   ✅ VC Context Intelligence loaded from deck_intelligence_context`);
+          console.log(`      Context has ${vcContextData?.items?.length || 0} items`);
+          console.log(`      Summary length: ${vcContextData?.summary?.length || 0} chars`);
+        } else {
+          console.log(`   ℹ️  No data in deck_intelligence_context, trying fallback...`);
+          
+          // FALLBACK: Try vc_context_summaries table (look for any deck by this user)
+          const summaryResult = await query(`
+            SELECT intelligence, summary, created_at, deck_id
+            FROM vc_context_summaries
+            WHERE user_id = $1
+              AND (deck_id = $2 OR deck_id = $3)
+            ORDER BY created_at DESC
+            LIMIT 1
+          `, [deck.uploaded_by, deck.id, '00000000-0000-0000-0000-000000000002']);
+
+          if (summaryResult.rows.length > 0) {
+            const contextRow = summaryResult.rows[0];
+            vcContextData = contextRow.intelligence || contextRow.summary;
+            console.log(`   ✅ VC Context Intelligence loaded from vc_context_summaries (fallback)`);
+            console.log(`      Intelligence length: ${JSON.stringify(vcContextData).length} chars`);
+          } else {
+            console.log(`   ℹ️  No data in vc_context_summaries either`);
+          }
+        }
+
+        if (!vcContextData) {
+          console.log(`   ⚠️  No VC Context Intelligence found anywhere - will proceed without it`);
+        }
+      } catch (contextErr) {
+        console.error(`   ⚠️  Error loading VC Context Intelligence:`, contextErr);
+        console.log(`   ℹ️  Will proceed without context (optional)`);
+      }
+    }
+    
+    console.log(`   Starting AGENTIC premium AI orchestration...`);
+
+    // Generate premium analysis using AI orchestrator WITH VC CONTEXT & PREFERENCES
     const { orchestratePremiumAnalysis } = await import('../services/vertex-ai-orchestrator');
-    const premiumData = await orchestratePremiumAnalysis(deckText, finalCompanyName);
+    const premiumData = await orchestratePremiumAnalysis(deckText, finalCompanyName, vcContextData, vcPreferencesData);
 
     // 🔧 FIX: Use stored overallScore for consistency across all reports
     // The initial analysis already calculated the score, premium report should display the SAME score

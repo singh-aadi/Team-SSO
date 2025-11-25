@@ -238,14 +238,26 @@ export async function analyzeWithGrounding(
     try {
       // Try to extract JSON from code blocks
       const jsonMatch = analysisText.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[1]);
-      } else {
-        // Try parsing entire response as JSON
-        analysis = JSON.parse(analysisText);
+      let jsonText = jsonMatch ? jsonMatch[1] : analysisText;
+      
+      // Clean up common JSON issues before parsing
+      jsonText = jsonText
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .trim();
+      
+      // Try to find complete JSON object
+      const firstBrace = jsonText.indexOf('{');
+      const lastBrace = jsonText.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonText = jsonText.substring(firstBrace, lastBrace + 1);
       }
+      
+      analysis = JSON.parse(jsonText);
     } catch (parseError) {
       console.error('❌ [Vertex AI] Failed to parse JSON response:', parseError);
+      console.error('   Response length:', analysisText.length);
+      console.error('   First 300 chars:', analysisText.substring(0, 300));
       // Return raw text as fallback
       analysis = { rawResponse: analysisText };
     }

@@ -64,10 +64,15 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   // Imported Context State
   const [importedContext, setImportedContext] = useState<any>(null);
   const [showContextDetails, setShowContextDetails] = useState(false);
+  
+  // VC Context State (from VC Mode)
+  const [vcContext, setVcContext] = useState<any>(null);
+  const [showVcContextDetails, setShowVcContextDetails] = useState(false);
 
   useEffect(() => {
     loadCompanies();
     loadImportedContext();
+    loadVCContext();
   }, []);
 
   const loadImportedContext = () => {
@@ -87,6 +92,26 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     localStorage.removeItem('importedContext');
     setImportedContext(null);
     console.log('🗑️ Cleared imported context');
+  };
+
+  const loadVCContext = async () => {
+    try {
+      const userId = user?.id || '1';
+      const GLOBAL_VC_CONTEXT_ID = '00000000-0000-0000-0000-000000000002';
+      
+      // Check if there's exported VC context
+      const response = await fetch(`http://localhost:3000/api/vc-context/deck-intelligence/${GLOBAL_VC_CONTEXT_ID}/${userId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.context) {
+          console.log('✅ Loaded VC Context from VC Mode:', data.context);
+          setVcContext(data.context);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load VC context:', err);
+    }
   };
 
   const loadCompanies = async () => {
@@ -481,14 +506,104 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           </div>
           
           {/* Wizard Mode Toggle */}
-          <button
-            onClick={() => setUseWizardMode(true)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
-          >
-            <Wand2 className="h-5 w-5" />
-            <span>Guided Evaluation</span>
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setUseWizardMode(true)}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+            >
+              <Wand2 className="h-5 w-5" />
+              <span>Guided Evaluation</span>
+            </button>
+            
+            <button
+              onClick={() => window.location.href = '/vc-mode'}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+              title="Configure Advanced VC Evaluation preferences"
+            >
+              <Target className="h-5 w-5" />
+              <span>Advanced VC Eval</span>
+            </button>
+          </div>
         </div>
+
+        {/* VC Context Badge (from VC Mode) */}
+        {vcContext && vcContext.summary && (
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <Trophy className="h-5 w-5 text-green-600" />
+                <h3 className="font-semibold text-slate-900">
+                  VC Intelligence Context Active
+                </h3>
+              </div>
+              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
+                ENABLED
+              </span>
+            </div>
+            
+            <p className="text-sm text-slate-700 mb-3 font-medium">
+              {vcContext.summary.executiveSummary || 'Personal VC knowledge base loaded'}
+            </p>
+            
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {vcContext.summary.companiesMentioned && vcContext.summary.companiesMentioned.length > 0 && (
+                <div className="bg-white rounded-lg p-2">
+                  <p className="text-xs text-slate-500">Companies Tracked</p>
+                  <p className="text-lg font-bold text-slate-900">{vcContext.summary.companiesMentioned.length}</p>
+                </div>
+              )}
+              {vcContext.summary.marketInsights && vcContext.summary.marketInsights.length > 0 && (
+                <div className="bg-white rounded-lg p-2">
+                  <p className="text-xs text-slate-500">Market Insights</p>
+                  <p className="text-lg font-bold text-slate-900">{vcContext.summary.marketInsights.length}</p>
+                </div>
+              )}
+              {vcContext.summary.peopleNetwork && vcContext.summary.peopleNetwork.length > 0 && (
+                <div className="bg-white rounded-lg p-2">
+                  <p className="text-xs text-slate-500">Network Contacts</p>
+                  <p className="text-lg font-bold text-slate-900">{vcContext.summary.peopleNetwork.length}</p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowVcContextDetails(!showVcContextDetails)}
+              className="flex items-center space-x-1 text-sm text-green-600 hover:text-green-700 font-medium"
+            >
+              <span>{showVcContextDetails ? 'Hide' : 'Show'} Intelligence Details</span>
+              {showVcContextDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+
+            {showVcContextDetails && (
+              <div className="mt-4 space-y-3 border-t border-green-200 pt-4">
+                {vcContext.summary.investmentThesis && (
+                  <div>
+                    <h4 className="font-semibold text-slate-900 text-sm mb-2">Investment Thesis</h4>
+                    <div className="text-sm text-slate-700 space-y-1">
+                      {vcContext.summary.investmentThesis.focusAreas && (
+                        <p><strong>Focus:</strong> {vcContext.summary.investmentThesis.focusAreas.join(', ')}</p>
+                      )}
+                      {vcContext.summary.investmentThesis.dealbreakers && vcContext.summary.investmentThesis.dealbreakers.length > 0 && (
+                        <p><strong>Dealbreakers:</strong> {vcContext.summary.investmentThesis.dealbreakers.join(', ')}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {vcContext.summary.decisionPatterns && (
+                  <div>
+                    <h4 className="font-semibold text-slate-900 text-sm mb-2">Decision Patterns</h4>
+                    <div className="text-sm text-slate-700 space-y-1">
+                      {vcContext.summary.decisionPatterns.whatVCValuesMost && (
+                        <p><strong>Values Most:</strong> {vcContext.summary.decisionPatterns.whatVCValuesMost.join(', ')}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Imported Context Badge */}
         {importedContext && (

@@ -29,7 +29,7 @@ Write-Host "✓ Docker image built successfully!" -ForegroundColor Green
 Write-Host "`n[2/3] Deploying to Cloud Run..." -ForegroundColor Yellow
 
 $CLOUD_SQL_INSTANCE = "${PROJECT_ID}:${REGION}:team-sso-db"
-$CONNECTION_STRING = "NODE_ENV=production,GCS_BUCKET_NAME=projectsso-pitch-decks,JWT_SECRET=y5K8w2XdP9mQ3vR7nL6tU1hF4jG0zB2c,GOOGLE_CLIENT_ID=520480129735-0jbk8o94o55lhlin7u5jp3ei9gtdpf4f.apps.googleusercontent.com,DB_NAME=teamsso_db,DB_USER=postgres,DB_PASSWORD=160Im4xAykflQasNpgPv,GEMINI_API_KEY=AIzaSyAnWSc9H2ug4CIFKq9I-btv97hHBXAViSA,CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_INSTANCE},PORT=8080"
+$CONNECTION_STRING = "NODE_ENV=production,GCS_BUCKET_NAME=projectsso-pitch-decks,JWT_SECRET=y5K8w2XdP9mQ3vR7nL6tU1hF4jG0zB2c,GOOGLE_CLIENT_ID=520480129735-0jbk8o94o55lhlin7u5jp3ei9gtdpf4f.apps.googleusercontent.com,DB_NAME=teamsso_db,DB_USER=postgres,DB_PASSWORD=160Im4xAykflQasNpgPv,GEMINI_API_KEY=AIzaSyBNiLJ2zSJXSQPhF_nnsmhChIaQQG5TdQ0,CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_INSTANCE},PORT=8080"
 
 gcloud run deploy $SERVICE_NAME `
     --image $IMAGE `

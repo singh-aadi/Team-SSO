@@ -66,10 +66,10 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Validate that criteria is an array
-    if (!Array.isArray(criteria)) {
+    // Validate that criteria is an object or array
+    if (!criteria || typeof criteria !== 'object') {
       return res.status(400).json({ 
-        error: 'Invalid criteria format: must be an array' 
+        error: 'Invalid criteria format: must be an object or array' 
       });
     }
 
