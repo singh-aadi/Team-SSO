@@ -3,6 +3,8 @@ import { Upload, FileText, Trash2, Sparkles, AlertCircle, CheckCircle, XCircle, 
 import { vcContextApi, ContextItem, ContextSummary } from '../services/vcContextApi';
 import { useNavigate, useParams } from 'react-router';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 interface Props {
   deckId?: string;
   companyName?: string;
@@ -45,7 +47,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
 
   const loadAvailableDecks = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/decks');
+      const response = await fetch(`${API_URL}/decks`);
       const data = await response.json();
       setAvailableDecks(data.decks || []);
       if (data.decks && data.decks.length > 0) {
@@ -171,7 +173,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
 
     try {
       // Call API to export to database
-      const response = await fetch('http://localhost:3000/api/vc-context/export-to-deck-intelligence', {
+      const response = await fetch(`${API_URL}/vc-context/export-to-deck-intelligence`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 export type GeminiModel = 
   | 'gemini-2.0-flash'
   | 'gemini-2.5-flash'
@@ -73,7 +75,7 @@ export function GeminiModelProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const syncModelToBackend = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/settings/gemini-model', {
+        const response = await fetch(`${API_URL}/settings/gemini-model`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: selectedModel })
@@ -95,7 +97,7 @@ export function GeminiModelProvider({ children }: { children: ReactNode }) {
     
     // Also send to backend to update server-side model
     try {
-      const response = await fetch('http://localhost:3000/api/settings/gemini-model', {
+      const response = await fetch(`${API_URL}/settings/gemini-model`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model })

@@ -22,6 +22,9 @@ import { useAuth } from '../context/AuthContext';
 import { useGeminiModel } from '../context/GeminiModelContext';
 import { EvaluationWizard } from './EvaluationWizard';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const GLOBAL_VC_CONTEXT_ID = '00000000-0000-0000-0000-000000000002';
+
 interface DeckIntelligenceProps {
   userType: 'founder' | 'vc';
 }
@@ -97,10 +100,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const loadVCContext = async () => {
     try {
       const userId = user?.id || '1';
-      const GLOBAL_VC_CONTEXT_ID = '00000000-0000-0000-0000-000000000002';
       
       // Check if there's exported VC context
-      const response = await fetch(`http://localhost:3000/api/vc-context/deck-intelligence/${GLOBAL_VC_CONTEXT_ID}/${userId}`);
+      const response = await fetch(`${API_URL}/vc-context/deck-intelligence/${GLOBAL_VC_CONTEXT_ID}/${userId}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -261,7 +263,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       
       try {
         // Check comparison status
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${comparisonId}`);
+        const response = await fetch(`${API_URL}/decks/compare/${comparisonId}`);
         
         if (response.ok) {
           const data = await response.json();
@@ -1423,7 +1425,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                       <h4 className="text-md font-semibold text-slate-900 mb-4">Export Comparison Report</h4>
                       <div className="grid grid-cols-3 gap-3">
                         <a
-                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/pdf`}
+                          href={`${API_URL}/decks/compare/${completedComparisonId}/report/pdf`}
                           download
                           className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-600 text-blue-600 px-4 py-3 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition-all"
                         >
@@ -1431,7 +1433,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                           <span>PDF</span>
                         </a>
                         <a
-                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/txt`}
+                          href={`${API_URL}/decks/compare/${completedComparisonId}/report/txt`}
                           download
                           className="flex items-center justify-center space-x-2 bg-white border-2 border-teal-600 text-teal-600 px-4 py-3 rounded-lg font-medium hover:bg-teal-600 hover:text-white transition-all"
                         >
@@ -1439,7 +1441,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                           <span>TXT</span>
                         </a>
                         <a
-                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/md`}
+                          href={`${API_URL}/decks/compare/${completedComparisonId}/report/md`}
                           download
                           className="flex items-center justify-center space-x-2 bg-white border-2 border-purple-600 text-purple-600 px-4 py-3 rounded-lg font-medium hover:bg-purple-600 hover:text-white transition-all"
                         >
@@ -1478,7 +1480,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
 
                     <div className="grid grid-cols-3 gap-3">
                       <a
-                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/pdf`}
+                        href={`${API_URL}/decks/compare/${completedComparisonId}/report/pdf`}
                         download
                         className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-600 text-blue-600 px-4 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
                       >
@@ -1486,7 +1488,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                         <span>PDF</span>
                       </a>
                       <a
-                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/txt`}
+                        href={`${API_URL}/decks/compare/${completedComparisonId}/report/txt`}
                         download
                         className="flex items-center justify-center space-x-2 bg-white border-2 border-teal-600 text-teal-600 px-4 py-3 rounded-lg font-medium hover:bg-teal-50 transition-all"
                       >
@@ -1494,7 +1496,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                         <span>TXT</span>
                       </a>
                       <a
-                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${completedComparisonId}/report/md`}
+                        href={`${API_URL}/decks/compare/${completedComparisonId}/report/md`}
                         download
                         className="flex items-center justify-center space-x-2 bg-white border-2 border-purple-600 text-purple-600 px-4 py-3 rounded-lg font-medium hover:bg-purple-50 transition-all"
                       >
@@ -1547,7 +1549,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                 {/* PREMIUM REPORT - 25-30 Pages */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/premium`}
+                  href={`${API_URL}/decks/${currentDeck.id}/report/premium`}
                   download
                   className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 first:rounded-t-lg border-b border-slate-100"
                 >
@@ -1563,7 +1565,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
 
                 {/* Enhanced PDF Option */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/pdf`}
+                  href={`${API_URL}/decks/${currentDeck.id}/report/pdf`}
                   download
                   className="flex items-center justify-between px-4 py-3 text-slate-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-b border-slate-100"
                 >
@@ -1576,7 +1578,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 
                 {/* Standard Export Options */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/txt`}
+                  href={`${API_URL}/decks/${currentDeck.id}/report/txt`}
                   download
                   className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50"
                 >
@@ -1584,7 +1586,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   <span>Download as TXT</span>
                 </a>
                 <a
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/${currentDeck.id}/report/md`}
+                  href={`${API_URL}/decks/${currentDeck.id}/report/md`}
                   download
                   className="flex items-center space-x-2 px-4 py-2 text-slate-700 hover:bg-slate-50 last:rounded-b-lg"
                 >

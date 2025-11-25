@@ -13,6 +13,8 @@ import {
   Download
 } from 'lucide-react';
 import { VCContextManager } from './VCContextManager';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 import { AdvancedVCEvaluation } from './AdvancedVCEvaluation';
 import { api } from '../services/api';
 import { vcContextApi } from '../services/vcContextApi';
@@ -195,7 +197,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
       await handleSavePreferences();
 
       // Export to deck intelligence for the current deck
-      const exportResponse = await fetch('http://localhost:3000/api/vc-agent/export-to-deck-intelligence', {
+      const exportResponse = await fetch(`${API_URL}/vc-agent/export-to-deck-intelligence`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

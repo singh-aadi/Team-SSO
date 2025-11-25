@@ -13,6 +13,8 @@ import { Save, AlertCircle, CheckCircle, Download } from 'lucide-react';
 import { DealbreakerMatrix } from './DealbreakerMatrix';
 import { PatternMemoryBank } from './PatternMemoryBank';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 interface Dealbreaker {
   id: string;
   description: string;
@@ -166,7 +168,7 @@ export function AdvancedVCEvaluation({ userId, onSave, onPreferencesUpdate }: Ad
 
   const loadPreferences = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/vc-preferences/${userId}`);
+      const response = await fetch(`${API_URL}/vc-preferences/${userId}`);
       if (response.ok) {
         const data = await response.json();
         const prefs = data.preferences;
@@ -198,7 +200,7 @@ export function AdvancedVCEvaluation({ userId, onSave, onPreferencesUpdate }: Ad
         thesis_alignment: thesis
       };
 
-      const response = await fetch('http://localhost:3000/api/vc-preferences', {
+      const response = await fetch(`${API_URL}/vc-preferences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,7 +241,7 @@ export function AdvancedVCEvaluation({ userId, onSave, onPreferencesUpdate }: Ad
         thesis_alignment: thesis
       };
 
-      const saveResponse = await fetch('http://localhost:3000/api/vc-preferences', {
+      const saveResponse = await fetch(`${API_URL}/vc-preferences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

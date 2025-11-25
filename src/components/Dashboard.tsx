@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 interface DashboardProps {
   userType: 'founder' | 'vc';
 }
@@ -381,7 +383,7 @@ export function Dashboard({ userType }: DashboardProps) {
                       </p>
                       {isCompleted && (
                         <a
-                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/decks/compare/${comparison.id}/report/pdf`}
+                          href={`${API_URL}/decks/compare/${comparison.id}/report/pdf`}
                           download
                           className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                         >

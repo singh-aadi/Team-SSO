@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router';
 import { VCContextManager } from './VCContextManager';
 import { AdvancedVCEvaluation } from './AdvancedVCEvaluation';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 export function VCMode() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -20,7 +22,7 @@ export function VCMode() {
   const checkVCContextStatus = async () => {
     try {
       // Check if user has exported any context to deck intelligence
-      const response = await fetch(`http://localhost:3000/api/vc-mode/check-context/${user?.id || '1'}`);
+      const response = await fetch(`${API_URL}/vc-mode/check-context/${user?.id || '1'}`);
       if (response.ok) {
         const data = await response.json();
         setHasVCContext(data.hasContext || false);
@@ -39,7 +41,7 @@ export function VCMode() {
 
   const checkAdvancedPreferencesStatus = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/vc-preferences/${user?.id || '1'}`);
+      const response = await fetch(`${API_URL}/vc-preferences/${user?.id || '1'}`);
       if (response.ok) {
         const data = await response.json();
         setHasAdvancedPreferences(data.preferences && data.preferences.length > 0);
