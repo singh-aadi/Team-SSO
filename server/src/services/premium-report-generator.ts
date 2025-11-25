@@ -755,16 +755,28 @@ export async function generatePremiumPDF(
           const boxWidth = doc.page.width - 120;
 
           data.vcAlignmentAnalysis.dealbreakerFlags.forEach((flag, idx) => {
-            checkPageBreak(130);
+            checkPageBreak(140);
             
             const boxY = doc.y;
-            const boxHeight = 110;
             
             // Color based on match status
             const bgColor = flag.matched ? '#fee2e2' : '#d1fae5';
             const borderColor = flag.matched ? COLORS.danger : COLORS.success;
             const statusText = flag.matched ? 'MATCHED - CRITICAL' : 'NOT MATCHED - Safe';
             const statusIcon = flag.matched ? 'X' : 'OK';
+            
+            // Calculate dynamic height based on content
+            const dealbreakerHeight = doc.heightOfString(`Dealbreaker: ${flag.dealbreaker}`, { width: boxWidth - 30 });
+            const reasoningHeight = doc.heightOfString(`Reasoning: ${flag.reasoning}`, { width: boxWidth - 30 });
+            let contentHeight = 60 + dealbreakerHeight + reasoningHeight;
+            
+            if (flag.evidenceFromDeck && flag.evidenceFromDeck.length > 0) {
+              const evidenceText = `Evidence: ${flag.evidenceFromDeck[0].substring(0, 150)}`;
+              const evidenceHeight = doc.heightOfString(evidenceText, { width: boxWidth - 30 });
+              contentHeight += evidenceHeight + 10;
+            }
+            
+            const boxHeight = Math.max(110, contentHeight);
             
             // Draw box
             doc.roundedRect(leftMargin, boxY, boxWidth, boxHeight, 5)
@@ -774,30 +786,34 @@ export async function generatePremiumPDF(
             doc.fontSize(11).font('Helvetica-Bold').fillColor(borderColor)
                .text(`[${statusIcon}] ${statusText}`, leftMargin + 15, boxY + 12, { align: 'left' });
             
+            let currentY = boxY + 32;
+            
             // Dealbreaker text
             doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
-               .text(`Dealbreaker: ${flag.dealbreaker}`, leftMargin + 15, boxY + 32, { 
+               .text(`Dealbreaker: ${flag.dealbreaker}`, leftMargin + 15, currentY, { 
                  width: boxWidth - 30, 
                  align: 'left' 
                });
+            currentY += dealbreakerHeight + 8;
             
             // Reasoning
             doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
-               .text(`Reasoning: ${flag.reasoning}`, leftMargin + 15, boxY + 52, { 
+               .text(`Reasoning: ${flag.reasoning}`, leftMargin + 15, currentY, { 
                  width: boxWidth - 30, 
                  align: 'left' 
                });
+            currentY += reasoningHeight + 8;
             
             // Evidence (if available and matched)
             if (flag.evidenceFromDeck && flag.evidenceFromDeck.length > 0) {
               doc.fontSize(8).font('Helvetica-Oblique').fillColor(COLORS.textLight)
-                 .text(`Evidence: ${flag.evidenceFromDeck[0].substring(0, 120)}`, leftMargin + 15, boxY + 85, { 
+                 .text(`Evidence: ${flag.evidenceFromDeck[0].substring(0, 150)}`, leftMargin + 15, currentY, { 
                    width: boxWidth - 30, 
                    align: 'left' 
                  });
             }
             
-            doc.y = boxY + boxHeight + 15;
+            doc.y = boxY + boxHeight + 20;
             doc.x = leftMargin;
           });
           
@@ -820,10 +836,9 @@ export async function generatePremiumPDF(
           const boxWidth = doc.page.width - 120;
 
           data.vcAlignmentAnalysis.positivePatternMatches.forEach((pattern, idx) => {
-            checkPageBreak(130);
+            checkPageBreak(140);
             
             const boxY = doc.y;
-            const boxHeight = 110;
             
             // Color based on match status and strength
             let bgColor = '#fef3c7';
@@ -848,6 +863,19 @@ export async function generatePremiumPDF(
             
             const statusIcon = pattern.matched ? 'YES' : 'NO';
             
+            // Calculate dynamic height based on content
+            const patternHeight = doc.heightOfString(`Pattern: ${pattern.pattern}`, { width: boxWidth - 30 });
+            const reasoningHeight = doc.heightOfString(`Assessment: ${pattern.reasoning}`, { width: boxWidth - 30 });
+            let contentHeight = 60 + patternHeight + reasoningHeight;
+            
+            if (pattern.matched && pattern.evidenceFromDeck && pattern.evidenceFromDeck.length > 0) {
+              const evidenceText = `Evidence: ${pattern.evidenceFromDeck[0].substring(0, 150)}`;
+              const evidenceHeight = doc.heightOfString(evidenceText, { width: boxWidth - 30 });
+              contentHeight += evidenceHeight + 10;
+            }
+            
+            const boxHeight = Math.max(110, contentHeight);
+            
             // Draw box
             doc.roundedRect(leftMargin, boxY, boxWidth, boxHeight, 5)
                .fillAndStroke(bgColor, borderColor);
@@ -856,30 +884,34 @@ export async function generatePremiumPDF(
             doc.fontSize(11).font('Helvetica-Bold').fillColor(borderColor)
                .text(`[${statusIcon}] ${statusText}`, leftMargin + 15, boxY + 12, { align: 'left' });
             
+            let currentY = boxY + 32;
+            
             // Pattern text
             doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
-               .text(`Pattern: ${pattern.pattern}`, leftMargin + 15, boxY + 32, { 
+               .text(`Pattern: ${pattern.pattern}`, leftMargin + 15, currentY, { 
                  width: boxWidth - 30, 
                  align: 'left' 
                });
+            currentY += patternHeight + 8;
             
             // Reasoning
             doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
-               .text(`Assessment: ${pattern.reasoning}`, leftMargin + 15, boxY + 52, { 
+               .text(`Assessment: ${pattern.reasoning}`, leftMargin + 15, currentY, { 
                  width: boxWidth - 30, 
                  align: 'left' 
                });
+            currentY += reasoningHeight + 8;
             
             // Evidence (if available and matched)
             if (pattern.matched && pattern.evidenceFromDeck && pattern.evidenceFromDeck.length > 0) {
               doc.fontSize(8).font('Helvetica-Oblique').fillColor(COLORS.textLight)
-                 .text(`Evidence: ${pattern.evidenceFromDeck[0].substring(0, 120)}`, leftMargin + 15, boxY + 85, { 
+                 .text(`Evidence: ${pattern.evidenceFromDeck[0].substring(0, 150)}`, leftMargin + 15, currentY, { 
                    width: boxWidth - 30, 
                    align: 'left' 
                  });
             }
             
-            doc.y = boxY + boxHeight + 15;
+            doc.y = boxY + boxHeight + 20;
             doc.x = leftMargin;
           });
           
@@ -929,49 +961,57 @@ export async function generatePremiumPDF(
           
           // Aligned Areas (Green box)
           if (thesis.alignmentAreas && thesis.alignmentAreas.length > 0) {
-            checkPageBreak(85);
+            checkPageBreak(100);
             const alignBoxY = doc.y;
-            doc.roundedRect(leftMargin, alignBoxY, boxWidth, 65, 5)
+            const contentText = thesis.alignmentAreas.join(' | ');
+            const textHeight = doc.heightOfString(contentText, { width: boxWidth - 30 });
+            const boxHeight = Math.max(70, textHeight + 50);
+            
+            doc.roundedRect(leftMargin, alignBoxY, boxWidth, boxHeight, 5)
                .fillAndStroke('#d1fae5', COLORS.success);
             doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.success)
-               .text('[ALIGNED AREAS]', leftMargin + 15, alignBoxY + 12, { align: 'left' });
+               .text('ALIGNED AREAS', leftMargin + 15, alignBoxY + 12, { align: 'left' });
             doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
-               .text(thesis.alignmentAreas.join(' | '), leftMargin + 15, alignBoxY + 32, { 
+               .text(contentText, leftMargin + 15, alignBoxY + 32, { 
                  width: boxWidth - 30, 
                  align: 'left' 
                });
-            doc.y = alignBoxY + 80;
+            doc.y = alignBoxY + boxHeight + 20;
             doc.x = leftMargin;
           }
           
           // Misaligned Areas (Red box)
           if (thesis.misalignmentAreas && thesis.misalignmentAreas.length > 0) {
-            checkPageBreak(85);
+            checkPageBreak(100);
             const misalignBoxY = doc.y;
-            doc.roundedRect(leftMargin, misalignBoxY, boxWidth, 65, 5)
+            const contentText = thesis.misalignmentAreas.join(' | ');
+            const textHeight = doc.heightOfString(contentText, { width: boxWidth - 30 });
+            const boxHeight = Math.max(70, textHeight + 50);
+            
+            doc.roundedRect(leftMargin, misalignBoxY, boxWidth, boxHeight, 5)
                .fillAndStroke('#fee2e2', COLORS.danger);
             doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.danger)
-               .text('[MISALIGNED AREAS]', leftMargin + 15, misalignBoxY + 12, { align: 'left' });
+               .text('MISALIGNED AREAS', leftMargin + 15, misalignBoxY + 12, { align: 'left' });
             doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
-               .text(thesis.misalignmentAreas.join(' | '), leftMargin + 15, misalignBoxY + 32, { 
+               .text(contentText, leftMargin + 15, misalignBoxY + 32, { 
                  width: boxWidth - 30, 
                  align: 'left' 
                });
-            doc.y = misalignBoxY + 80;
+            doc.y = misalignBoxY + boxHeight + 20;
             doc.x = leftMargin;
           }
           
           // Overall Assessment
-          checkPageBreak(60);
+          checkPageBreak(80);
           doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
              .text('Overall Assessment:', leftMargin, doc.y, { align: 'left' });
-          doc.moveDown(0.3);
+          doc.moveDown(0.5);
           doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
              .text(thesis.overallAssessment, leftMargin, doc.y, { 
                width: boxWidth,
                align: 'left' 
              });
-          doc.moveDown(1.5);
+          doc.moveDown(2);
           doc.x = leftMargin;
         }
 

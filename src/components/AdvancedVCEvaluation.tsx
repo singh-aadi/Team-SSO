@@ -97,8 +97,58 @@ export function AdvancedVCEvaluation({ userId, onSave, onPreferencesUpdate }: Ad
   // Layer 1: Dealbreakers
   const [dealbreakers, setDealbreakers] = useState<Dealbreaker[]>([]);
 
-  // Layer 2: Patterns
-  const [patterns, setPatterns] = useState<Pattern[]>([]);
+  // Layer 2: Patterns (Initialize with default patterns)
+  const [patterns, setPatterns] = useState<Pattern[]>([
+    {
+      id: '1',
+      pattern: 'FAANG engineer background',
+      type: 'success',
+      weight: 80,
+      examples: 'Ex-Google ML engineer, Ex-Amazon senior SDE'
+    },
+    {
+      id: '2',
+      pattern: 'Second-time founder with successful exit',
+      type: 'success',
+      weight: 90,
+      examples: 'Sold previous startup for $50M+, IPO experience'
+    },
+    {
+      id: '3',
+      pattern: 'Strong network effects in product',
+      type: 'success',
+      weight: 75,
+      examples: 'Marketplace dynamics, viral growth loops'
+    },
+    {
+      id: '4',
+      pattern: 'First-time founder, no industry experience',
+      type: 'failure',
+      weight: 60,
+      examples: 'Career switcher with < 1 year domain knowledge'
+    },
+    {
+      id: '5',
+      pattern: 'Pivot from original idea',
+      type: 'warning',
+      weight: 50,
+      examples: 'Changed business model or target market post-funding'
+    },
+    {
+      id: '6',
+      pattern: 'Reliant on single customer for >50% revenue',
+      type: 'failure',
+      weight: 70,
+      examples: 'Enterprise deal concentration risk'
+    },
+    {
+      id: '7',
+      pattern: 'Strong organic growth (>20% MoM)',
+      type: 'success',
+      weight: 85,
+      examples: 'Viral coefficient >1.0, low CAC'
+    }
+  ]);
 
   // Layer 3: Context Weights
   const [contextWeights, setContextWeights] = useState<ContextWeights[]>(DEFAULT_CONTEXT_WEIGHTS);
