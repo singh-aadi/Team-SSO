@@ -195,7 +195,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
       await handleSavePreferences();
 
       // Export to deck intelligence for the current deck
-      const exportResponse = await fetch('http://localhost:3000/api/vc-agent/export-to-deck-intelligence', {
+      const exportResponse = await fetch('http://localhost:3000/vc-agent/export-to-deck-intelligence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

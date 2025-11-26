@@ -73,7 +73,7 @@ export function GeminiModelProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const syncModelToBackend = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/settings/gemini-model', {
+        const response = await fetch('http://localhost:3000/settings/gemini-model', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: selectedModel })
@@ -95,7 +95,7 @@ export function GeminiModelProvider({ children }: { children: ReactNode }) {
     
     // Also send to backend to update server-side model
     try {
-      const response = await fetch('http://localhost:3000/api/settings/gemini-model', {
+      const response = await fetch('http://localhost:3000/settings/gemini-model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model })

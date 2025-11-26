@@ -7,6 +7,42 @@ import fs from 'fs';
 
 const router = Router();
 
+// Utility function to clean and simplify deck names
+function cleanDeckName(filename: string): string {
+  // Remove file extension
+  let name = filename.replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '');
+  
+  // Remove common date patterns
+  // Matches: YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY, YYYYMMDD, etc.
+  name = name.replace(/\d{4}[-_]?\d{2}[-_]?\d{2}/g, '');
+  name = name.replace(/\d{2}[-_]?\d{2}[-_]?\d{4}/g, '');
+  
+  // Remove timestamps (HH:MM:SS or HHMMSS)
+  name = name.replace(/\d{2}[-:]?\d{2}[-:]?\d{2}/g, '');
+  
+  // Remove common version patterns (v1, v2, V1.0, version1, etc.)
+  name = name.replace(/[_\s-]?v(ersion)?[\s_-]?\d+(\.\d+)?/gi, '');
+  
+  // Remove "final", "draft", "copy", "revised" with optional numbers
+  name = name.replace(/[_\s-]?(final|draft|copy|revised|rev|update|updated)[\s_-]?\d*/gi, '');
+  
+  // Remove standalone numbers at the end (often version numbers)
+  name = name.replace(/[_\s-]+\d+$/, '');
+  
+  // Remove multiple consecutive spaces, underscores, or hyphens
+  name = name.replace(/[-_\s]+/g, ' ');
+  
+  // Trim and clean up
+  name = name.trim();
+  
+  // If the name is empty after cleaning, use a generic name
+  if (!name) {
+    name = 'Pitch Deck';
+  }
+  
+  return name;
+}
+
 // Configure multer for dual file uploads (pitch deck + checklist)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -216,6 +252,17 @@ router.post('/upload-dual', upload.fields([
     const checklistFile = files.checklist[0];
     const { company_id, uploaded_by, additional_context } = req.body;
     
+    // Clean deck names
+    const deckName = cleanDeckName(deckFile.originalname);
+    const checklistName = cleanDeckName(checklistFile.originalname);
+    
+    // UUID validation regex
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    // Convert empty strings or invalid UUIDs to null
+    const companyId = company_id && company_id.trim() !== '' && uuidRegex.test(company_id) ? company_id : null;
+    const uploadedBy = uploaded_by && uploaded_by.trim() !== '' && uuidRegex.test(uploaded_by) ? uploaded_by : null;
+    
     // Parse additional context if provided
     let parsedContext = null;
     if (additional_context) {
@@ -242,9 +289,9 @@ router.post('/upload-dual', upload.fields([
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
-      company_id,
-      null, // Set to NULL to avoid foreign key constraint (uploaded_by is now nullable)
-      deckFile.originalname, // Primary filename
+      companyId,
+      uploadedBy,
+      deckName, // Cleaned filename
       deckPath, // Legacy field
       deckPath, // New deck-specific path
       checklistPath, // New checklist path
@@ -283,18 +330,18 @@ router.post('/upload-dual', upload.fields([
         const useGrounding = true; // Enable grounding by default
         const industry = deck.industry || 'Technology'; // Get from deck or default
         
-        // 🎯 Fetch VC preferences if uploaded_by is available
+        // 🎯 Fetch VC preferences if uploadedBy is available
         let vcPreferences: { preferencesName: string; industry: string; criteria: any[] } | undefined;
-        if (uploaded_by) {
+        if (uploadedBy) {
           try {
-            console.log(`🎯 Fetching VC preferences for user: "${uploaded_by}"...`);
+            console.log(`🎯 Fetching VC preferences for user: "${uploadedBy}"...`);
             const prefResult = await query(
               `SELECT preferences_name, industry, criteria 
                FROM vc_preferences 
                WHERE user_id = $1 
                ORDER BY updated_at DESC 
                LIMIT 1`,
-              [uploaded_by]
+              [uploadedBy]
             );
             
             console.log(`   Query returned ${prefResult.rows.length} rows`);

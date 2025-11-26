@@ -77,18 +77,18 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/companies', companiesRoutes);
-app.use('/api/decks', decksRoutes);
-app.use('/api/benchmarks', benchmarksRoutes);
-app.use('/api/vc', vcRoutes);
-app.use('/api/vc-context', vcContextRoutes);
-app.use('/api/vc-preferences', vcPreferencesRoutes);
-app.use('/api/vc-mode', vcModeRoutes);
-app.use('/api/vc-agent', vcAgentRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/radar', radarRoutes);
-app.use('/api/settings', settingsRoutes);
+app.use('/auth', authRoutes);
+app.use('/companies', companiesRoutes);
+app.use('/decks', decksRoutes);
+app.use('/benchmarks', benchmarksRoutes);
+app.use('/vc', vcRoutes);
+app.use('/vc-context', vcContextRoutes);
+app.use('/vc-preferences', vcPreferencesRoutes);
+app.use('/vc-mode', vcModeRoutes);
+app.use('/vc-agent', vcAgentRoutes);
+app.use('/admin', adminRoutes);
+app.use('/radar', radarRoutes);
+app.use('/settings', settingsRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

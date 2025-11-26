@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, FileStack, Brain, ArrowRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router';
@@ -20,7 +20,7 @@ export function VCMode() {
   const checkVCContextStatus = async () => {
     try {
       // Check if user has exported any context to deck intelligence
-      const response = await fetch(`http://localhost:3000/api/vc-mode/check-context/${user?.id || '1'}`);
+      const response = await fetch(`http://localhost:3000/vc-mode/check-context/${user?.id || '1'}`);
       if (response.ok) {
         const data = await response.json();
         setHasVCContext(data.hasContext || false);
@@ -39,7 +39,7 @@ export function VCMode() {
 
   const checkAdvancedPreferencesStatus = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/vc-preferences/${user?.id || '1'}`);
+      const response = await fetch(`http://localhost:3000/vc-preferences/${user?.id || '1'}`);
       if (response.ok) {
         const data = await response.json();
         setHasAdvancedPreferences(data.preferences && data.preferences.length > 0);

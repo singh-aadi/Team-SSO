@@ -45,7 +45,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
 
   const loadAvailableDecks = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/decks');
+      const response = await fetch('http://localhost:3000/decks');
       const data = await response.json();
       setAvailableDecks(data.decks || []);
       if (data.decks && data.decks.length > 0) {
@@ -171,7 +171,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
 
     try {
       // Call API to export to database
-      const response = await fetch('http://localhost:3000/api/vc-context/export-to-deck-intelligence', {
+      const response = await fetch('http://localhost:3000/vc-context/export-to-deck-intelligence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

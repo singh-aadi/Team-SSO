@@ -100,7 +100,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       const GLOBAL_VC_CONTEXT_ID = '00000000-0000-0000-0000-000000000002';
       
       // Check if there's exported VC context
-      const response = await fetch(`http://localhost:3000/api/vc-context/deck-intelligence/${GLOBAL_VC_CONTEXT_ID}/${userId}`);
+      const response = await fetch(`http://localhost:3000/vc-context/deck-intelligence/${GLOBAL_VC_CONTEXT_ID}/${userId}`);
       
       if (response.ok) {
         const data = await response.json();
