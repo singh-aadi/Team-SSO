@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trophy,
-  Wand2
+  Wand2,
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
@@ -42,7 +42,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   
   // Comparison State
   const [showComparisonUpload, setShowComparisonUpload] = useState(false);
-  const [comparisonDeck1, setComparisonDeck1] = useState<File | null>(null);
+    const [comparisonDeck1, setComparisonDeck1] = useState<File | null>(null);
   const [comparisonDeck2, setComparisonDeck2] = useState<File | null>(null);
   const [comparingDecks, setComparingDecks] = useState(false);
   const [comparisonProgress, setComparisonProgress] = useState(0);
@@ -961,13 +961,11 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               </div>
             </div>
           </div>
-          
-          {/* Compare Reports - Interactive Upload */}
           <div className="bg-white rounded-xl border-2 border-slate-200 p-8 hover:border-blue-200 transition-colors">
             {!showComparisonUpload ? (
               <div className="text-center">
                 <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Pitch Decks</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Pitch Decks (Legacy)</h3>
                 <p className="text-slate-600 mb-6">
                   Upload two pitch decks to get AI-powered side-by-side comparative analysis
                 </p>

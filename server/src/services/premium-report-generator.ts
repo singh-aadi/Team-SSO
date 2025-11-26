@@ -147,6 +147,83 @@ export async function generatePremiumPDF(
         doc.font('Helvetica').fillColor(COLORS.textLight).text(value);
       };
 
+      // 🎯 NEW: Draw a proper table with Criteria, Description, Assessment columns
+      const drawMetricsTable = (rows: Array<{criteria: string; description: string; assessment: string}>) => {
+        const leftMargin = 60;
+        const tableWidth = doc.page.width - 120;
+        
+        // Column widths - give MORE space to Assessment (40%)
+        const col1Width = tableWidth * 0.20; // Criteria: 20%
+        const col2Width = tableWidth * 0.35; // Description: 35%
+        const col3Width = tableWidth * 0.45; // Assessment: 45%
+        
+        // Header row
+        const headerY = doc.y;
+        const headerHeight = 25;
+        
+        // Header background
+        doc.rect(leftMargin, headerY, tableWidth, headerHeight).fill(COLORS.primary);
+        
+        // Header text - center aligned
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('white');
+        doc.text('Criteria', leftMargin, headerY + 8, { width: col1Width, align: 'center' });
+        doc.text('Description', leftMargin + col1Width, headerY + 8, { width: col2Width, align: 'center' });
+        doc.text('Assessment', leftMargin + col1Width + col2Width, headerY + 8, { width: col3Width, align: 'center' });
+        
+        doc.y = headerY + headerHeight;
+        
+        // Data rows
+        rows.forEach((row, idx) => {
+          // Calculate row height based on content (set font size first for accurate height calculation)
+          doc.fontSize(9);
+          const criteriaHeight = doc.heightOfString(row.criteria, { width: col1Width - 10 });
+          const descHeight = doc.heightOfString(row.description, { width: col2Width - 10 });
+          const assessHeight = doc.heightOfString(row.assessment, { width: col3Width - 10 });
+          const rowHeight = Math.max(40, criteriaHeight + 15, descHeight + 15, assessHeight + 15);
+          
+          checkPageBreak(rowHeight + 10);
+          
+          const rowY = doc.y;
+          
+          // Alternate row background
+          const bgColor = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+          doc.rect(leftMargin, rowY, tableWidth, rowHeight).fill(bgColor);
+          
+          // Row border
+          doc.rect(leftMargin, rowY, tableWidth, rowHeight).stroke(COLORS.border);
+          
+          // Column separators
+          doc.moveTo(leftMargin + col1Width, rowY).lineTo(leftMargin + col1Width, rowY + rowHeight).stroke(COLORS.border);
+          doc.moveTo(leftMargin + col1Width + col2Width, rowY).lineTo(leftMargin + col1Width + col2Width, rowY + rowHeight).stroke(COLORS.border);
+          
+          // Cell content - center aligned vertically and horizontally
+          const textPadding = 5;
+          const verticalPadding = (rowHeight - 12) / 2;
+          
+          doc.fontSize(9).font('Helvetica-Bold').fillColor(COLORS.text);
+          doc.text(row.criteria, leftMargin + textPadding, rowY + textPadding, { 
+            width: col1Width - (textPadding * 2), 
+            align: 'center' 
+          });
+          
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.textLight);
+          doc.text(row.description, leftMargin + col1Width + textPadding, rowY + textPadding, { 
+            width: col2Width - (textPadding * 2), 
+            align: 'center' 
+          });
+          
+          doc.fontSize(9).font('Helvetica').fillColor(COLORS.text);
+          doc.text(row.assessment, leftMargin + col1Width + col2Width + textPadding, rowY + textPadding, { 
+            width: col3Width - (textPadding * 2), 
+            align: 'center' 
+          });
+          
+          doc.y = rowY + rowHeight;
+        });
+        
+        doc.moveDown(1);
+      };
+
       // ============================================================
       // PAGE 1: COVER PAGE
       // ============================================================
@@ -257,32 +334,78 @@ export async function generatePremiumPDF(
          .text(data.investmentThesis.valuation, { paragraphGap: 8 });
 
       // ============================================================
-      // PAGE 4-5: COMPANY PROFILE
+      // PAGE 4-5: COMPANY PROFILE (Left-aligned, section-wise layout)
       // ============================================================
       doc.addPage();
       drawSectionHeader('COMPANY PROFILE');
       
-      drawSubheader('Company Overview');
-      drawKeyValuePair('Company Name', data.companyProfile.name);
-      drawKeyValuePair('Tagline', data.companyProfile.tagline);
-      drawKeyValuePair('Industry', data.companyProfile.industry);
-      drawKeyValuePair('Founded', data.companyProfile.foundedYear);
-      drawKeyValuePair('Headquarters', data.companyProfile.headquarters);
-      drawKeyValuePair('Stage', data.companyProfile.stage);
+      const leftMargin = 60;
+      const contentWidth = doc.page.width - 120;
       
+      // Company Overview Box
+      checkPageBreak(200);
+      const overviewBoxY = doc.y;
+      doc.roundedRect(leftMargin, overviewBoxY, contentWidth, 180, 5)
+         .fillAndStroke('#f8fafc', COLORS.border);
+      
+      doc.fontSize(11).font('Helvetica-Bold').fillColor(COLORS.primary)
+         .text('Company Overview', leftMargin + 15, overviewBoxY + 12);
+      
+      let currentY = overviewBoxY + 35;
+      const labelWidth = 100;
+      const valueX = leftMargin + 15 + labelWidth;
+      
+      // Company details - left aligned with consistent spacing
+      const companyDetails = [
+        { label: 'Company Name:', value: data.companyProfile.name },
+        { label: 'Tagline:', value: data.companyProfile.tagline },
+        { label: 'Industry:', value: data.companyProfile.industry },
+        { label: 'Founded:', value: data.companyProfile.foundedYear },
+        { label: 'Headquarters:', value: data.companyProfile.headquarters },
+        { label: 'Stage:', value: data.companyProfile.stage },
+      ];
+      
+      companyDetails.forEach(detail => {
+        doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
+           .text(detail.label, leftMargin + 15, currentY, { width: labelWidth });
+        doc.fontSize(10).font('Helvetica').fillColor(COLORS.textLight)
+           .text(detail.value, valueX, currentY, { width: contentWidth - labelWidth - 30 });
+        currentY += 22;
+      });
+      
+      // Website (if available)
       if (data.companyProfile.website) {
         doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text)
-           .text('Website: ', { continued: true });
-        doc.font('Helvetica').fillColor(COLORS.secondary)
-           .text(data.companyProfile.website, { link: data.companyProfile.website, underline: true });
+           .text('Website:', leftMargin + 15, currentY, { width: labelWidth });
+        doc.fontSize(10).font('Helvetica').fillColor(COLORS.secondary)
+           .text(data.companyProfile.website, valueX, currentY, { 
+             width: contentWidth - labelWidth - 30,
+             link: data.companyProfile.website,
+             underline: true
+           });
       }
-      doc.moveDown(1.5);
       
-      drawSubheader('Mission Statement');
+      doc.y = overviewBoxY + 195;
+      
+      // Mission Statement Section
+      checkPageBreak(100);
+      const missionBoxY = doc.y;
+      const missionHeight = Math.max(80, doc.heightOfString(data.companyProfile.mission, { width: contentWidth - 30 }) + 45);
+      
+      doc.roundedRect(leftMargin, missionBoxY, contentWidth, missionHeight, 5)
+         .fillAndStroke('#f0f9ff', COLORS.secondary);
+      
+      doc.fontSize(11).font('Helvetica-Bold').fillColor(COLORS.primary)
+         .text('Mission Statement', leftMargin + 15, missionBoxY + 12);
       doc.fontSize(10).font('Helvetica').fillColor(COLORS.text)
-         .text(data.companyProfile.mission, { paragraphGap: 10 });
-      doc.moveDown(1);
+         .text(data.companyProfile.mission, leftMargin + 15, missionBoxY + 35, { 
+           width: contentWidth - 30,
+           align: 'left'
+         });
       
+      doc.y = missionBoxY + missionHeight + 15;
+      
+      // Problem & Solution Section
       drawSubheader('Problem & Solution');
       drawInfoBox('Problem Addressed', data.coreMetrics.problemSolution.painPointAddressed);
       drawInfoBox('Solution Innovation', data.coreMetrics.problemSolution.solutionInnovation);
@@ -445,82 +568,96 @@ export async function generatePremiumPDF(
          .text(data.sectorClassification.regulatoryEnvironment, { paragraphGap: 8 });
 
       // ============================================================
-      // PAGE 12-15: CORE METRICS (6 METRICS)
+      // PAGE 12-15: CORE METRICS (6 METRICS) - TABLE FORMAT
       // ============================================================
       doc.addPage();
       drawSectionHeader('CORE INVESTMENT METRICS');
       
-      // Metric 1: Problem & Solution
-      checkPageBreak(250);
-      drawSubheader('1. Problem & Solution Analysis');
+      // A. Problem & Solution Analysis
+      checkPageBreak(200);
+      drawSubheader('A. Problem & Solution Analysis');
       drawScoreBar('', data.coreMetrics.problemSolution.score, 280);
       doc.moveDown(0.5);
-      drawKeyValuePair('Problem Clarity', data.coreMetrics.problemSolution.problemClarity);
-      drawKeyValuePair('Solution Innovation', data.coreMetrics.problemSolution.solutionInnovation);
-      drawKeyValuePair('Competitive Differentiation', data.coreMetrics.problemSolution.competitiveDifferentiation);
-      doc.moveDown(2);
+      drawMetricsTable([
+        { criteria: 'Problem Clarity', description: 'How clearly the problem is defined and validated', assessment: data.coreMetrics.problemSolution.problemClarity },
+        { criteria: 'Solution Innovation', description: 'Uniqueness and effectiveness of the proposed solution', assessment: data.coreMetrics.problemSolution.solutionInnovation },
+        { criteria: 'Competitive Edge', description: 'Differentiation from existing solutions', assessment: data.coreMetrics.problemSolution.competitiveDifferentiation },
+      ]);
+      doc.moveDown(1);
       
-      // Metric 2: Market Opportunity
-      checkPageBreak(250);
-      drawSubheader('2. Market Opportunity');
+      // B. Market Opportunity Analysis
+      checkPageBreak(220);
+      drawSubheader('B. Market Opportunity Analysis');
       drawScoreBar('', data.coreMetrics.marketOpportunity.score, 280);
       doc.moveDown(0.5);
-      drawKeyValuePair('TAM (Total Addressable Market)', data.coreMetrics.marketOpportunity.tam);
-      drawKeyValuePair('SAM (Serviceable Available Market)', data.coreMetrics.marketOpportunity.sam);
-      drawKeyValuePair('SOM (Serviceable Obtainable Market)', data.coreMetrics.marketOpportunity.som);
-      drawKeyValuePair('Market Growth Rate', data.coreMetrics.marketOpportunity.marketGrowthRate);
+      drawMetricsTable([
+        { criteria: 'TAM', description: 'Total Addressable Market size', assessment: data.coreMetrics.marketOpportunity.tam },
+        { criteria: 'SAM', description: 'Serviceable Available Market', assessment: data.coreMetrics.marketOpportunity.sam },
+        { criteria: 'SOM', description: 'Serviceable Obtainable Market', assessment: data.coreMetrics.marketOpportunity.som },
+        { criteria: 'Growth Rate', description: 'Market expansion trajectory', assessment: data.coreMetrics.marketOpportunity.marketGrowthRate },
+      ]);
       doc.moveDown(0.5);
       doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Market Trends:');
       drawBulletList(data.coreMetrics.marketOpportunity.marketTrends);
-      doc.moveDown(2);
+      doc.moveDown(1);
       
-      // Metric 3: Traction
-      checkPageBreak(250);
-      drawSubheader('3. Traction & Growth');
+      // C. Traction & Growth Metrics
+      doc.addPage();
+      checkPageBreak(200);
+      drawSubheader('C. Traction & Growth Metrics');
       drawScoreBar('', data.coreMetrics.traction.score, 280);
       doc.moveDown(0.5);
-      drawKeyValuePair('Users/Customers', data.coreMetrics.traction.users);
-      drawKeyValuePair('Revenue', data.coreMetrics.traction.revenue);
-      drawKeyValuePair('Growth Rate', data.coreMetrics.traction.growthRate);
+      drawMetricsTable([
+        { criteria: 'Users/Customers', description: 'Current user or customer base', assessment: data.coreMetrics.traction.users },
+        { criteria: 'Revenue', description: 'Current revenue performance', assessment: data.coreMetrics.traction.revenue },
+        { criteria: 'Growth Rate', description: 'Month-over-month or year-over-year growth', assessment: data.coreMetrics.traction.growthRate },
+      ]);
       doc.moveDown(0.5);
       doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Key Milestones:');
       drawBulletList(data.coreMetrics.traction.milestones);
-      doc.moveDown(2);
+      doc.moveDown(1);
       
-      // Metric 4: Team
-      checkPageBreak(250);
-      drawSubheader('4. Team & Execution');
+      // D. Team & Execution Capability
+      checkPageBreak(200);
+      drawSubheader('D. Team & Execution Capability');
       drawScoreBar('', data.coreMetrics.team.score, 280);
       doc.moveDown(0.5);
-      drawKeyValuePair('Founding Team Strength', data.coreMetrics.team.foundingTeamStrength);
-      drawKeyValuePair('Domain Expertise', data.coreMetrics.team.domainExpertise);
-      drawKeyValuePair('Execution Capability', data.coreMetrics.team.executionCapability);
-      doc.moveDown(2);
+      drawMetricsTable([
+        { criteria: 'Team Strength', description: 'Overall founding team caliber', assessment: data.coreMetrics.team.foundingTeamStrength },
+        { criteria: 'Domain Expertise', description: 'Industry and technical knowledge', assessment: data.coreMetrics.team.domainExpertise },
+        { criteria: 'Execution', description: 'Track record of delivery', assessment: data.coreMetrics.team.executionCapability },
+      ]);
+      doc.moveDown(1);
       
-      // Metric 5: Business Model
-      checkPageBreak(250);
-      drawSubheader('5. Business Model & Unit Economics');
+      // E. Business Model & Unit Economics
+      checkPageBreak(220);
+      drawSubheader('E. Business Model & Unit Economics');
       drawScoreBar('', data.coreMetrics.businessModel.score, 280);
       doc.moveDown(0.5);
       doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Revenue Streams:');
       drawBulletList(data.coreMetrics.businessModel.revenueStreams);
       doc.moveDown(0.5);
-      drawKeyValuePair('Pricing Strategy', data.coreMetrics.businessModel.pricingStrategy);
-      drawKeyValuePair('Unit Economics', data.coreMetrics.businessModel.unitEconomics);
-      drawKeyValuePair('Scalability', data.coreMetrics.businessModel.scalability);
-      drawKeyValuePair('Margins', data.coreMetrics.businessModel.margins);
-      doc.moveDown(2);
+      drawMetricsTable([
+        { criteria: 'Pricing', description: 'Pricing model and strategy', assessment: data.coreMetrics.businessModel.pricingStrategy },
+        { criteria: 'Unit Economics', description: 'Per-unit profitability metrics', assessment: data.coreMetrics.businessModel.unitEconomics },
+        { criteria: 'Scalability', description: 'Ability to scale operations', assessment: data.coreMetrics.businessModel.scalability },
+        { criteria: 'Margins', description: 'Gross and net margin profile', assessment: data.coreMetrics.businessModel.margins },
+      ]);
+      doc.moveDown(1);
       
-      // Metric 6: Financials
-      checkPageBreak(250);
-      drawSubheader('6. Financials & Capital Efficiency');
+      // F. Financials & Capital Efficiency
+      doc.addPage();
+      checkPageBreak(200);
+      drawSubheader('F. Financials & Capital Efficiency');
       drawScoreBar('', data.coreMetrics.financials.score, 280);
       doc.moveDown(0.5);
-      drawKeyValuePair('Current Revenue', data.coreMetrics.financials.currentRevenue);
-      drawKeyValuePair('Projected Revenue', data.coreMetrics.financials.projectedRevenue);
-      drawKeyValuePair('Profitability Timeline', data.coreMetrics.financials.profitabilityTimeline);
-      drawKeyValuePair('Cash Position', data.coreMetrics.financials.cashPosition);
-      drawKeyValuePair('Funding Needs', data.coreMetrics.financials.fundingNeeds);
+      drawMetricsTable([
+        { criteria: 'Current Revenue', description: 'Present revenue run rate', assessment: data.coreMetrics.financials.currentRevenue },
+        { criteria: 'Projected Revenue', description: 'Future revenue forecasts', assessment: data.coreMetrics.financials.projectedRevenue },
+        { criteria: 'Profitability', description: 'Path to breakeven/profit', assessment: data.coreMetrics.financials.profitabilityTimeline },
+        { criteria: 'Cash Position', description: 'Current cash on hand', assessment: data.coreMetrics.financials.cashPosition },
+        { criteria: 'Funding Needs', description: 'Capital requirements', assessment: data.coreMetrics.financials.fundingNeeds },
+      ]);
       doc.moveDown(1);
 
       // ============================================================
@@ -677,27 +814,54 @@ export async function generatePremiumPDF(
       doc.addPage();
       drawSectionHeader('INVESTMENT THESIS');
       
-      // Bull Case (clean straight layout)
+      const thesisLeftMargin = 60;
+      const thesisContentWidth = doc.page.width - 120;
+      
+      // Bull Case Section (Green background box)
+      checkPageBreak(180);
+      const bullBoxY = doc.y;
+      const bullPoints = data.investmentThesis.bullCase;
+      const bullContentHeight = Math.max(100, (bullPoints.length * 22) + 40);
+      
+      doc.roundedRect(thesisLeftMargin, bullBoxY, thesisContentWidth, bullContentHeight, 5)
+         .fillAndStroke('#d1fae5', COLORS.success);
+      
       doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.success)
-         .text('BULL CASE');
-      doc.moveDown(0.5);
+         .text('BULL CASE', thesisLeftMargin + 15, bullBoxY + 12);
       
-      data.investmentThesis.bullCase.forEach((point, idx) => {
+      let bullY = bullBoxY + 35;
+      bullPoints.forEach((point, idx) => {
         doc.fontSize(10).font('Helvetica').fillColor(COLORS.text)
-           .text(`${idx + 1}. ${point}`, { paragraphGap: 5 });
+           .text(`${idx + 1}. ${point}`, thesisLeftMargin + 15, bullY, { 
+             width: thesisContentWidth - 30 
+           });
+        bullY += 20;
       });
-      doc.moveDown(1.5);
       
-      // Bear Case (clean straight layout)
+      doc.y = bullBoxY + bullContentHeight + 15;
+      
+      // Bear Case Section (Red background box)
+      checkPageBreak(180);
+      const bearBoxY = doc.y;
+      const bearPoints = data.investmentThesis.bearCase;
+      const bearContentHeight = Math.max(100, (bearPoints.length * 22) + 40);
+      
+      doc.roundedRect(thesisLeftMargin, bearBoxY, thesisContentWidth, bearContentHeight, 5)
+         .fillAndStroke('#fee2e2', COLORS.danger);
+      
       doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.danger)
-         .text('BEAR CASE');
-      doc.moveDown(0.5);
+         .text('BEAR CASE', thesisLeftMargin + 15, bearBoxY + 12);
       
-      data.investmentThesis.bearCase.forEach((point, idx) => {
+      let bearY = bearBoxY + 35;
+      bearPoints.forEach((point, idx) => {
         doc.fontSize(10).font('Helvetica').fillColor(COLORS.text)
-           .text(`${idx + 1}. ${point}`, { paragraphGap: 5 });
+           .text(`${idx + 1}. ${point}`, thesisLeftMargin + 15, bearY, { 
+             width: thesisContentWidth - 30 
+           });
+        bearY += 20;
       });
-      doc.moveDown(1.5);
+      
+      doc.y = bearBoxY + bearContentHeight + 15;
       
       doc.moveDown(1);
       drawSubheader('Key Assumptions');
@@ -707,23 +871,42 @@ export async function generatePremiumPDF(
       drawSubheader('Valuation & Terms');
       drawKeyValuePair('Valuation', data.investmentThesis.valuation);
       drawKeyValuePair('Target Ownership', data.investmentThesis.targetOwnership);
-      doc.moveDown(1);
+      doc.moveDown(1.5);
       
-      // Final Recommendation Box
-      const recBoxY = doc.y;
+      // Final Recommendation Box - CENTER ALIGNED WITH FULL GREEN HIGHLIGHT
+      checkPageBreak(100);
       const recActionUpper = data.investmentThesis.recommendedAction.toUpperCase();
       const recBgColor = recActionUpper.includes('INVEST') ? '#d1fae5' : 
                          recActionUpper.includes('PASS') ? '#fee2e2' : '#fef3c7';
       const recBorderColor = recActionUpper.includes('INVEST') ? COLORS.success : 
                              recActionUpper.includes('PASS') ? COLORS.danger : COLORS.warning;
       
-      doc.roundedRect(doc.x, recBoxY, doc.page.width - 120, 60, 5)
+      // Center the recommendation box on the page
+      const recBoxWidth = thesisContentWidth;
+      const recBoxHeight = 80;
+      const recBoxX = thesisLeftMargin;
+      const recBoxY = doc.y;
+      
+      // Draw recommendation box with proper highlighting
+      doc.roundedRect(recBoxX, recBoxY, recBoxWidth, recBoxHeight, 8)
+         .lineWidth(3)
          .fillAndStroke(recBgColor, recBorderColor);
-      doc.fontSize(14).font('Helvetica-Bold').fillColor(recBorderColor)
-         .text('RECOMMENDATION', doc.x + 15, recBoxY + 12);
-      doc.fontSize(12).font('Helvetica-Bold')
-         .text(data.investmentThesis.recommendedAction, doc.x + 15, recBoxY + 35);
-      doc.y = recBoxY + 70;
+      
+      // Recommendation label - center aligned
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(recBorderColor)
+         .text('FINAL RECOMMENDATION', recBoxX, recBoxY + 15, { 
+           width: recBoxWidth, 
+           align: 'center' 
+         });
+      
+      // Recommendation action - center aligned, larger font
+      doc.fontSize(16).font('Helvetica-Bold').fillColor(recBorderColor)
+         .text(data.investmentThesis.recommendedAction, recBoxX, recBoxY + 42, { 
+           width: recBoxWidth, 
+           align: 'center' 
+         });
+      
+      doc.y = recBoxY + recBoxHeight + 20;
 
       // ============================================================
       // 🎯 NEW: VC ALIGNMENT ANALYSIS (IF AVAILABLE)

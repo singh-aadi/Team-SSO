@@ -251,6 +251,54 @@ router.get('/:deckId', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/vc-context/add - Add context directly (e.g., from Gmail import)
+router.post('/add', async (req: Request, res: Response) => {
+  try {
+    const { deckId, source, content, type = 'email', importance = 'medium' } = req.body;
+    
+    if (!deckId || !content) {
+      return res.status(400).json({ error: 'deckId and content are required' });
+    }
+    
+    console.log('📧 Adding context directly:', {
+      deckId,
+      source: source?.substring(0, 50),
+      type,
+      importance,
+      contentLength: content.length
+    });
+    
+    // Save to database
+    const result = await query(
+      `INSERT INTO vc_context_items 
+       (deck_id, file_path, file_name, file_type, content_text, metadata, upload_date)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       RETURNING *`,
+      [
+        deckId,
+        null, // No file path for direct adds
+        source || 'Direct Import',
+        type,
+        content,
+        JSON.stringify({ importance, source_type: 'gmail_import' })
+      ]
+    );
+    
+    console.log('✅ Context added:', result.rows[0].id);
+    
+    res.json({ 
+      success: true,
+      item: result.rows[0]
+    });
+  } catch (error: any) {
+    console.error('❌ Add context error:', error);
+    res.status(500).json({ 
+      error: 'Failed to add context',
+      details: error.message 
+    });
+  }
+});
+
 // GET /api/vc-context/item/:contextId - Get a specific context item with full content
 router.get('/item/:contextId', async (req: Request, res: Response) => {
   try {

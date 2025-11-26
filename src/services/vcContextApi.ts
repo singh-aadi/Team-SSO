@@ -196,4 +196,35 @@ export const vcContextApi = {
 
     return response.json();
   },
+
+  /**
+   * Add context directly (e.g., from Gmail import)
+   */
+  async addContext(
+    deckId: string,
+    context: {
+      source: string;
+      content: string;
+      type: string;
+      importance?: 'high' | 'medium' | 'low';
+    }
+  ): Promise<{ success: boolean; item: ContextItem }> {
+    const response = await fetch(`${API_URL}/vc-context/add`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deckId,
+        ...context,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.details || error.error || 'Failed to add context');
+    }
+
+    return response.json();
+  },
 };

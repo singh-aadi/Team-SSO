@@ -20,6 +20,8 @@ import vcModeRoutes from './routes/vc-mode';
 import vcAgentRoutes from './routes/vcAgent';
 import radarRoutes from './routes/radar';
 import settingsRoutes from './routes/settings';
+import gmailRoutes from './routes/gmail';
+
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -91,6 +93,8 @@ app.use('/api/vc-agent', vcAgentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/radar', radarRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/gmail', gmailRoutes);
+
 
 // 404 handler
 app.use((req: Request, res: Response) => {

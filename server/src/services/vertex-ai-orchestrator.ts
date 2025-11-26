@@ -649,19 +649,18 @@ Extract COMPREHENSIVE intelligence for a 25-30 page premium investment report.
 
 Execute web searches FIRST, then analyze the deck, then synthesize into JSON.
 
-${vcPreferences || vcContextIntelligence ? `
 ---
 
-🎯 **CRITICAL REQUIREMENT: VC ALIGNMENT ANALYSIS**
+🎯 **CRITICAL REQUIREMENT: VC ALIGNMENT ANALYSIS (ALWAYS REQUIRED)**
 
-YOU MUST include a top-level field called "vcAlignmentAnalysis" in your JSON response. This is MANDATORY, not optional.
+YOU MUST include a top-level field called "vcAlignmentAnalysis" in your JSON response. This is MANDATORY for ALL reports, not optional.
 
 Add this field to the JSON structure with the following format:
 
 "vcAlignmentAnalysis": {
-  ${vcPreferences?.dealbreakers && vcPreferences.dealbreakers.length > 0 ? `
   "dealbreakerFlags": [
-    // For EACH dealbreaker in the list below, create one object:
+    ${vcPreferences?.dealbreakers && vcPreferences.dealbreakers.length > 0 ? `
+    // For EACH dealbreaker in the custom list below, create one object:
     {
       "dealbreaker": "EXACT text from dealbreaker list",
       "matched": true or false,
@@ -669,15 +668,23 @@ Add this field to the JSON structure with the following format:
       "severity": "critical",
       "evidenceFromDeck": ["Specific quote from deck", "Another quote"]
     }
+    
+    CUSTOM DEALBREAKERS TO CHECK:
+    ${vcPreferences.dealbreakers.map((db: string, i: number) => `${i + 1}. "${db}"`).join('\n    ')}
+    ` : `
+    // Check these STANDARD investment dealbreakers:
+    // 1. "No clear revenue model or path to profitability"
+    // 2. "First-time founders with no industry experience"
+    // 3. "Undifferentiated product in crowded market"
+    // 4. "No defensible moat or competitive advantage"
+    // 5. "Unrealistic financial projections"
+    // Create objects for each standard dealbreaker you check
+    `}
   ],
   
-  DEALBREAKERS TO CHECK:
-  ${vcPreferences.dealbreakers.map((db: string, i: number) => `${i + 1}. "${db}"`).join('\n  ')}
-  ` : ''}
-  
-  ${vcPreferences?.positivePatterns && vcPreferences.positivePatterns.length > 0 ? `
   "positivePatternMatches": [
-    // For EACH positive pattern in the list below, create one object:
+    ${vcPreferences?.positivePatterns && vcPreferences.positivePatterns.length > 0 ? `
+    // For EACH positive pattern in the custom list below, create one object:
     {
       "pattern": "EXACT text from pattern list",
       "matched": true or false,
@@ -685,22 +692,40 @@ Add this field to the JSON structure with the following format:
       "strength": "strong" or "moderate" or "weak",
       "evidenceFromDeck": ["Quote supporting this", "Another quote"]
     }
+    
+    CUSTOM PATTERNS TO LOOK FOR:
+    ${vcPreferences.positivePatterns.map((pp: string, i: number) => `${i + 1}. "${pp}"`).join('\n    ')}
+    ` : `
+    // Check for these STANDARD positive investment patterns:
+    // 1. "Strong founder-market fit (domain expertise, industry experience)"
+    // 2. "Clear product-market fit with proven traction"
+    // 3. "Scalable business model with healthy unit economics"
+    // 4. "Large and growing addressable market (TAM)"
+    // 5. "Experienced team with complementary skills"
+    // 6. "Clear differentiation and competitive moat"
+    // 7. "Strong customer retention or engagement metrics"
+    // 8. "Capital efficient growth trajectory"
+    // Create objects for each pattern you identify in the deck
+    `}
   ],
   
-  PATTERNS TO LOOK FOR:
-  ${vcPreferences.positivePatterns.map((pp: string, i: number) => `${i + 1}. "${pp}"`).join('\n  ')}
-  ` : ''}
-  
-  ${vcPreferences?.investmentThesis ? `
   "thesisAlignment": {
-    "score": 0-100,
-    "alignmentAreas": ["Where deck aligns", "Another alignment"],
-    "misalignmentAreas": ["Where it doesn't align", "Another gap"],
-    "overallAssessment": "2-3 sentences summary"
-  }
-  ` : ''}
+    "score": 0-100, // Overall fit score
+    "alignmentAreas": ["Where deck shows strength", "Another strength area"],
+    "misalignmentAreas": ["Areas of concern", "Another gap"],
+    "overallAssessment": "2-3 sentences summarizing investment fit"
+  }${vcContextIntelligence ? `,
+  
+  "contextIntelligenceInsights": [
+    // Insights derived from VC context intelligence
+    {
+      "insightType": "company" | "market" | "people" | "pattern",
+      "insight": "Specific insight",
+      "relevanceToDeck": "How this relates to the startup",
+      "actionableImplication": "What this means for investment decision"
+    }
+  ]` : ''}
 }
 
-**IMPORTANT**: Keep the vcAlignmentAnalysis section SIMPLE and SHORT. Maximum 2 evidence quotes per item.
-` : ''}`;
+**IMPORTANT**: Keep the vcAlignmentAnalysis section comprehensive but focused. Include evidence from the deck for each flag/pattern.`;
 }

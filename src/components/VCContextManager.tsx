@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Upload, FileText, Trash2, Sparkles, AlertCircle, CheckCircle, XCircle, Clock, ArrowLeft, Send, Mail, BookOpen, FileStack, MessageSquare } from 'lucide-react';
 import { vcContextApi, ContextItem, ContextSummary } from '../services/vcContextApi';
 import { useNavigate, useParams } from 'react-router';
+import GmailImport from './GmailImport';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -29,6 +30,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   const [exportSuccess, setExportSuccess] = useState(false);
   const [availableDecks, setAvailableDecks] = useState<any[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string>('');
+  const [showGmailImport, setShowGmailImport] = useState(false);
 
   // Load available decks if no deckId provided
   useEffect(() => {
@@ -336,8 +338,8 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Gmail */}
             <button
-              onClick={() => setError('Gmail integration coming soon! For now, export emails as PDF and upload them.')}
-              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors group"
+              onClick={() => setShowGmailImport(true)}
+              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-red-400 hover:bg-red-50 transition-colors group"
             >
               <div className="p-2 bg-red-50 rounded-lg group-hover:bg-red-100">
                 <Mail className="h-5 w-5 text-red-600" />
@@ -346,7 +348,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
                 <p className="font-medium text-slate-900">Gmail</p>
                 <p className="text-xs text-slate-500">Import email threads</p>
               </div>
-              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Coming Soon</span>
+              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded font-medium">New</span>
             </button>
 
             {/* Slack */}
@@ -656,6 +658,36 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
           </div>
         )}
       </div>
+
+      {/* Gmail Import Modal */}
+      {showGmailImport && (
+        <GmailImport
+          onImport={async (importedItems) => {
+            const currentDeckId = deckId || selectedDeckId;
+            if (!currentDeckId) {
+              setError('Please select a deck first');
+              return;
+            }
+            
+            try {
+              // Add each imported email as context
+              for (const item of importedItems) {
+                await vcContextApi.addContext(currentDeckId, {
+                  source: item.source,
+                  content: item.content,
+                  type: 'email',
+                  importance: item.importance
+                });
+              }
+              await loadItems();
+              setShowGmailImport(false);
+            } catch (err: any) {
+              setError(err.message || 'Failed to import emails');
+            }
+          }}
+          onClose={() => setShowGmailImport(false)}
+        />
+      )}
     </div>
   );
 }
