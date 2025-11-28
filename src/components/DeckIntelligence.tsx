@@ -80,6 +80,12 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [analysisProgress, setAnalysisProgress] = useState(0); // Track polling attempts
   const [analysisStage, setAnalysisStage] = useState<string>('Initializing...');
   const [confidence, setConfidence] = useState<number>(0);
+  
+  // Additional documents state
+  const [additionalDocs, setAdditionalDocs] = useState<File[]>([]);
+  const [totalUploadSize, setTotalUploadSize] = useState(0);
+  const MAX_ADDITIONAL_DOCS = 5;
+  const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500MB
 
   // Imported Context State
   const [importedContext, setImportedContext] = useState<any>(null);
@@ -109,6 +115,14 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     loadAnalyzedDecks();
     loadPreviousComparisons();
   }, []);
+
+  // Calculate total upload size
+  useEffect(() => {
+    const deckSize = deckFile?.size || 0;
+    const checklistSize = checklistFile?.size || 0;
+    const additionalSize = additionalDocs.reduce((sum, f) => sum + f.size, 0);
+    setTotalUploadSize(deckSize + checklistSize + additionalSize);
+  }, [deckFile, checklistFile, additionalDocs]);
 
   // Debug effect to track modal state changes
   useEffect(() => {
@@ -408,6 +422,59 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     }
   };
 
+  // Additional documents handlers
+  const handleAdditionalDocsChange = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    const newFiles = Array.from(files);
+    
+    // Validate count
+    if (additionalDocs.length + newFiles.length > MAX_ADDITIONAL_DOCS) {
+      setError(`Maximum ${MAX_ADDITIONAL_DOCS} additional documents allowed`);
+      return;
+    }
+    
+    // Validate total size
+    const deckSize = deckFile?.size || 0;
+    const checklistSize = checklistFile?.size || 0;
+    const currentAdditionalSize = additionalDocs.reduce((sum, f) => sum + f.size, 0);
+    const newFilesSize = newFiles.reduce((sum, f) => sum + f.size, 0);
+    const newTotalSize = deckSize + checklistSize + currentAdditionalSize + newFilesSize;
+    
+    if (newTotalSize > MAX_TOTAL_SIZE) {
+      setError(`Total upload size would exceed 500MB limit`);
+      return;
+    }
+    
+    // Validate file types
+    const validTypes = ['.pdf', '.docx', '.doc', '.ppt', '.pptx'];
+    const invalidFiles = newFiles.filter(f => {
+      const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+      return !validTypes.includes(ext);
+    });
+    
+    if (invalidFiles.length > 0) {
+      setError('Only PDF, Word, and PowerPoint files allowed');
+      return;
+    }
+    
+    // Validate individual file sizes
+    const oversizedFiles = newFiles.filter(f => f.size > 100 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setError('Each file must be less than 100MB');
+      return;
+    }
+    
+    setAdditionalDocs([...additionalDocs, ...newFiles]);
+    setError('');
+  };
+
+  const removeAdditionalDoc = (index: number) => {
+    const newDocs = [...additionalDocs];
+    newDocs.splice(index, 1);
+    setAdditionalDocs(newDocs);
+  };
+
   const validateFile = (file: File, isPitchDeck: boolean = false): string | null => {
     // 100MB limit for all files
     if (file.size > 100 * 1024 * 1024) {
@@ -704,14 +771,20 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   };
 
   const handleUpload = async () => {
-    // Enhanced validation with stage and industry
-    if (!deckFile || !checklistFile) {
-      setError('Please select both pitch deck PDF and checklist PDF');
+    // Only deck is required now
+    if (!deckFile) {
+      setError('Please select a pitch deck');
       return;
     }
 
     if (!selectedStage || !selectedIndustry) {
       setError('Please select both funding stage and industry vertical');
+      return;
+    }
+    
+    // Validate total upload size
+    if (totalUploadSize > MAX_TOTAL_SIZE) {
+      setError(`Total upload size (${(totalUploadSize / 1024 / 1024).toFixed(1)}MB) exceeds 500MB limit`);
       return;
     }
 
@@ -723,6 +796,11 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       const userId = user?.id || crypto.randomUUID(); // Fallback to random UUID only if not logged in
       
       console.log('📤 Upload initiated by user:', userId, user?.email);
+      console.log('📁 Files:', {
+        deck: deckFile.name,
+        checklist: checklistFile?.name || 'none',
+        additionalDocs: additionalDocs.length
+      });
       
       // Find matching company or use first available
       // This maintains backward compatibility with existing API
@@ -741,18 +819,18 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         companyId = companies[0].id;
       }
       
-      console.log('Uploading dual PDFs:', deckFile.name, checklistFile.name);
       console.log('Context: Stage:', selectedStage, '| Industry:', selectedIndustry);
       
-      // Pass imported context if available
+      // Upload with optional checklist and additional docs
       const deck = await api.uploadDualDeck(
         deckFile, 
-        checklistFile, 
+        checklistFile, // Can be null
+        additionalDocs, // Can be empty array
         companyId, 
         userId,
-        importedContext, // Pass the context here
         selectedIndustry, // Pass selected industry
-        selectedStage // Pass selected stage
+        selectedStage, // Pass selected stage
+        vcContext || importedContext // Pass VC context or imported context
       );
       
       setCurrentDeck(deck);
@@ -1173,7 +1251,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Documents</h3>
                 <p className="text-slate-600 mb-6">
-                  Upload <strong>both</strong> the Pitch Deck PDF (with images/charts) and Founder Checklist PDF (unit economics, growth metrics, payment info)
+                  Upload your <strong>Pitch Deck</strong> (required) and optionally include a <strong>Founder Checklist</strong> for detailed analysis and <strong>additional supporting documents</strong> (audits, research, memos)
                 </p>
                 
                 {error && (
@@ -1295,10 +1373,10 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                     </p>
                   </div>
                   
-                  {/* Checklist Upload */}
+                  {/* Checklist Upload - Optional */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      2. Checklist (PDF/PPT/DOCX) <span className="text-red-500">*</span>
+                      2. Founder Checklist <span className="text-slate-500">(Optional - Recommended)</span>
                     </label>
                     <input
                       type="file"
@@ -1309,7 +1387,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                     />
                     <label
                       htmlFor="checklist-upload"
-                      className="flex items-center justify-center px-4 py-3 border-2 border-teal-600 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-all cursor-pointer"
+                      className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-teal-400 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-all cursor-pointer"
                     >
                       <FileText className="h-5 w-5 mr-2" />
                       {checklistFile ? 'Change Checklist' : 'Choose Checklist'}
@@ -1318,17 +1396,75 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                       <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
                         <CheckCircle className="h-4 w-4 mr-1" />
                         {checklistFile.name}
+                        <button
+                          onClick={() => setChecklistFile(null)}
+                          className="ml-auto text-green-700 hover:text-green-900"
+                        >
+                          ×
+                        </button>
                       </div>
                     )}
                     <p className="mt-1 text-xs text-slate-500">
-                      Max 100MB • Supports PDF, PowerPoint, Word
+                      Recommended for detailed unit economics analysis
                     </p>
                   </div>
                 </div>
                 
+                {/* Additional Documents Upload - Optional */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Additional Documents <span className="text-slate-500">(Optional - Up to 5 files)</span>
+                  </label>
+                  <p className="text-xs text-slate-600 mb-3">
+                    Upload supporting documents: financial audits, market research, memos, technical documentation
+                  </p>
+                  <input
+                    type="file"
+                    accept=".pdf,.ppt,.pptx,.docx,.doc"
+                    onChange={(e) => handleAdditionalDocsChange(e.target.files)}
+                    className="hidden"
+                    id="additional-docs-upload"
+                    multiple
+                  />
+                  <label
+                    htmlFor="additional-docs-upload"
+                    className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-slate-300 text-slate-600 rounded-lg font-medium hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
+                    {additionalDocs.length > 0 ? 'Add More Documents' : 'Choose Documents'}
+                  </label>
+                  
+                  {/* Additional Docs List */}
+                  {additionalDocs.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium text-slate-700">
+                        Files ({additionalDocs.length} of {MAX_ADDITIONAL_DOCS}):
+                      </p>
+                      {additionalDocs.map((doc, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                          <div className="flex items-center flex-1">
+                            <FileText className="h-4 w-4 mr-2 text-blue-600" />
+                            <span className="text-blue-900 truncate">{doc.name}</span>
+                            <span className="text-blue-600 ml-2">({(doc.size / 1024).toFixed(0)} KB)</span>
+                          </div>
+                          <button
+                            onClick={() => removeAdditionalDoc(index)}
+                            className="ml-2 text-blue-700 hover:text-blue-900 font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <p className="text-xs text-slate-500">
+                        Total: {(totalUploadSize / 1024 / 1024).toFixed(1)} MB / 500 MB
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
                 <button
                   onClick={handleUpload}
-                  disabled={uploading || !deckFile || !checklistFile || !selectedStage || !selectedIndustry}
+                  disabled={uploading || !deckFile || !selectedStage || !selectedIndustry}
                   className="w-full bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-4 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {uploading ? (
@@ -2401,6 +2537,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                 setCurrentDeck(null);
                 setAnalyzing(false);
                 setError('');
+                setAdditionalDocs([]);
               }}
               className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 transition-colors"
               title="Back to upload / deck list"

@@ -560,7 +560,8 @@ export async function analyzeDualPDFs(
   deckPath: string,
   checklistPath: string,
   companyName: string = 'the company',
-  vcPreferences?: VCPreferences
+  vcPreferences?: VCPreferences,
+  additionalDocsText?: string | null
 ): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
@@ -622,9 +623,17 @@ export async function analyzeDualPDFs(
       checklistExtractionPromise
     ]);
 
-    const deckText = deckExtraction?.text || '';
+    let deckText = deckExtraction?.text || '';
     const visualAnalysis = deckExtraction?.visuals || [];
     const checklistText = checklistExtraction?.text || '';
+
+    // Append additional documents text if present
+    if (additionalDocsText) {
+      deckText += `\n\n=== SUPPORTING DOCUMENTS ===\n`;
+      deckText += `Additional documents provided for validation and context:\n`;
+      deckText += additionalDocsText;
+      console.log(`📎 Added additional documents to analysis (+${additionalDocsText.length} chars)`);
+    }
 
     console.log(`✅ Parallel extraction complete in ${Date.now() - startTime}ms`);
 
@@ -886,17 +895,26 @@ Provide your analysis in JSON format:
 export async function analyzePitchDeckFromPDF(
   pdfPath: string, 
   companyName: string = 'the company',
-  vcPreferences?: VCPreferences
+  vcPreferences?: VCPreferences,
+  additionalDocsText?: string | null
 ): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
   vcPreferencesUsed?: VCPreferences;
 }> {
   try {
-    const text = await extractTextFromPDF(pdfPath);
+    let text = await extractTextFromPDF(pdfPath);
     
     if (!text || text.length < 100) {
       throw new Error('Insufficient text content extracted from PDF');
+    }
+
+    // Append additional documents text if present
+    if (additionalDocsText) {
+      text += `\n\n=== SUPPORTING DOCUMENTS ===\n`;
+      text += `Additional documents provided for validation and context:\n`;
+      text += additionalDocsText;
+      console.log(`📎 Added additional documents to single deck analysis (+${additionalDocsText.length} chars)`);
     }
 
     // Single PDF analysis - create a minimal checklist verification
@@ -1023,7 +1041,8 @@ export async function analyzePitchDeckWithGrounding(
   companyName: string,
   industry: string,
   additionalContext?: any,
-  vcPreferences?: VCPreferences
+  vcPreferences?: VCPreferences,
+  additionalDocsText?: string | null
 ): Promise<{
   analysis: AnalysisResult;
   sections: SectionAnalysis[];
@@ -1061,8 +1080,19 @@ export async function analyzePitchDeckWithGrounding(
       throw new Error('Insufficient text content extracted from pitch deck');
     }
     
-    // Append VC context to deck text for enhanced analysis
+    // Build enriched text with additional documents first, then VC context
     let enrichedDeckText = deckText;
+    
+    // Append additional supporting documents if present
+    if (additionalDocsText) {
+      enrichedDeckText += `\n\n=== SUPPORTING DOCUMENTS ===\n`;
+      enrichedDeckText += `The following additional documents provide supporting evidence and validation:\n`;
+      enrichedDeckText += `(Financial audits, market research, memos, technical documentation)\n`;
+      enrichedDeckText += additionalDocsText;
+      console.log(`📎 Enhanced with additional documents (+${additionalDocsText.length} characters)`);
+    }
+    
+    // Append VC context to deck text for enhanced analysis
     if (additionalContext?.summary?.executiveSummary) {
       enrichedDeckText += `\n\n=== ADDITIONAL VC CONTEXT ===\n`;
       enrichedDeckText += `Based on ${additionalContext.itemCount} documents (meeting notes, emails, etc.):\n\n`;
@@ -1075,20 +1105,20 @@ export async function analyzePitchDeckWithGrounding(
         });
       }
       
-      console.log(`✨ Enhanced deck text with VC context (+${enrichedDeckText.length - deckText.length} characters)`);
+      console.log(`✨ Enhanced deck text with VC context (+${additionalContext.itemCount} documents)`);
     }
 
     // Step 2: Extract metrics from PDF
     console.log('📊 Extracting metrics from PDF...');
     const pdfMetrics = extractMetricsFromText(enrichedDeckText);
 
-    // Step 3: Run standard analysis (existing logic) with VC preferences
+    // Step 3: Run standard analysis (existing logic) with VC preferences and additional docs
     console.log('🔍 Running standard PDF analysis...');
     let standardAnalysis;
     if (checklistPath) {
-      standardAnalysis = await analyzeDualPDFs(deckPath, checklistPath, companyName, vcPreferences);
+      standardAnalysis = await analyzeDualPDFs(deckPath, checklistPath, companyName, vcPreferences, additionalDocsText);
     } else {
-      standardAnalysis = await analyzePitchDeckFromPDF(deckPath, companyName, vcPreferences);
+      standardAnalysis = await analyzePitchDeckFromPDF(deckPath, companyName, vcPreferences, additionalDocsText);
     }
 
     // Step 4: Enrich with web search (Vertex AI + Grounding)

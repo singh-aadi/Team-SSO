@@ -132,21 +132,23 @@ class ApiService {
     ];
   }
 
-  // Pitch Decks - DUAL PDF UPLOAD (Pitch Deck + Checklist)
+  // Pitch Decks - Upload with optional checklist and additional documents
   async uploadDualDeck(
     deckFile: File, 
-    checklistFile: File, 
+    checklistFile: File | null, 
+    additionalDocs: File[],
     companyId: string, 
     userId: string,
-    additionalContext?: any,
     industry?: string,
-    stage?: string
+    stage?: string,
+    additionalContext?: any
   ): Promise<PitchDeck> {
-    console.log('📤 Uploading dual PDFs:', {
+    console.log('📤 Uploading files:', {
       deckName: deckFile.name,
       deckSize: deckFile.size,
-      checklistName: checklistFile.name,
-      checklistSize: checklistFile.size,
+      checklistName: checklistFile?.name || 'none',
+      checklistSize: checklistFile?.size || 0,
+      additionalDocs: additionalDocs.length,
       companyId,
       userId,
       industry,
@@ -156,7 +158,20 @@ class ApiService {
 
     const formData = new FormData();
     formData.append('deck', deckFile);
-    formData.append('checklist', checklistFile);
+    
+    // Checklist is optional
+    if (checklistFile) {
+      formData.append('checklist', checklistFile);
+    }
+    
+    // Additional documents are optional
+    if (additionalDocs.length > 0) {
+      additionalDocs.forEach((doc) => {
+        formData.append('additional_docs', doc);
+      });
+      console.log(`📎 Including ${additionalDocs.length} additional documents`);
+    }
+    
     formData.append('company_id', companyId);
     formData.append('uploaded_by', userId);
     

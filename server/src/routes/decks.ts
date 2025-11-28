@@ -9,7 +9,7 @@ import crypto from 'crypto';
 
 const router = Router();
 
-// Configure multer for dual file uploads (pitch deck + checklist)
+// Configure multer for file uploads (pitch deck + optional checklist + optional additional docs)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, '../../uploads');
@@ -20,7 +20,12 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const prefix = file.fieldname === 'checklist' ? 'checklist' : 'deck';
+    let prefix = 'deck';
+    if (file.fieldname === 'checklist') {
+      prefix = 'checklist';
+    } else if (file.fieldname === 'additional_docs') {
+      prefix = 'additional';
+    }
     cb(null, prefix + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
@@ -724,35 +729,39 @@ router.post('/compare-mixed', upload.single('uploadedDeck'), async (req: Request
   }
 });
 
-// POST /api/decks/upload-dual - Upload BOTH pitch deck AND checklist with comprehensive AI analysis
+// POST /api/decks/upload-dual - Upload pitch deck with optional checklist and additional documents
 router.post('/upload-dual', upload.fields([
   { name: 'deck', maxCount: 1 },
-  { name: 'checklist', maxCount: 1 }
+  { name: 'checklist', maxCount: 1 },
+  { name: 'additional_docs', maxCount: 5 }
 ]), async (req: Request, res: Response) => {
   try {
-    console.log('📥 Received dual PDF upload request');
+    console.log('📥 Received file upload request');
     console.log('Request body:', req.body);
     console.log('Files received:', req.files ? Object.keys(req.files) : 'none');
     
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     
-    if (!files || !files.deck || !files.checklist) {
-      console.error('❌ Missing files:', {
-        hasFiles: !!files,
-        hasDeck: !!files?.deck,
-        hasChecklist: !!files?.checklist
-      });
+    // Only deck is required
+    if (!files || !files.deck) {
+      console.error('❌ Missing required deck file');
       return res.status(400).json({ 
-        error: 'Both pitch deck and checklist PDFs are required',
+        error: 'Pitch deck is required',
         received: {
-          deck: !!files?.deck,
-          checklist: !!files?.checklist
+          deck: !!files?.deck
         }
       });
     }
 
     const deckFile = files.deck[0];
-    const checklistFile = files.checklist[0];
+    const checklistFile = files.checklist ? files.checklist[0] : null; // Optional
+    const additionalDocs = files.additional_docs || []; // Optional array
+    
+    console.log('📁 Files summary:', {
+      deck: deckFile.originalname,
+      checklist: checklistFile?.originalname || 'none',
+      additionalDocs: additionalDocs.length
+    });
     let { company_id, uploaded_by, additional_context, industry, stage } = req.body;
     
     // Validate company_id is a valid UUID, otherwise set to null
@@ -820,15 +829,53 @@ router.post('/upload-dual', upload.fields([
       }
     }
     
+    // Process additional documents if present
+    let additionalDocsText = '';
+    let additionalDocsPaths: Array<{ filename: string; path: string; type: string; size: number }> = [];
+    
+    if (additionalDocs.length > 0) {
+      console.log(`📎 Processing ${additionalDocs.length} additional documents...`);
+      
+      for (const doc of additionalDocs) {
+        try {
+          const fullDocPath = path.join(__dirname, '../../uploads', doc.filename);
+          const docText = await extractTextFromPDF(fullDocPath);
+          
+          additionalDocsText += `\n\n=== ADDITIONAL DOCUMENT: ${doc.originalname} ===\n`;
+          additionalDocsText += `File Type: ${doc.mimetype}\n`;
+          additionalDocsText += `Content:\n${docText}\n`;
+          
+          additionalDocsPaths.push({
+            filename: doc.originalname,
+            path: `/uploads/${doc.filename}`,
+            type: doc.mimetype,
+            size: doc.size
+          });
+          
+          console.log(`  ✅ Processed: ${doc.originalname} (${(doc.size / 1024).toFixed(0)} KB)`);
+        } catch (err) {
+          console.error(`  ❌ Failed to process ${doc.originalname}:`, err);
+          // Continue with other documents
+        }
+      }
+      
+      console.log(`✅ Successfully processed ${additionalDocsPaths.length} of ${additionalDocs.length} additional documents`);
+    }
+    
     const deckPath = `/uploads/${deckFile.filename}`;
-    const checklistPath = `/uploads/${checklistFile.filename}`;
+    const checklistPath = checklistFile ? `/uploads/${checklistFile.filename}` : null;
 
-    // Insert record with both file paths
+    // Calculate total file size
+    const totalSize = deckFile.size + 
+      (checklistFile?.size || 0) + 
+      additionalDocs.reduce((sum, doc) => sum + doc.size, 0);
+
+    // Insert record with file paths and additional docs
     const result = await query(`
       INSERT INTO pitch_decks 
       (company_id, uploaded_by, filename, file_url, deck_file_path, checklist_file_path, 
-       file_size, file_type, analysis_status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       additional_doc_paths, file_size, file_type, analysis_status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `, [
       company_id,
@@ -836,20 +883,26 @@ router.post('/upload-dual', upload.fields([
       deckFile.originalname, // Primary filename
       deckPath, // Legacy field
       deckPath, // New deck-specific path
-      checklistPath, // New checklist path
-      deckFile.size + checklistFile.size, // Total size
+      checklistPath, // Optional checklist path
+      additionalDocsPaths.length > 0 ? JSON.stringify(additionalDocsPaths) : null, // Additional docs metadata
+      totalSize, // Total size of all files
       'application/pdf',
       'pending'
     ]);
 
     const deckId = result.rows[0].id;
 
-    // Trigger comprehensive dual PDF analysis
+    // Trigger comprehensive analysis
     setTimeout(async () => {
       try {
-        console.log(`🚀 Starting DUAL PDF analysis for deck ${deckId}...`);
+        console.log(`🚀 Starting analysis for deck ${deckId}...`);
         console.log(`  - Pitch Deck: ${deckFile.originalname}`);
-        console.log(`  - Checklist: ${checklistFile.originalname}`);
+        if (checklistFile) {
+          console.log(`  - Checklist: ${checklistFile.originalname}`);
+        }
+        if (additionalDocs.length > 0) {
+          console.log(`  - Additional Docs: ${additionalDocs.length} files`);
+        }
         
         const deckResult = await query(`
           SELECT d.*, c.name as company_name 
@@ -864,7 +917,7 @@ router.post('/upload-dual', upload.fields([
 
         // Full file paths
         const fullDeckPath = path.join(__dirname, '../../', deck.deck_file_path);
-        const fullChecklistPath = path.join(__dirname, '../../', deck.checklist_file_path);
+        const fullChecklistPath = deck.checklist_file_path ? path.join(__dirname, '../../', deck.checklist_file_path) : null;
 
         console.log('📊 Analyzing pitch deck with Vertex AI + Grounding...');
         
@@ -918,7 +971,7 @@ router.post('/upload-dual', upload.fields([
           console.log('ℹ️ No uploaded_by user ID - cannot load preferences');
         }
         
-        let analysis, sections, checklistItems, webEnrichment, groundingMetadata;
+        let analysis: any, sections: any[], checklistItems: any[] = [], webEnrichment: any, groundingMetadata: any;
         
         if (useGrounding) {
           const result = await analyzePitchDeckWithGrounding(
@@ -927,7 +980,8 @@ router.post('/upload-dual', upload.fields([
             deck.company_name || 'the company',
             industry,
             parsedContext, // Pass the VC context here
-            vcPreferences // Pass VC preferences to influence analysis
+            vcPreferences, // Pass VC preferences to influence analysis
+            additionalDocsText || null // Pass additional documents text
           );
           analysis = result.analysis;
           sections = result.sections;
@@ -939,6 +993,9 @@ router.post('/upload-dual', upload.fields([
           if (parsedContext) {
             console.log(`✅ Analysis included additional VC context from ${parsedContext.itemCount} documents`);
           }
+          if (additionalDocs.length > 0) {
+            console.log(`📎 Analysis included ${additionalDocs.length} additional supporting documents`);
+          }
           if (vcPreferences) {
             console.log(`🎯 Analysis used custom VC evaluation weights from "${vcPreferences.preferencesName}"`);
           }
@@ -946,15 +1003,29 @@ router.post('/upload-dual', upload.fields([
           console.log(`   Fact-checks: ${webEnrichment?.factChecks?.verified?.length || 0} verified, ${webEnrichment?.factChecks?.discrepancies?.length || 0} discrepancies`);
         } else {
           // Fallback to standard analysis
-          const result = await analyzeDualPDFs(
-            fullDeckPath,
-            fullChecklistPath,
-            deck.company_name || 'the company',
-            vcPreferences // Pass VC preferences here too
-          );
-          analysis = result.analysis;
-          sections = result.sections;
-          checklistItems = result.checklistItems;
+          if (fullChecklistPath) {
+            const result = await analyzeDualPDFs(
+              fullDeckPath,
+              fullChecklistPath,
+              deck.company_name || 'the company',
+              vcPreferences, // Pass VC preferences here too
+              additionalDocsText || null // Pass additional documents text
+            );
+            analysis = result.analysis;
+            sections = result.sections;
+            checklistItems = result.checklistItems;
+          } else {
+            // Single deck analysis (no checklist)
+            const result = await analyzePitchDeckFromPDF(
+              fullDeckPath,
+              deck.company_name || 'the company',
+              vcPreferences,
+              additionalDocsText || null // Pass additional documents text
+            );
+            analysis = result.analysis;
+            sections = result.sections;
+            checklistItems = []; // No checklist items for single deck
+          }
         }
 
         console.log('💾 Storing analysis results...');
@@ -1084,12 +1155,22 @@ router.post('/upload-dual', upload.fields([
       }
     }, 1000);
 
+    // Build response message
+    let message = 'Pitch deck uploaded successfully! AI analysis started.';
+    if (checklistFile) {
+      message = 'Pitch deck and checklist uploaded successfully! Comprehensive AI analysis started.';
+    }
+    if (additionalDocs.length > 0) {
+      message += ` ${additionalDocs.length} supporting document${additionalDocs.length > 1 ? 's' : ''} included.`;
+    }
+    
     res.status(201).json({
       deck: result.rows[0],
-      message: 'Pitch deck and checklist uploaded successfully! Comprehensive AI analysis started.',
+      message,
       files: {
         deck: deckFile.originalname,
-        checklist: checklistFile.originalname
+        checklist: checklistFile?.originalname || null,
+        additional_docs: additionalDocs.map(doc => doc.originalname)
       }
     });
   } catch (error) {
