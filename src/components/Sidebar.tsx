@@ -55,46 +55,53 @@ export function Sidebar({ userType }: SidebarProps) {
         upcomingFeatures={wipModal.upcomingFeatures}
       />
       
-      <nav className="flex-1 p-4 space-y-2">
-        {navigation.map((item) => {
+      <nav className="flex-1 p-4">
+        {navigation.map((item, index) => {
           const Icon = item.icon;
           const isActive = pathname === item.path;
           const isWIP = item.isWIP;
           
-          if (isWIP) {
-            // WIP items show modal on click
-            return (
-              <button
-                key={item.path}
-                onClick={() => handleWIPClick(item)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-amber-50 transition-all"
-              >
-                <div className="flex items-center space-x-3">
-                  <Icon className="h-5 w-5 text-slate-400" />
-                  <span className="font-medium">{item.label}</span>
-                </div>
-                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
-                  WIP
-                </span>
-              </button>
-            );
-          }
+          // Check if we need a divider before this item
+          const prevItem = index > 0 ? navigation[index - 1] : null;
+          const needsDivider = prevItem && prevItem.section !== item.section;
           
           return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) => `
-                w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-all
-                ${isActive
-                  ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }
-              `}
-            >
-              <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
-              <span className="font-medium">{item.label}</span>
-            </NavLink>
+            <div key={item.path}>
+              {/* Add divider between sections */}
+              {needsDivider && (
+                <div className="border-t border-slate-200 my-3"></div>
+              )}
+              
+              {isWIP ? (
+                // WIP items show modal on click
+                <button
+                  onClick={() => handleWIPClick(item)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-amber-50 transition-all mb-2"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Icon className="h-5 w-5 text-slate-400" />
+                    <span className="font-medium">{item.label}</span>
+                  </div>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                    WIP
+                  </span>
+                </button>
+              ) : (
+                <NavLink
+                  to={item.path}
+                  className={({ isActive }) => `
+                    w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-all mb-2
+                    ${isActive
+                      ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }
+                  `}
+                >
+                  <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span className="font-medium">{item.label}</span>
+                </NavLink>
+              )}
+            </div>
           );
         })}
       </nav>
