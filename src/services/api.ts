@@ -56,6 +56,7 @@ export interface PitchDeck {
   sso_score?: number;
   status: 'pending' | 'processing' | 'analyzing' | 'completed' | 'analyzed' | 'failed';
   analysis?: DeckAnalysis;
+  error_message?: string;
 }
 
 class ApiService {
@@ -506,6 +507,24 @@ class ApiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ question })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to process query');
+    }
+
+    return response.json();
+  }
+
+  async chatQueryWithDeck(deckId: string, question: string): Promise<any> {
+    const response = await fetch(`${API_URL}/chat/query-deck`, {
+      method: 'POST',
+      headers: {
+        ...this.getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ deckId, question })
     });
 
     if (!response.ok) {

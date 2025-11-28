@@ -10,11 +10,14 @@ import {
   SkipForward,
   AlertCircle,
   Loader2,
-  Download
+  FileText,
+  X,
+  BarChart3,
+  TrendingUp,
+  Award,
+  Target
 } from 'lucide-react';
 import { VCContextManager } from './VCContextManager';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 import { AdvancedVCEvaluation } from './AdvancedVCEvaluation';
 import { api } from '../services/api';
 import { vcContextApi } from '../services/vcContextApi';
@@ -25,7 +28,7 @@ interface EvaluationWizardProps {
   userId: string;
 }
 
-type WizardStep = 'upload' | 'context' | 'preferences' | 'analyzing';
+type WizardStep = 'upload' | 'context' | 'preferences' | 'analyzing' | 'benchmark';
 
 export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWizardProps) {
   // Step navigation
@@ -34,10 +37,12 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
   // Upload step
   const [deckFile, setDeckFile] = useState<File | null>(null);
   const [checklistFile, setChecklistFile] = useState<File | null>(null);
+  const [additionalDocs, setAdditionalDocs] = useState<File[]>([]);
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [uploadedDeckId, setUploadedDeckId] = useState<string | null>(null);
+  const [importedContext, setImportedContext] = useState<any>(null);
   
   // Context step
   const [hasContext, setHasContext] = useState(false);
@@ -89,12 +94,24 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
   ]);
   const [hasCustomPreferences, setHasCustomPreferences] = useState(false);
   
+  // Analysis tracking
+  const [analysisComplete, setAnalysisComplete] = useState(false);
+  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  
+  // Benchmark step
+  const [benchmarkData, setBenchmarkData] = useState<any>(null);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
+  
   // General
   const [error, setError] = useState<string>('');
   const [companies, setCompanies] = useState<any[]>([]);
+  
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
   useEffect(() => {
     loadCompanies();
+    loadImportedContext();
   }, []);
 
   const loadCompanies = async () => {
@@ -106,10 +123,29 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
     }
   };
 
-  // Step 1: Upload Deck + Checklist
+  const loadImportedContext = () => {
+    try {
+      const contextStr = localStorage.getItem('importedContext');
+      if (contextStr) {
+        const context = JSON.parse(contextStr);
+        console.log('✅ Loaded imported context for wizard:', context);
+        setImportedContext(context);
+      }
+    } catch (err) {
+      console.error('Failed to load imported context:', err);
+    }
+  };
+
+  const clearImportedContext = () => {
+    localStorage.removeItem('importedContext');
+    setImportedContext(null);
+    console.log('🗑️ Cleared imported context');
+  };
+
+  // Step 1: Upload Deck + Optional Checklist + Additional Docs
   const handleUploadStep = async () => {
-    if (!deckFile || !checklistFile) {
-      setError('Please select both pitch deck and checklist PDFs');
+    if (!deckFile) {
+      setError('Please select a pitch deck');
       return;
     }
 
@@ -131,14 +167,22 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
         companyId = matchingCompany?.id || companies[0].id;
       }
 
-      console.log('📤 Uploading dual PDFs for wizard flow...');
+      console.log('📤 Uploading deck for wizard flow...', {
+        deck: deckFile.name,
+        checklist: checklistFile?.name || 'none',
+        additionalDocs: additionalDocs.length,
+        hasImportedContext: !!importedContext
+      });
       
       const deck = await api.uploadDualDeck(
         deckFile,
-        checklistFile,
+        checklistFile,           // Optional
+        additionalDocs,          // Array of additional files
         companyId,
         userId,
-        null // No context yet
+        selectedIndustry,        // Pass selected industry
+        selectedStage,           // Pass selected stage
+        importedContext          // Pass imported context if available
       );
 
       setUploadedDeckId(deck.id);
@@ -148,7 +192,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
       setCurrentStep('context');
     } catch (err: any) {
       console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload decks');
+      setError(err.message || 'Failed to upload deck');
     } finally {
       setUploading(false);
     }
@@ -184,39 +228,6 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
     console.log('⏭️ Skipping VC Preferences step');
     setHasCustomPreferences(false);
     startAnalysis();
-  };
-
-  const handleExportToDeckIntelligence = async () => {
-    if (!uploadedDeckId) {
-      alert('❌ No deck uploaded yet!');
-      return;
-    }
-
-    try {
-      // First save the preferences (call the save function but don't wait for completion flow)
-      await handleSavePreferences();
-
-      // Export to deck intelligence for the current deck
-      const exportResponse = await fetch(`${API_URL}/vc-agent/export-to-deck-intelligence`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId: uploadedDeckId,
-          userId: userId
-        })
-      });
-
-      if (!exportResponse.ok) {
-        throw new Error('Failed to export to Deck Intelligence');
-      }
-
-      const result = await exportResponse.json();
-      console.log('✅ VC Preferences exported to Deck Intelligence');
-      alert(`✅ Preferences exported to Deck Intelligence!\n\n${result.message}`);
-    } catch (err: any) {
-      console.error('Failed to export preferences:', err);
-      alert(`❌ Export failed: ${err.message}`);
-    }
   };
 
   const handleSavePreferences = async () => {
@@ -291,13 +302,117 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
   const startAnalysis = () => {
     console.log('🚀 Starting final analysis...');
     setCurrentStep('analyzing');
+    setAnalysisComplete(false);
     
-    // Give backend time to process, then notify parent
-    setTimeout(() => {
-      if (uploadedDeckId) {
-        onComplete(uploadedDeckId, hasContext, hasCustomPreferences);
+    // Start polling for analysis completion
+    if (uploadedDeckId) {
+      pollForAnalysisCompletion(uploadedDeckId);
+    }
+  };
+
+  const pollForAnalysisCompletion = async (deckId: string) => {
+    const maxAttempts = 120; // 2 minutes max (1 second intervals)
+    let attempts = 0;
+
+    const poll = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const deck = await api.getDeck(deckId);
+        console.log(`[Poll ${attempts}] Deck status:`, deck.status, 'Has analysis:', !!deck.analysis, 'Error:', deck.error_message);
+        
+        // Check if analysis is complete
+        if (deck.status === 'completed' || deck.status === 'analyzed') {
+          console.log('✅ Analysis completed!');
+          clearInterval(poll);
+          setAnalysisComplete(true);
+          setAnalysisData(deck);
+          setError(''); // Clear any previous errors
+        } else if (deck.status === 'failed') {
+          const errorMsg = deck.error_message || 'Analysis failed';
+          console.error('❌ Analysis failed:', errorMsg);
+          clearInterval(poll);
+          setAnalysisComplete(false);
+          setAnalysisData(null);
+          setError(`Analysis failed: ${errorMsg}. Please try uploading again or contact support.`);
+        } else if (attempts >= maxAttempts) {
+          console.warn('⏱️ Analysis polling timeout');
+          clearInterval(poll);
+          setError('Analysis is taking longer than expected. Please check back later.');
+        }
+      } catch (err: any) {
+        console.error('Polling error:', err);
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          setError(`Failed to check analysis status: ${err.message || 'Network error'}`);
+        }
       }
-    }, 2000);
+    }, 1000); // Poll every second
+
+    setPollingInterval(poll);
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
+
+  // Load benchmark data when entering benchmark step
+  useEffect(() => {
+    if (currentStep === 'benchmark' && uploadedDeckId && !benchmarkData) {
+      loadBenchmarkData();
+    }
+  }, [currentStep, uploadedDeckId]);
+
+  const loadBenchmarkData = async () => {
+    if (!uploadedDeckId) return;
+
+    setBenchmarkLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/sector-benchmarks/decks/${uploadedDeckId}/benchmark`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setBenchmarkData(data.data);
+        console.log('✅ Benchmark data loaded:', data.data);
+      } else {
+        setError(data.error || 'Failed to load benchmark data');
+      }
+    } catch (err: any) {
+      console.error('Error loading benchmark data:', err);
+      setError('Failed to load benchmark comparison. Please try again.');
+    } finally {
+      setBenchmarkLoading(false);
+    }
+  };
+
+  const formatMetricValue = (metric: any) => {
+    if (!metric || !metric.value) return 'N/A';
+    
+    const value = metric.value;
+    const unit = metric.unit || '';
+
+    if (unit === 'USD') {
+      if (value >= 1000000000) return `$${(value / 1000000000).toFixed(1)}B`;
+      if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+      if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+      return `$${value}`;
+    }
+
+    if (unit === 'percent') return `${value}%`;
+    
+    return `${value}${unit ? ` ${unit}` : ''}`;
+  };
+
+  const getPercentageColor = (percentage: number) => {
+    if (percentage >= 90) return 'text-green-600 bg-green-50';
+    if (percentage >= 70) return 'text-blue-600 bg-blue-50';
+    if (percentage >= 50) return 'text-orange-600 bg-orange-50';
+    return 'text-red-600 bg-red-50';
   };
 
   // Render different steps
@@ -309,9 +424,39 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
         </div>
         <h2 className="text-2xl font-bold text-slate-900 mb-2">Upload Pitch Deck</h2>
         <p className="text-slate-600">
-          Start by uploading your pitch deck and evaluation checklist
+          Start by uploading your pitch deck and optional evaluation materials
         </p>
       </div>
+
+      {/* Imported Context Banner */}
+      {importedContext && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <MessageSquare className="h-5 w-5 text-purple-600" />
+              <div>
+                <h3 className="text-sm font-semibold text-purple-900">
+                  Using Context from: {importedContext.companyName}
+                </h3>
+                <p className="text-xs text-purple-700 mt-0.5">
+                  {importedContext.itemCount} documents • Exported {new Date(importedContext.exportedAt).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={clearImportedContext}
+              className="text-purple-600 hover:text-purple-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {importedContext.summary && (
+            <p className="text-xs text-purple-700 mt-2">
+              {importedContext.summary.executiveSummary}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Deck Upload */}
       <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
@@ -349,7 +494,10 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
         </label>
 
         <label className="block mb-4">
-          <span className="text-sm font-medium text-slate-700 mb-2 block">Evaluation Checklist (PDF, DOCX, PPT) *</span>
+          <span className="text-sm font-medium text-slate-700 mb-2 block">
+            Evaluation Checklist (Optional)
+            <span className="ml-2 text-xs text-slate-500 font-normal">PDF, DOCX, PPT</span>
+          </span>
           <input
             type="file"
             accept=".pdf,.docx,.doc,.pptx,.ppt"
@@ -367,7 +515,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
                 setError('');
               }
             }}
-            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
           />
           {checklistFile && (
             <div className="mt-2 flex items-center justify-between text-sm">
@@ -378,7 +526,62 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
               <span className="text-slate-500">{(checklistFile.size / (1024 * 1024)).toFixed(2)} MB</span>
             </div>
           )}
-          <p className="mt-1 text-xs text-slate-500">Max 100MB • PDF, DOCX, or PowerPoint</p>
+          <p className="mt-1 text-xs text-slate-500">Optional custom evaluation criteria</p>
+        </label>
+
+        <label className="block mb-4">
+          <span className="text-sm font-medium text-slate-700 mb-2 block">
+            Additional Documents (Optional)
+            <span className="ml-2 text-xs text-slate-500 font-normal">Financial models, cap tables, etc.</span>
+          </span>
+          <input
+            type="file"
+            accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.csv"
+            multiple
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              const validFiles: File[] = [];
+              let hasError = false;
+
+              for (const file of files) {
+                if (file.size > 100 * 1024 * 1024) {
+                  setError(`File ${file.name} exceeds 100MB limit`);
+                  hasError = true;
+                  break;
+                }
+                validFiles.push(file);
+              }
+
+              if (!hasError) {
+                setAdditionalDocs(prev => [...prev, ...validFiles]);
+                setError('');
+              }
+              e.target.value = '';
+            }}
+            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+          />
+          {additionalDocs.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {additionalDocs.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between text-sm bg-slate-50 rounded px-2 py-1">
+                  <div className="flex items-center text-slate-700">
+                    <FileText className="h-4 w-4 mr-1 text-slate-400" />
+                    <span className="truncate max-w-[300px]">{file.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-500 text-xs">{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                    <button
+                      onClick={() => setAdditionalDocs(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-slate-500">Max 100MB per file • Multiple files supported</p>
         </label>
 
         <div className="grid grid-cols-2 gap-4">
@@ -433,7 +636,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
         </button>
         <button
           onClick={handleUploadStep}
-          disabled={uploading || !deckFile || !checklistFile || !selectedStage || !selectedIndustry}
+          disabled={uploading || !deckFile || !selectedStage || !selectedIndustry}
           className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
         >
           {uploading ? (
@@ -538,14 +741,6 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
         </button>
         <div className="flex space-x-3">
           <button
-            onClick={handleExportToDeckIntelligence}
-            className="px-6 py-3 text-white bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center space-x-2 transition-all font-semibold shadow-md hover:shadow-lg"
-            title="Export preferences to Deck Intelligence"
-          >
-            <Download className="h-5 w-5" />
-            <span>Export to Deck Intelligence</span>
-          </button>
-          <button
             onClick={handleSkipPreferences}
             className="px-6 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg flex items-center space-x-2 transition-colors"
           >
@@ -565,17 +760,287 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
   );
 
   const renderAnalyzingStep = () => (
-    <div className="text-center py-12">
-      <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full mb-6">
-        <Sparkles className="h-10 w-10 text-blue-600 animate-pulse" />
+    <div className="space-y-6">
+      <div className="text-center py-12">
+        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full mb-6">
+          {error ? (
+            <AlertCircle className="h-10 w-10 text-red-600" />
+          ) : analysisComplete ? (
+            <CheckCircle className="h-10 w-10 text-green-600" />
+          ) : (
+            <Sparkles className="h-10 w-10 text-blue-600 animate-pulse" />
+          )}
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">
+          {error ? 'Analysis Failed' : analysisComplete ? 'Analysis Complete!' : 'Analyzing Your Deck'}
+        </h2>
+        <p className="text-slate-600 mb-6">
+          {error ? (
+            'There was an issue analyzing your pitch deck. Please see details below.'
+          ) : analysisComplete ? (
+            'Your pitch deck has been thoroughly analyzed. Proceed to sector benchmarking to see how it compares.'
+          ) : (
+            <>AI is processing your deck{hasContext && ' with context'}{hasCustomPreferences && ' using custom preferences'}...</>
+          )}
+        </p>
+        {!analysisComplete && !error && (
+          <div className="flex items-center justify-center space-x-2 text-sm text-slate-500">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+            <span>This may take 1-2 minutes</span>
+          </div>
+        )}
       </div>
-      <h2 className="text-2xl font-bold text-slate-900 mb-2">Analyzing Your Deck</h2>
-      <p className="text-slate-600 mb-6">
-        AI is processing your deck{hasContext && ' with context'}{hasCustomPreferences && ' using custom preferences'}...
-      </p>
-      <div className="flex items-center justify-center space-x-2 text-sm text-slate-500">
-        <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-        <span>This may take 1-2 minutes</span>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-900 mb-2">Analysis Error</h3>
+              <p className="text-sm text-red-800 mb-4">{error}</p>
+              <div className="bg-red-100 rounded-lg p-4 text-xs text-red-900 mb-4">
+                <p className="font-semibold mb-2">Common causes:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>API rate limits exceeded (try again in a few minutes)</li>
+                  <li>File format issues (ensure PDF/DOCX/PPT are valid)</li>
+                  <li>Network connectivity problems</li>
+                  <li>Large files timing out (try smaller files)</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  setError('');
+                  setAnalysisComplete(false);
+                  if (uploadedDeckId) {
+                    console.log('🔄 Retrying analysis...');
+                    startAnalysis();
+                  }
+                }}
+                className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center space-x-2 transition-colors"
+              >
+                <ArrowRight className="h-5 w-5" />
+                <span>Retry Analysis</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {analysisComplete && !error && (
+        <div className="flex justify-between">
+          <button
+            onClick={() => setCurrentStep('preferences')}
+            className="px-6 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span>Back</span>
+          </button>
+          <button
+            onClick={() => setCurrentStep('benchmark')}
+            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-colors shadow-md"
+          >
+            <span>Next: Sector Benchmark</span>
+            <ArrowRight className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
+      {/* Back button when there's an error */}
+      {error && (
+        <div className="flex justify-between">
+          <button
+            onClick={() => setCurrentStep('upload')}
+            className="px-6 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span>Back to Upload</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderBenchmarkStep = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-100 to-blue-100 rounded-full mb-4">
+          <BarChart3 className="h-8 w-8 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">Sector Benchmarking</h2>
+        <p className="text-slate-600">
+          Compare your pitch deck against top companies in the sector
+        </p>
+      </div>
+
+      {benchmarkLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <span className="ml-3 text-slate-600">Loading benchmark data...</span>
+        </div>
+      )}
+
+      {!benchmarkLoading && !benchmarkData && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+          <p className="text-yellow-800">No benchmark data available for this deck.</p>
+          <p className="text-sm text-yellow-700 mt-2">
+            Make sure the deck has been analyzed and sector information is available.
+          </p>
+        </div>
+      )}
+
+      {!benchmarkLoading && benchmarkData && (
+        <div className="space-y-6">
+          {/* Overview Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <Target className="h-5 w-5 text-blue-600" />
+                <span className="text-xs font-medium text-blue-700">Sector</span>
+              </div>
+              <div className="text-xl font-bold text-blue-900">
+                {benchmarkData.deck?.sector || 'N/A'}
+              </div>
+              <div className="text-xs text-blue-700 mt-1">
+                vs {benchmarkData.benchmark_companies?.length || 0} companies
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+              <div className="flex items-center justify-between mb-2">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                <span className="text-xs font-medium text-green-700">Avg Score</span>
+              </div>
+              <div className="text-xl font-bold text-green-900">
+                {benchmarkData.comparison?.overall_score || 'N/A'}
+              </div>
+              <div className="text-xs text-green-700 mt-1">
+                Percentile rank
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+              <div className="flex items-center justify-between mb-2">
+                <Award className="h-5 w-5 text-purple-600" />
+                <span className="text-xs font-medium text-purple-700">Position</span>
+              </div>
+              <div className="text-xl font-bold text-purple-900">
+                #{benchmarkData.comparison?.rank || 'N/A'}
+              </div>
+              <div className="text-xs text-purple-700 mt-1">
+                Out of {(benchmarkData.benchmark_companies?.length || 0) + 1}
+              </div>
+            </div>
+          </div>
+
+          {/* Common Metrics Comparison */}
+          {benchmarkData.comparison?.common_metrics && (
+            <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                <BarChart3 className="h-5 w-5 mr-2 text-blue-600" />
+                Common Metrics Comparison
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(benchmarkData.comparison.common_metrics).map(([key, data]: [string, any]) => (
+                  <div key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-900 capitalize">
+                        {key.replace(/_/g, ' ')}
+                      </div>
+                      <div className="text-sm text-slate-600 mt-1">
+                        Your Value: <span className="font-semibold">{formatMetricValue(data.deck_value)}</span>
+                        {' | '}
+                        Avg: <span className="font-semibold">{formatMetricValue(data.sector_average)}</span>
+                      </div>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-semibold ${getPercentageColor(data.percentile || 0)}`}>
+                      {data.percentile || 0}th %ile
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sector-Specific Metrics */}
+          {benchmarkData.comparison?.sector_metrics && Object.keys(benchmarkData.comparison.sector_metrics).length > 0 && (
+            <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                <Target className="h-5 w-5 mr-2 text-green-600" />
+                Sector-Specific Metrics
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(benchmarkData.comparison.sector_metrics).map(([key, data]: [string, any]) => (
+                  <div key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-900 capitalize">
+                        {key.replace(/_/g, ' ')}
+                      </div>
+                      <div className="text-sm text-slate-600 mt-1">
+                        Your Value: <span className="font-semibold">{formatMetricValue(data.deck_value)}</span>
+                        {' | '}
+                        Avg: <span className="font-semibold">{formatMetricValue(data.sector_average)}</span>
+                      </div>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-semibold ${getPercentageColor(data.percentile || 0)}`}>
+                      {data.percentile || 0}th %ile
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Top Benchmark Companies */}
+          {benchmarkData.benchmark_companies && benchmarkData.benchmark_companies.length > 0 && (
+            <div className="bg-white rounded-lg border-2 border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                Top Companies in {benchmarkData.deck?.sector || 'Sector'}
+              </h3>
+              <div className="space-y-2">
+                {benchmarkData.benchmark_companies.slice(0, 5).map((company: any, idx: number) => (
+                  <div key={company.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-900">{company.company_name}</div>
+                        <div className="text-xs text-slate-600">{company.description?.slice(0, 60)}...</div>
+                      </div>
+                    </div>
+                    <div className="text-sm font-medium text-slate-700">
+                      Rank #{company.rank}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex justify-between">
+        <button
+          onClick={() => setCurrentStep('analyzing')}
+          className="px-6 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg flex items-center space-x-2 transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <span>Back to Analysis</span>
+        </button>
+        <button
+          onClick={() => {
+            if (uploadedDeckId) {
+              onComplete(uploadedDeckId, hasContext, hasCustomPreferences);
+            }
+          }}
+          className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 flex items-center space-x-2 transition-colors shadow-md"
+        >
+          <CheckCircle className="h-5 w-5" />
+          <span>Complete Evaluation</span>
+        </button>
       </div>
     </div>
   );
@@ -594,7 +1059,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
               </div>
               <span className="text-sm font-medium">Upload</span>
             </div>
-            <div className="flex-1 h-0.5 bg-slate-200 mx-4"></div>
+            <div className="flex-1 h-0.5 bg-slate-200 mx-2"></div>
             <div className={`flex items-center space-x-2 ${currentStep === 'context' ? 'text-purple-600' : 'text-slate-400'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 currentStep === 'context' ? 'bg-purple-600 text-white' : 'bg-slate-200'
@@ -603,7 +1068,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
               </div>
               <span className="text-sm font-medium">Context</span>
             </div>
-            <div className="flex-1 h-0.5 bg-slate-200 mx-4"></div>
+            <div className="flex-1 h-0.5 bg-slate-200 mx-2"></div>
             <div className={`flex items-center space-x-2 ${currentStep === 'preferences' ? 'text-indigo-600' : 'text-slate-400'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 currentStep === 'preferences' ? 'bg-indigo-600 text-white' : 'bg-slate-200'
@@ -612,7 +1077,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
               </div>
               <span className="text-sm font-medium">Preferences</span>
             </div>
-            <div className="flex-1 h-0.5 bg-slate-200 mx-4"></div>
+            <div className="flex-1 h-0.5 bg-slate-200 mx-2"></div>
             <div className={`flex items-center space-x-2 ${currentStep === 'analyzing' ? 'text-blue-600' : 'text-slate-400'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 currentStep === 'analyzing' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'bg-slate-200'
@@ -620,6 +1085,15 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
                 4
               </div>
               <span className="text-sm font-medium">Analyze</span>
+            </div>
+            <div className="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+            <div className={`flex items-center space-x-2 ${currentStep === 'benchmark' ? 'text-green-600' : 'text-slate-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                currentStep === 'benchmark' ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white' : 'bg-slate-200'
+              }`}>
+                5
+              </div>
+              <span className="text-sm font-medium">Benchmark</span>
             </div>
           </div>
         </div>
@@ -630,6 +1104,7 @@ export function EvaluationWizard({ onComplete, onCancel, userId }: EvaluationWiz
           {currentStep === 'context' && renderContextStep()}
           {currentStep === 'preferences' && renderPreferencesStep()}
           {currentStep === 'analyzing' && renderAnalyzingStep()}
+          {currentStep === 'benchmark' && renderBenchmarkStep()}
         </div>
       </div>
     </div>

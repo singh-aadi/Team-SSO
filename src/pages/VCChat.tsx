@@ -1,16 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Database, Globe, AlertCircle, Loader2 } from 'lucide-react';
+import { Send, Bot, User, Globe, AlertCircle, Loader2, FileText, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  source?: 'database' | 'web';
-  sourceDetails?: string;
+  source?: 'deck_analysis' | 'web_search' | 'both';
+  sourceDetails?: {
+    deckName?: string;
+    sections?: string[];
+    webSources?: string[];
+  };
   confidence?: number;
   timestamp: Date;
   isError?: boolean;
+}
+
+interface Deck {
+  id: string;
+  filename?: string;
+  file_name?: string;
+  company_name?: string;
+  analyzed_at?: string;
+  sso_score?: number;
 }
 
 export default function VCChat() {
@@ -18,12 +31,15 @@ export default function VCChat() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I\'m your AI assistant for querying pitch deck data. Ask me anything about companies in our database, like "What\'s the ARR of We360.ai?" or "Tell me about the team size of Company X".',
+      content: 'Hello! I\'m your AI assistant for analyzing pitch decks. Select a pitch deck from the dropdown above, then ask me any questions about it. I\'ll search the deck first, and if needed, supplement with web data.',
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState<string>('');
+  const [loadingDecks, setLoadingDecks] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -34,9 +50,44 @@ export default function VCChat() {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    loadCompletedDecks();
+  }, []);
+
+  const loadCompletedDecks = async () => {
+    setLoadingDecks(true);
+    try {
+      const response = await api.getDecks(undefined, 'completed');
+      setDecks(response);
+      console.log('✅ Loaded completed decks:', response.length);
+    } catch (error) {
+      console.error('Failed to load decks:', error);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Failed to load pitch decks. Please refresh the page.',
+        timestamp: new Date(),
+        isError: true
+      }]);
+    } finally {
+      setLoadingDecks(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    if (!selectedDeckId) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Please select a pitch deck from the dropdown above before asking questions.',
+        timestamp: new Date(),
+        isError: true
+      }]);
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -50,17 +101,25 @@ export default function VCChat() {
     setIsLoading(true);
 
     try {
-      const response = await api.chatQuery(input);
+      const response = await api.chatQueryWithDeck(selectedDeckId, input);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get answer');
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.answer || 'I couldn\'t find an answer to your question.',
+        content: response.answer,
         source: response.source,
-        sourceDetails: response.sourceDetails,
+        sourceDetails: {
+          deckName: response.deckName,
+          sections: response.sectionsUsed || [],
+          webSources: response.webSources || []
+        },
         confidence: response.confidence,
         timestamp: new Date(),
-        isError: !response.success
+        isError: false
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -79,15 +138,17 @@ export default function VCChat() {
     }
   };
 
-  const getSourceIcon = (source?: 'database' | 'web') => {
-    if (source === 'database') return <Database className="w-4 h-4" />;
-    if (source === 'web') return <Globe className="w-4 h-4" />;
+  const getSourceIcon = (source?: 'deck_analysis' | 'web_search' | 'both') => {
+    if (source === 'deck_analysis') return <FileText className="w-4 h-4" />;
+    if (source === 'web_search') return <Globe className="w-4 h-4" />;
+    if (source === 'both') return <><FileText className="w-4 h-4" /><Globe className="w-4 h-4 ml-1" /></>;
     return null;
   };
 
-  const getSourceLabel = (source?: 'database' | 'web') => {
-    if (source === 'database') return 'From Pitch Deck Database';
-    if (source === 'web') return 'From Web Search';
+  const getSourceLabel = (source?: 'deck_analysis' | 'web_search' | 'both') => {
+    if (source === 'deck_analysis') return 'From Pitch Deck Analysis';
+    if (source === 'web_search') return 'From Web Search';
+    if (source === 'both') return 'From Pitch Deck + Web';
     return '';
   };
 
@@ -99,27 +160,77 @@ export default function VCChat() {
   };
 
   const exampleQuestions = [
-    "What's the ARR of We360.ai?",
+    "What's the company's ARR or revenue?",
     "Tell me about the founding team",
-    "What's the market size?",
-    "What problem does the company solve?"
+    "What's the market size and opportunity?",
+    "What problem does the company solve?",
+    "What are the key metrics and traction?",
+    "Who are the main competitors?"
   ];
 
   const handleExampleClick = (question: string) => {
     setInput(question);
   };
 
+  const selectedDeck = decks.find(d => d.id === selectedDeckId);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">VC Chat Assistant</h1>
         <p className="text-gray-600">
-          Ask questions about companies in natural language. I'll search our pitch deck database first, then the web if needed.
+          Select a pitch deck and ask questions about it. I'll analyze the deck data and supplement with web search if needed.
         </p>
       </div>
 
+      {/* Deck Selector */}
+      <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200 p-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select Pitch Deck to Analyze
+        </label>
+        {loadingDecks ? (
+          <div className="flex items-center space-x-2 text-gray-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Loading pitch decks...</span>
+          </div>
+        ) : (
+          <div className="relative">
+            <select
+              value={selectedDeckId}
+              onChange={(e) => setSelectedDeckId(e.target.value)}
+              className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white appearance-none"
+            >
+              <option value="">-- Select a pitch deck --</option>
+              {decks.map((deck) => (
+                <option key={deck.id} value={deck.id}>
+                  {deck.filename || deck.file_name || 'Unknown'} 
+                  {deck.company_name && ` (${deck.company_name})`}
+                  {deck.sso_score && ` - Score: ${(deck.sso_score * 100).toFixed(0)}/100`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+          </div>
+        )}
+        {selectedDeck && (
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2 text-sm">
+              <FileText className="w-4 h-4 text-blue-600" />
+              <span className="font-medium text-blue-900">
+                Selected: {selectedDeck.filename || selectedDeck.file_name || 'Unknown'}
+              </span>
+            </div>
+            {selectedDeck.analyzed_at && (
+              <p className="text-xs text-blue-700 mt-1">
+                Analyzed: {new Date(selectedDeck.analyzed_at).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Example Questions */}
-      {messages.length === 1 && (
+      {messages.length === 1 && selectedDeckId && (
         <div className="mb-6">
           <p className="text-sm font-medium text-gray-700 mb-3">Try asking:</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -185,8 +296,22 @@ export default function VCChat() {
                     )}
 
                     {message.sourceDetails && (
-                      <div className="mt-1 text-xs text-gray-500 max-w-full overflow-hidden text-ellipsis">
-                        {message.sourceDetails}
+                      <div className="mt-2 text-xs space-y-1">
+                        {message.sourceDetails.deckName && (
+                          <div className="text-gray-600">
+                            <span className="font-medium">Deck:</span> {message.sourceDetails.deckName}
+                          </div>
+                        )}
+                        {message.sourceDetails.sections && message.sourceDetails.sections.length > 0 && (
+                          <div className="text-gray-600">
+                            <span className="font-medium">Sections used:</span> {message.sourceDetails.sections.join(', ')}
+                          </div>
+                        )}
+                        {message.sourceDetails.webSources && message.sourceDetails.webSources.length > 0 && (
+                          <div className="text-gray-600">
+                            <span className="font-medium">Web sources:</span> {message.sourceDetails.webSources.length} result(s)
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -249,10 +374,11 @@ export default function VCChat() {
           <div className="text-sm text-blue-900">
             <p className="font-medium mb-1">How it works:</p>
             <ul className="list-disc list-inside space-y-1 text-blue-800">
-              <li>First, I'll search our pitch deck database for the answer</li>
-              <li>If not found, I'll search the web using Google's advanced search</li>
-              <li>I'll always tell you where the information came from</li>
-              <li>You can ask in natural language - just like talking to a person!</li>
+              <li>Select a completed pitch deck from the dropdown above</li>
+              <li>Ask questions about the company, metrics, team, market, etc.</li>
+              <li>I'll search the pitch deck analysis first for accurate data</li>
+              <li>If needed, I'll supplement with web search for additional context</li>
+              <li>Each answer shows exactly where the information came from</li>
             </ul>
           </div>
         </div>

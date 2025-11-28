@@ -901,11 +901,14 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           setUploading(false);
           setAnalyzing(false);
           setConfidence(100);
-          setAnalysisStage('✅ Complete!');
           
           if (deck.status === 'failed') {
-            setError('Analysis failed. Please try again.');
+            const errorMsg = deck.error_message || 'Unknown error';
+            console.error('❌ Analysis failed:', errorMsg);
+            setAnalysisStage('❌ Failed');
+            setError(`Analysis failed: ${errorMsg}. Please try uploading again or contact support if the issue persists.`);
           } else {
+            setAnalysisStage('✅ Complete!');
             console.log('✓ Analysis data:', deck.analysis);
             // Refresh the analyzed decks list to include the newly completed analysis
             loadAnalyzedDecks();
