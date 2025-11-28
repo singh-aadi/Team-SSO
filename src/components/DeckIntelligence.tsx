@@ -33,6 +33,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const { user } = useAuth(); // Get the logged-in user
   const { modelInfo } = useGeminiModel(); // Get current AI model info
   
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'analysis' | 'comparison'>('analysis');
+  
   // Wizard Mode
   const [useWizardMode, setUseWizardMode] = useState(false);
   
@@ -42,7 +45,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   
   // Comparison State
   const [showComparisonUpload, setShowComparisonUpload] = useState(false);
-    const [comparisonDeck1, setComparisonDeck1] = useState<File | null>(null);
+  const [comparisonDeck1, setComparisonDeck1] = useState<File | null>(null);
   const [comparisonDeck2, setComparisonDeck2] = useState<File | null>(null);
   const [comparingDecks, setComparingDecks] = useState(false);
   const [comparisonProgress, setComparisonProgress] = useState(0);
@@ -51,6 +54,13 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [completedComparisonId, setCompletedComparisonId] = useState<string | null>(null);
   const [comparisonPreview, setComparisonPreview] = useState<any>(null);
   const [showComparisonPreview, setShowComparisonPreview] = useState(false);
+  
+  // Deck Selection Mode (analyzed vs upload)
+  const [deck1Mode, setDeck1Mode] = useState<'analyzed' | 'upload'>('analyzed');
+  const [deck2Mode, setDeck2Mode] = useState<'analyzed' | 'upload'>('analyzed');
+  const [analyzedDecks, setAnalyzedDecks] = useState<PitchDeck[]>([]);
+  const [selectedDeck1Id, setSelectedDeck1Id] = useState<string>('');
+  const [selectedDeck2Id, setSelectedDeck2Id] = useState<string>('');
 
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -76,7 +86,19 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     loadCompanies();
     loadImportedContext();
     loadVCContext();
+    loadAnalyzedDecks();
   }, []);
+
+  const loadAnalyzedDecks = async () => {
+    try {
+      // Fetch only completed/analyzed decks
+      const decks = await api.getDecks(undefined, 'completed');
+      console.log('✅ Loaded analyzed decks:', decks);
+      setAnalyzedDecks(decks);
+    } catch (err) {
+      console.error('Error loading analyzed decks:', err);
+    }
+  };
 
   const loadImportedContext = () => {
     try {
@@ -196,27 +218,66 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   };
 
   const handleCompareDecks = async () => {
-    if (!comparisonDeck1 || !comparisonDeck2) {
-      setError('Please select both pitch decks to compare');
-      return;
-    }
-
     setComparingDecks(true);
     setComparisonProgress(0);
     setComparisonConfidence(0);
-    setComparisonStage('Uploading files...');
     setError('');
 
     try {
       const userId = user?.id || crypto.randomUUID();
-      console.log('📊 Starting comparison for:', comparisonDeck1.name, 'vs', comparisonDeck2.name);
       
-      const result = await api.compareDecks(comparisonDeck1, comparisonDeck2, userId);
-      
-      console.log('✅ Comparison started:', result);
+      // Determine comparison scenario
+      const scenario = `${deck1Mode}-${deck2Mode}`;
+      console.log('📊 Comparison scenario:', scenario);
+
+      let result;
+
+      switch (scenario) {
+        case 'analyzed-analyzed':
+          // Both decks are already analyzed - use new compareAnalyzedDecks endpoint
+          if (!selectedDeck1Id || !selectedDeck2Id) {
+            setError('Please select both pitch decks from the dropdown');
+            setComparingDecks(false);
+            return;
+          }
+          
+          setComparisonStage('🔍 Fetching analyzed decks...');
+          console.log('📊 Comparing analyzed decks:', selectedDeck1Id, 'vs', selectedDeck2Id);
+          
+          result = await api.compareAnalyzedDecks(selectedDeck1Id, selectedDeck2Id, userId);
+          console.log('✅ Analyzed decks comparison started:', result);
+          break;
+
+        case 'upload-upload':
+          // Both are new uploads - use existing compareDecks endpoint
+          if (!comparisonDeck1 || !comparisonDeck2) {
+            setError('Please upload both pitch decks');
+            setComparingDecks(false);
+            return;
+          }
+          
+          setComparisonStage('📤 Uploading files...');
+          console.log('📊 Comparing uploaded files:', comparisonDeck1.name, 'vs', comparisonDeck2.name);
+          
+          result = await api.compareDecks(comparisonDeck1, comparisonDeck2, userId);
+          console.log('✅ Upload comparison started:', result);
+          break;
+
+        case 'analyzed-upload':
+        case 'upload-analyzed':
+          // Mixed scenario - not yet implemented
+          setError('Mixed comparison (analyzed + upload) is not yet supported. Please select both from analyzed decks or upload both files.');
+          setComparingDecks(false);
+          return;
+
+        default:
+          setError('Invalid comparison scenario');
+          setComparingDecks(false);
+          return;
+      }
       
       // Start polling for comparison completion
-      pollForComparison(result.id);
+      pollForComparison(result.id, scenario);
     } catch (err: any) {
       console.error('Comparison error:', err);
       setError(err.message || 'Failed to compare decks');
@@ -226,7 +287,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     }
   };
 
-  const pollForComparison = async (comparisonId: string) => {
+  const pollForComparison = async (comparisonId: string, scenario: string = 'upload-upload') => {
     const maxAttempts = 300; // 10 minutes max
     let attempts = 0;
 
@@ -234,31 +295,52 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       attempts++;
       setComparisonProgress(attempts);
       
-      // Update stage and confidence based on progress
-      if (attempts <= 5) {
-        setComparisonStage('📤 Uploading pitch decks...');
-        setComparisonConfidence(10);
-      } else if (attempts <= 15) {
-        setComparisonStage('📄 Extracting text from Deck 1...');
-        setComparisonConfidence(20);
-      } else if (attempts <= 25) {
-        setComparisonStage('📄 Extracting text from Deck 2...');
-        setComparisonConfidence(30);
-      } else if (attempts <= 45) {
-        setComparisonStage('🔍 Analyzing Deck 1 individually...');
-        setComparisonConfidence(45);
-      } else if (attempts <= 65) {
-        setComparisonStage('🔍 Analyzing Deck 2 individually...');
-        setComparisonConfidence(60);
-      } else if (attempts <= 100) {
-        setComparisonStage('⚖️ Running comparative AI analysis...');
-        setComparisonConfidence(75);
-      } else if (attempts <= 150) {
-        setComparisonStage('📊 Identifying strengths & weaknesses...');
-        setComparisonConfidence(85);
+      // Update stage and confidence based on progress and scenario
+      if (scenario === 'analyzed-analyzed') {
+        // Faster progression for pre-analyzed decks (no extraction/individual analysis needed)
+        if (attempts <= 3) {
+          setComparisonStage('🔍 Loading analyzed decks...');
+          setComparisonConfidence(20);
+        } else if (attempts <= 8) {
+          setComparisonStage('⚖️ Running comparative AI analysis...');
+          setComparisonConfidence(50);
+        } else if (attempts <= 15) {
+          setComparisonStage('🌐 Validating with web search...');
+          setComparisonConfidence(70);
+        } else if (attempts <= 25) {
+          setComparisonStage('📊 Identifying key differences...');
+          setComparisonConfidence(85);
+        } else {
+          setComparisonStage('✨ Generating recommendations...');
+          setComparisonConfidence(95);
+        }
       } else {
-        setComparisonStage('✨ Generating recommendations...');
-        setComparisonConfidence(95);
+        // Standard progression for uploaded files
+        if (attempts <= 5) {
+          setComparisonStage('📤 Uploading pitch decks...');
+          setComparisonConfidence(10);
+        } else if (attempts <= 15) {
+          setComparisonStage('📄 Extracting text from Deck 1...');
+          setComparisonConfidence(20);
+        } else if (attempts <= 25) {
+          setComparisonStage('📄 Extracting text from Deck 2...');
+          setComparisonConfidence(30);
+        } else if (attempts <= 45) {
+          setComparisonStage('🔍 Analyzing Deck 1 individually...');
+          setComparisonConfidence(45);
+        } else if (attempts <= 65) {
+          setComparisonStage('🔍 Analyzing Deck 2 individually...');
+          setComparisonConfidence(60);
+        } else if (attempts <= 100) {
+          setComparisonStage('⚖️ Running comparative AI analysis...');
+          setComparisonConfidence(75);
+        } else if (attempts <= 150) {
+          setComparisonStage('📊 Identifying strengths & weaknesses...');
+          setComparisonConfidence(85);
+        } else {
+          setComparisonStage('✨ Generating recommendations...');
+          setComparisonConfidence(95);
+        }
       }
       
       try {
@@ -504,31 +586,65 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Pitch Deck & Memo Intelligence</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Deck Intelligence</h1>
             <p className="text-slate-600 mt-1">
               {userType === 'founder' 
-                ? 'Upload your deck to get instant feedback and SSO Readiness Score™'
+                ? 'Analyze your pitch deck or compare multiple decks'
                 : 'Analyze multiple decks and compare them side-by-side'}
             </p>
           </div>
           
-          {/* Wizard Mode Toggle */}
-          <div className="flex gap-3">
+          {/* Wizard Mode Toggle - Only show on Analysis tab */}
+          {activeTab === 'analysis' && (
+            <div className="flex gap-3">
+              <button
+                onClick={() => setUseWizardMode(true)}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+              >
+                <Wand2 className="h-5 w-5" />
+                <span>Guided Evaluation</span>
+              </button>
+              
+              <button
+                onClick={() => window.location.href = '/vc-mode'}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+                title="Configure Advanced VC Evaluation preferences"
+              >
+                <Target className="h-5 w-5" />
+                <span>Advanced VC Eval</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="border-b border-slate-200 -mx-6">
+          <div className="flex px-6">
             <button
-              onClick={() => setUseWizardMode(true)}
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
+              onClick={() => setActiveTab('analysis')}
+              className={`flex-1 px-6 py-4 font-medium transition-all relative ${
+                activeTab === 'analysis'
+                  ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-600'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
             >
-              <Wand2 className="h-5 w-5" />
-              <span>Guided Evaluation</span>
+              <div className="flex items-center justify-center space-x-2">
+                <FileText className="h-5 w-5" />
+                <span>Pitch Deck & Memo Intelligence</span>
+              </div>
             </button>
-            
             <button
-              onClick={() => window.location.href = '/vc-mode'}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 flex items-center space-x-2 transition-all shadow-md hover:shadow-lg"
-              title="Configure Advanced VC Evaluation preferences"
+              onClick={() => setActiveTab('comparison')}
+              className={`flex-1 px-6 py-4 font-medium transition-all relative ${
+                activeTab === 'comparison'
+                  ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-600'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
             >
-              <Target className="h-5 w-5" />
-              <span>Advanced VC Eval</span>
+              <div className="flex items-center justify-center space-x-2">
+                <BarChart className="h-5 w-5" />
+                <span>Compare Pitch Decks</span>
+              </div>
             </button>
           </div>
         </div>
@@ -612,8 +728,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           </div>
         )}
 
-        {/* Imported Context Badge */}
-        {importedContext && (
+        {/* Imported Context Badge - Only show on Analysis tab */}
+        {activeTab === 'analysis' && importedContext && (
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center space-x-2">
@@ -669,6 +785,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           </div>
         )}
 
+        {/* Tab Content - Analysis Tab */}
+        {activeTab === 'analysis' && (
         <div className="grid grid-cols-1 gap-6">
           {/* Dual PDF Upload */}
           <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-8 hover:border-blue-400 transition-colors">
@@ -694,12 +812,10 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-slate-800 mb-1">
-                        Industry Context & Benchmarking
+                        Analyse Your Pitch Documents
                       </h3>
                       <p className="text-sm text-slate-600 leading-relaxed">
-                        Help our AI provide <strong>industry-specific insights</strong> and compare your deck against 
-                        <strong> relevant benchmarks</strong>. Different industries and funding stages have unique 
-                        metrics that VCs evaluate differently.
+                        Intelligent industry-specific analysis
                       </p>
                     </div>
                   </div>
@@ -760,31 +876,6 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                         Each industry has unique KPIs & metrics
                       </p>
                     </div>
-                  </div>
-
-                  {/* Why This Matters - Expandable Info */}
-                  <div className="mt-4 bg-white border border-blue-200 rounded-lg p-4">
-                    <details className="cursor-pointer">
-                      <summary className="text-sm font-medium text-blue-700 hover:text-blue-800 flex items-center">
-                        <span className="mr-2">💡</span>
-                        Why do we need this information?
-                      </summary>
-                      <div className="mt-3 text-xs text-slate-600 space-y-2 pl-6">
-                        <p>
-                          <strong className="text-slate-800">🎯 Industry Benchmarking:</strong> HealthTech requires FDA approvals, 
-                          FinTech needs regulatory compliance, CleanTech focuses on environmental impact. We compare your metrics 
-                          against similar companies.
-                        </p>
-                        <p>
-                          <strong className="text-slate-800">📊 Stage-Appropriate Expectations:</strong> Seed stage focuses on 
-                          MVP & early traction, Series A on growth & unit economics, Series B on scaling & profitability.
-                        </p>
-                        <p>
-                          <strong className="text-slate-800">💼 VC-Specific Insights:</strong> Different VCs specialize in 
-                          different sectors. Our analysis tailors recommendations to what investors in YOUR industry look for.
-                        </p>
-                      </div>
-                    </details>
                   </div>
                 </div>
 
@@ -961,11 +1052,16 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border-2 border-slate-200 p-8 hover:border-blue-200 transition-colors">
+        </div>
+        )}
+
+        {/* Tab Content - Comparison Tab */}
+        {activeTab === 'comparison' && (
+          <div className="bg-white rounded-xl border-2 border-slate-200 p-8">
             {!showComparisonUpload ? (
               <div className="text-center">
                 <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Pitch Decks (Legacy)</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Pitch Decks</h3>
                 <p className="text-slate-600 mb-6">
                   Upload two pitch decks to get AI-powered side-by-side comparative analysis
                 </p>
@@ -973,7 +1069,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   onClick={() => setShowComparisonUpload(true)}
                   className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
                 >
-                  Select Reports to Compare
+                  Start Comparison
                 </button>
               </div>
             ) : (
@@ -1002,57 +1098,177 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Deck 1 Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Deck 1 Selection */}
+                  <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-4">
+                    <label className="block text-sm font-semibold text-slate-900 mb-3">
                       First Pitch Deck <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="file"
-                      accept=".pdf,.ppt,.pptx,.docx,.doc"
-                      onChange={handleComparison1FileSelect}
-                      className="hidden"
-                      id="comparison-deck-1"
-                    />
-                    <label
-                      htmlFor="comparison-deck-1"
-                      className="flex items-center justify-center px-4 py-3 border-2 border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-all cursor-pointer"
-                    >
-                      <FileText className="h-5 w-5 mr-2" />
-                      {comparisonDeck1 ? 'Change Deck 1' : 'Choose Deck 1'}
-                    </label>
-                    {comparisonDeck1 && (
-                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        {comparisonDeck1.name}
+                    
+                    {/* Mode Toggle for Deck 1 */}
+                    <div className="flex gap-2 mb-4">
+                      <button
+                        onClick={() => {
+                          setDeck1Mode('analyzed');
+                          setComparisonDeck1(null);
+                        }}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          deck1Mode === 'analyzed'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Select Analyzed
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeck1Mode('upload');
+                          setSelectedDeck1Id('');
+                        }}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          deck1Mode === 'upload'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Upload New
+                      </button>
+                    </div>
+
+                    {/* Analyzed Deck Selection */}
+                    {deck1Mode === 'analyzed' && (
+                      <div>
+                        <select
+                          value={selectedDeck1Id}
+                          onChange={(e) => setSelectedDeck1Id(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white"
+                        >
+                          <option value="">Select a deck...</option>
+                          {analyzedDecks.map(deck => (
+                            <option key={deck.id} value={deck.id}>
+                              {deck.file_name} {deck.company_name ? `(${deck.company_name})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedDeck1Id && (
+                          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Selected: {analyzedDecks.find(d => d.id === selectedDeck1Id)?.file_name}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Upload New Deck */}
+                    {deck1Mode === 'upload' && (
+                      <div>
+                        <input
+                          type="file"
+                          accept=".pdf,.ppt,.pptx,.docx,.doc"
+                          onChange={handleComparison1FileSelect}
+                          className="hidden"
+                          id="comparison-deck-1"
+                        />
+                        <label
+                          htmlFor="comparison-deck-1"
+                          className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-blue-400 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-all cursor-pointer"
+                        >
+                          <Upload className="h-5 w-5 mr-2" />
+                          {comparisonDeck1 ? 'Change File' : 'Upload Deck'}
+                        </label>
+                        {comparisonDeck1 && (
+                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            {comparisonDeck1.name}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Deck 2 Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                  {/* Deck 2 Selection */}
+                  <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-4">
+                    <label className="block text-sm font-semibold text-slate-900 mb-3">
                       Second Pitch Deck <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="file"
-                      accept=".pdf,.ppt,.pptx,.docx,.doc"
-                      onChange={handleComparison2FileSelect}
-                      className="hidden"
-                      id="comparison-deck-2"
-                    />
-                    <label
-                      htmlFor="comparison-deck-2"
-                      className="flex items-center justify-center px-4 py-3 border-2 border-teal-600 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-all cursor-pointer"
-                    >
-                      <FileText className="h-5 w-5 mr-2" />
-                      {comparisonDeck2 ? 'Change Deck 2' : 'Choose Deck 2'}
-                    </label>
-                    {comparisonDeck2 && (
-                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        {comparisonDeck2.name}
+                    
+                    {/* Mode Toggle for Deck 2 */}
+                    <div className="flex gap-2 mb-4">
+                      <button
+                        onClick={() => {
+                          setDeck2Mode('analyzed');
+                          setComparisonDeck2(null);
+                        }}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          deck2Mode === 'analyzed'
+                            ? 'bg-teal-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Select Analyzed
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeck2Mode('upload');
+                          setSelectedDeck2Id('');
+                        }}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          deck2Mode === 'upload'
+                            ? 'bg-teal-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Upload New
+                      </button>
+                    </div>
+
+                    {/* Analyzed Deck Selection */}
+                    {deck2Mode === 'analyzed' && (
+                      <div>
+                        <select
+                          value={selectedDeck2Id}
+                          onChange={(e) => setSelectedDeck2Id(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 bg-white"
+                        >
+                          <option value="">Select a deck...</option>
+                          {analyzedDecks.map(deck => (
+                            <option key={deck.id} value={deck.id}>
+                              {deck.file_name} {deck.company_name ? `(${deck.company_name})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedDeck2Id && (
+                          <div className="mt-2 p-2 bg-teal-50 border border-teal-200 rounded text-xs text-teal-800 flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Selected: {analyzedDecks.find(d => d.id === selectedDeck2Id)?.file_name}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Upload New Deck */}
+                    {deck2Mode === 'upload' && (
+                      <div>
+                        <input
+                          type="file"
+                          accept=".pdf,.ppt,.pptx,.docx,.doc"
+                          onChange={handleComparison2FileSelect}
+                          className="hidden"
+                          id="comparison-deck-2"
+                        />
+                        <label
+                          htmlFor="comparison-deck-2"
+                          className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-teal-400 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-all cursor-pointer"
+                        >
+                          <Upload className="h-5 w-5 mr-2" />
+                          {comparisonDeck2 ? 'Change File' : 'Upload Deck'}
+                        </label>
+                        {comparisonDeck2 && (
+                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            {comparisonDeck2.name}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1064,7 +1280,13 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
 
                 <button
                   onClick={handleCompareDecks}
-                  disabled={comparingDecks || !comparisonDeck1 || !comparisonDeck2}
+                  disabled={
+                    comparingDecks || 
+                    (deck1Mode === 'upload' && !comparisonDeck1) || 
+                    (deck1Mode === 'analyzed' && !selectedDeck1Id) ||
+                    (deck2Mode === 'upload' && !comparisonDeck2) || 
+                    (deck2Mode === 'analyzed' && !selectedDeck2Id)
+                  }
                   className="w-full bg-gradient-to-r from-blue-800 to-teal-600 text-white px-6 py-4 rounded-lg font-medium hover:from-blue-900 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {comparingDecks ? (
@@ -1421,6 +1643,20 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                     {/* Export Options at Bottom */}
                     <div className="border-t border-slate-200 bg-slate-50 p-6">
                       <h4 className="text-md font-semibold text-slate-900 mb-4">Export Comparison Report</h4>
+                      
+                      {/* Premium PDF - Featured */}
+                      <div className="mb-4">
+                        <a
+                          href={`${API_URL}/decks/compare/${completedComparisonId}/report/premium`}
+                          download
+                          className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+                        >
+                          <Download className="h-5 w-5" />
+                          <span>Premium PDF Report</span>
+                        </a>
+                      </div>
+                      
+                      {/* Standard Formats */}
                       <div className="grid grid-cols-3 gap-3">
                         <a
                           href={`${API_URL}/decks/compare/${completedComparisonId}/report/pdf`}
@@ -1507,7 +1743,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
               </div>
             )}
           </div>
-        </div>
+        )}
+
       </div>
     );
   }
@@ -1516,18 +1753,55 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            {analyzing ? 'Analyzing Your Deck...' : 'Deck Analysis Complete'}
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Deck Intelligence</h1>
           <p className="text-slate-600 mt-1">
-            Analysis for: "{currentDeck.file_name}" 
-            {currentDeck.company_name && ` - ${currentDeck.company_name}`}
+            {analyzing ? 'Analyzing your deck...' : `Analysis for: "${currentDeck.file_name}"`}
           </p>
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="text-right">
-            <p className="text-3xl font-bold text-blue-800">{ssoScore}/10</p>
-            <p className="text-sm text-slate-600">SSO Readiness Score™</p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-slate-200 -mx-6">
+        <div className="flex px-6">
+          <button
+            onClick={() => setActiveTab('analysis')}
+            className={`flex-1 px-6 py-4 font-medium transition-all relative ${
+              activeTab === 'analysis'
+                ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <FileText className="h-5 w-5" />
+              <span>Pitch Deck & Memo Intelligence</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('comparison')}
+            className={`flex-1 px-6 py-4 font-medium transition-all relative ${
+              activeTab === 'comparison'
+                ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <BarChart className="h-5 w-5" />
+              <span>Compare Pitch Decks</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Analysis Results Section */}
+      {activeTab === 'analysis' && (
+      <>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-3xl font-bold text-blue-800">{ssoScore}/10</p>
+              <p className="text-sm text-slate-600">SSO Readiness Score™</p>
+            </div>
           </div>
 
           <div className="flex space-x-2">
@@ -1597,8 +1871,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         </div>
       </div>
 
-      {/* Industry Benchmark Context Card - Separate Section */}
-      {selectedStage && selectedIndustry && (
+        {/* Industry Benchmark Context Card - Separate Section */}
+        {selectedStage && selectedIndustry && (
         <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center space-x-3">
@@ -1804,9 +2078,27 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         </div>
       </div>
 
-      <div className="text-center py-4">
+      <div className="text-center py-4 mt-6">
         <p className="text-xs text-slate-400">Analysis powered by Team SSO Intelligence Engine</p>
       </div>
+      </>
+      )}
+
+      {/* Comparison Tab Content */}
+      {activeTab === 'comparison' && (
+        <div className="text-center py-12">
+          <p className="text-slate-600">Please return to the main page to access the comparison tool.</p>
+          <button
+            onClick={() => {
+              setCurrentDeck(null);
+              setActiveTab('comparison');
+            }}
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Go to Comparison Tool
+          </button>
+        </div>
+      )}
     </div>
   );
 }

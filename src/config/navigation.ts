@@ -88,6 +88,12 @@ export const VC_NAV: NavItem[] = [
     description: 'AI-powered knowledge agent'
   },
   {
+    path: '/sector-benchmarks',
+    label: 'Sector Benchmarking',
+    icon: BarChart3,
+    description: 'Compare against top 10 companies per sector with AI-powered insights'
+  },
+  {
     path: '/vc-journey',
     label: 'VC Journey',
     icon: Briefcase,
@@ -100,12 +106,6 @@ export const VC_NAV: NavItem[] = [
       'Portfolio company tracking',
       'Automated follow-up reminders'
     ]
-  },
-  {
-    path: '/sector-benchmarks',
-    label: 'Sector Benchmarking',
-    icon: BarChart3,
-    description: 'Compare against top 10 companies per sector with AI-powered insights'
   }
 ];
 

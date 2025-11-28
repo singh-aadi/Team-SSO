@@ -365,7 +365,16 @@ class ApiService {
 
     if (!response.ok) throw new Error('Failed to fetch decks');
     const data = await response.json();
-    return data.decks || [];
+    
+    // Map backend field names to frontend expectations
+    const decks = (data.decks || []).map((deck: any) => ({
+      ...deck,
+      status: deck.analysis_status || deck.status || 'pending',
+      file_path: deck.file_url || deck.deck_file_path,
+      file_name: deck.filename || deck.file_name
+    }));
+    
+    return decks;
   }
 
   async analyzeDeck(deckId: string): Promise<DeckAnalysis> {
@@ -380,6 +389,28 @@ class ApiService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to analyze deck');
+    }
+
+    return response.json();
+  }
+
+  async compareAnalyzedDecks(deck1Id: string, deck2Id: string, userId?: string): Promise<{ id: string; message: string; decks: any }> {
+    const response = await fetch(`${API_URL}/decks/compare-analyzed`, {
+      method: 'POST',
+      headers: {
+        ...this.getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deck1_id: deck1Id,
+        deck2_id: deck2Id,
+        user_id: userId
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to compare analyzed decks');
     }
 
     return response.json();

@@ -185,6 +185,245 @@ router.post('/compare', upload.fields([
   }
 });
 
+// POST /api/decks/compare-analyzed - Compare two already-analyzed decks from database
+router.post('/compare-analyzed', async (req: Request, res: Response) => {
+  try {
+    console.log('🆚 Received analyzed decks comparison request');
+    const { deck1_id, deck2_id, user_id } = req.body;
+
+    if (!deck1_id || !deck2_id) {
+      return res.status(400).json({ error: 'Both deck IDs are required' });
+    }
+
+    console.log(`   Deck 1 ID: ${deck1_id}`);
+    console.log(`   Deck 2 ID: ${deck2_id}`);
+
+    // Fetch both deck analyses from database
+    const deck1Result = await query(`
+      SELECT d.*, c.name as company_name, c.stage, c.industry 
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1 AND d.analysis_status = 'completed'
+    `, [deck1_id]);
+
+    const deck2Result = await query(`
+      SELECT d.*, c.name as company_name, c.stage, c.industry 
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1 AND d.analysis_status = 'completed'
+    `, [deck2_id]);
+
+    if (deck1Result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deck 1 not found or not analyzed' });
+    }
+    if (deck2Result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deck 2 not found or not analyzed' });
+    }
+
+    const deck1 = deck1Result.rows[0];
+    const deck2 = deck2Result.rows[0];
+
+    // Fetch section analyses
+    const deck1SectionsResult = await query(`
+      SELECT * FROM deck_analysis WHERE deck_id = $1 ORDER BY section_name
+    `, [deck1_id]);
+
+    const deck2SectionsResult = await query(`
+      SELECT * FROM deck_analysis WHERE deck_id = $1 ORDER BY section_name
+    `, [deck2_id]);
+
+    console.log(`✓ Fetched deck 1: ${deck1.company_name || deck1.filename}`);
+    console.log(`✓ Fetched deck 2: ${deck2.company_name || deck2.filename}`);
+
+    // Format data for Vertex AI comparison
+    const { compareAnalyzedDecks } = await import('../services/vertex-ai');
+    
+    const deck1Data = {
+      deckId: deck1.id,
+      companyName: deck1.company_name || deck1.filename,
+      industry: deck1.industry || 'Unknown',
+      stage: deck1.stage || 'Unknown',
+      filename: deck1.filename,
+      analyzedAt: deck1.analyzed_at,
+      overallAnalysis: {
+        ssoScore: deck1.sso_score || 0,
+        problemScore: deck1.dual_pdf_analysis?.problemScore || 0,
+        solutionScore: deck1.dual_pdf_analysis?.solutionScore || 0,
+        marketScore: deck1.dual_pdf_analysis?.marketScore || 0,
+        tractionScore: deck1.dual_pdf_analysis?.tractionScore || 0,
+        teamScore: deck1.dual_pdf_analysis?.teamScore || 0,
+        financialsScore: deck1.dual_pdf_analysis?.financialsScore || 0,
+        overallScore: deck1.dual_pdf_analysis?.overallScore || 0,
+        strengths: deck1.dual_pdf_analysis?.strengths || [],
+        weaknesses: deck1.dual_pdf_analysis?.weaknesses || [],
+        keyInsights: deck1.dual_pdf_analysis?.keyInsights || [],
+        recommendation: deck1.dual_pdf_analysis?.recommendation || ''
+      },
+      sections: deck1SectionsResult.rows.map(row => ({
+        sectionName: row.section_name,
+        sectionScore: row.section_score * 100,
+        feedback: row.feedback,
+        strengths: row.strengths || [],
+        improvements: row.improvements || []
+      }))
+    };
+
+    const deck2Data = {
+      deckId: deck2.id,
+      companyName: deck2.company_name || deck2.filename,
+      industry: deck2.industry || 'Unknown',
+      stage: deck2.stage || 'Unknown',
+      filename: deck2.filename,
+      analyzedAt: deck2.analyzed_at,
+      overallAnalysis: {
+        ssoScore: deck2.sso_score || 0,
+        problemScore: deck2.dual_pdf_analysis?.problemScore || 0,
+        solutionScore: deck2.dual_pdf_analysis?.solutionScore || 0,
+        marketScore: deck2.dual_pdf_analysis?.marketScore || 0,
+        tractionScore: deck2.dual_pdf_analysis?.tractionScore || 0,
+        teamScore: deck2.dual_pdf_analysis?.teamScore || 0,
+        financialsScore: deck2.dual_pdf_analysis?.financialsScore || 0,
+        overallScore: deck2.dual_pdf_analysis?.overallScore || 0,
+        strengths: deck2.dual_pdf_analysis?.strengths || [],
+        weaknesses: deck2.dual_pdf_analysis?.weaknesses || [],
+        keyInsights: deck2.dual_pdf_analysis?.keyInsights || [],
+        recommendation: deck2.dual_pdf_analysis?.recommendation || ''
+      },
+      sections: deck2SectionsResult.rows.map(row => ({
+        sectionName: row.section_name,
+        sectionScore: row.section_score * 100,
+        feedback: row.feedback,
+        strengths: row.strengths || [],
+        improvements: row.improvements || []
+      }))
+    };
+
+    // Create comparison record in database
+    // Validate user_id is a valid UUID or set to null
+    const isValidUUID = (str: string) => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return str && uuidRegex.test(str);
+    };
+    
+    const validUserId = user_id && isValidUUID(user_id) ? user_id : null;
+    
+    const comparisonResult = await query(`
+      INSERT INTO deck_comparisons (
+        deck1_id, deck2_id, user_id, comparison_type, analysis_status,
+        deck1_filename, deck2_filename
+      )
+      VALUES ($1, $2, $3, 'analyzed', 'processing', $4, $5)
+      RETURNING id
+    `, [
+      deck1_id, 
+      deck2_id, 
+      validUserId,
+      deck1.filename || deck1.company_name || 'Deck 1',
+      deck2.filename || deck2.company_name || 'Deck 2'
+    ]);
+
+    const comparisonId = comparisonResult.rows[0].id;
+
+    console.log(`📊 Created comparison record: ${comparisonId}`);
+
+    // Run comparison in background
+    setTimeout(async () => {
+      try {
+        console.log(`🤖 Starting AI comparison for ${comparisonId}...`);
+        
+        const comparisonAnalysis = await compareAnalyzedDecks(deck1Data, deck2Data, true);
+
+        console.log('💾 Storing comparison results...');
+
+        // Transform to match expected frontend format
+        const formattedResult = {
+          deck1Analysis: {
+            overallScore: deck1Data.overallAnalysis.overallScore,
+            sections: deck1Data.sections,
+            strengths: deck1Data.overallAnalysis.strengths,
+            weaknesses: deck1Data.overallAnalysis.weaknesses,
+            recommendation: deck1Data.overallAnalysis.recommendation,
+            analysis: {
+              overallScore: deck1Data.overallAnalysis.overallScore,
+              problemScore: deck1Data.overallAnalysis.problemScore,
+              solutionScore: deck1Data.overallAnalysis.solutionScore,
+              marketScore: deck1Data.overallAnalysis.marketScore,
+              tractionScore: deck1Data.overallAnalysis.tractionScore,
+              teamScore: deck1Data.overallAnalysis.teamScore,
+              financialsScore: deck1Data.overallAnalysis.financialsScore
+            }
+          },
+          deck2Analysis: {
+            overallScore: deck2Data.overallAnalysis.overallScore,
+            sections: deck2Data.sections,
+            strengths: deck2Data.overallAnalysis.strengths,
+            weaknesses: deck2Data.overallAnalysis.weaknesses,
+            recommendation: deck2Data.overallAnalysis.recommendation,
+            analysis: {
+              overallScore: deck2Data.overallAnalysis.overallScore,
+              problemScore: deck2Data.overallAnalysis.problemScore,
+              solutionScore: deck2Data.overallAnalysis.solutionScore,
+              marketScore: deck2Data.overallAnalysis.marketScore,
+              tractionScore: deck2Data.overallAnalysis.tractionScore,
+              teamScore: deck2Data.overallAnalysis.teamScore,
+              financialsScore: deck2Data.overallAnalysis.financialsScore
+            }
+          },
+          comparison: {
+            summary: comparisonAnalysis.executiveSummary,
+            winnerOverall: comparisonAnalysis.overallWinner,
+            categoryWinners: {
+              team: comparisonAnalysis.categoryComparison.team.winner,
+              market: comparisonAnalysis.categoryComparison.market.winner,
+              product: comparisonAnalysis.categoryComparison.solution.winner,
+              traction: comparisonAnalysis.categoryComparison.traction.winner,
+              financials: comparisonAnalysis.categoryComparison.financials.winner
+            },
+            strengths: {
+              deck1: comparisonAnalysis.strengthsComparison.deck1Advantages,
+              deck2: comparisonAnalysis.strengthsComparison.deck2Advantages
+            },
+            weaknesses: {
+              deck1: comparisonAnalysis.weaknessesComparison.deck1Concerns,
+              deck2: comparisonAnalysis.weaknessesComparison.deck2Concerns
+            },
+            recommendations: {
+              deck1: comparisonAnalysis.recommendations.deck1,
+              deck2: comparisonAnalysis.recommendations.deck2
+            },
+            keyDifferences: comparisonAnalysis.keyDifferentiators
+          }
+        };
+
+        await query(`
+          UPDATE deck_comparisons 
+          SET analysis_status = 'completed', 
+              comparison_analysis = $1,
+              analyzed_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `, [JSON.stringify(formattedResult), comparisonId]);
+
+        console.log(`✅ Analyzed decks comparison complete for ${comparisonId}!`);
+      } catch (error) {
+        console.error(`❌ Analyzed decks comparison failed for ${comparisonId}:`, error);
+        await query(`UPDATE deck_comparisons SET analysis_status = 'failed' WHERE id = $1`, [comparisonId]);
+      }
+    }, 1000);
+
+    res.status(201).json({
+      id: comparisonId,
+      message: 'Comparison started for analyzed decks!',
+      decks: {
+        deck1: deck1.company_name || deck1.filename,
+        deck2: deck2.company_name || deck2.filename
+      }
+    });
+  } catch (error) {
+    console.error('Error comparing analyzed decks:', error);
+    res.status(500).json({ error: 'Failed to compare analyzed decks', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 // POST /api/decks/upload-dual - Upload BOTH pitch deck AND checklist with comprehensive AI analysis
 router.post('/upload-dual', upload.fields([
   { name: 'deck', maxCount: 1 },
@@ -1566,6 +1805,190 @@ router.get('/compare/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching comparison status:', error);
     res.status(500).json({ error: 'Failed to fetch comparison status' });
+  }
+});
+
+// GET /api/decks/compare/:id/report/premium - Generate premium comparison PDF report
+// IMPORTANT: This must come BEFORE the generic /:format route to avoid route matching conflicts
+router.get('/compare/:id/report/premium', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`\n📊 [Premium Comparison] Generating premium comparison report for ${id}...`);
+
+    // Get comparison with analysis
+    const comparisonResult = await query(`
+      SELECT * FROM deck_comparisons WHERE id = $1
+    `, [id]);
+
+    if (comparisonResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Comparison not found' });
+    }
+
+    const comparison = comparisonResult.rows[0];
+
+    if (!comparison.comparison_analysis || comparison.analysis_status !== 'completed') {
+      return res.status(400).json({ 
+        error: 'Comparison analysis not completed yet' 
+      });
+    }
+
+    // Get both deck details for premium analysis
+    const deck1Result = await query(`
+      SELECT d.*, c.name as company_name 
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1
+    `, [comparison.deck1_id]);
+
+    const deck2Result = await query(`
+      SELECT d.*, c.name as company_name 
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1
+    `, [comparison.deck2_id]);
+
+    if (deck1Result.rows.length === 0 || deck2Result.rows.length === 0) {
+      return res.status(404).json({ error: 'One or both decks not found' });
+    }
+
+    const deck1 = deck1Result.rows[0];
+    const deck2 = deck2Result.rows[0];
+
+    // Extract company names
+    const extractCompanyName = (filename: string, companyName?: string) => {
+      const extracted = filename
+        .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '')
+        .replace(/[-_()]/g, ' ')
+        .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd|may|june|july|aug|sep|oct|nov|dec|\d{4})\b/gi, '')
+        .trim();
+      
+      return (extracted && extracted.length > 2) 
+        ? extracted 
+        : (companyName || 'Startup Company');
+    };
+
+    const deck1Name = extractCompanyName(deck1.filename, deck1.company_name);
+    const deck2Name = extractCompanyName(deck2.filename, deck2.company_name);
+
+    console.log(`   Deck 1: ${deck1Name}`);
+    console.log(`   Deck 2: ${deck2Name}`);
+
+    // Get VC Preferences (if available)
+    let vcPreferencesData: any = null;
+    const userId = comparison.user_id || deck1.uploaded_by || deck2.uploaded_by;
+    
+    if (userId) {
+      try {
+        console.log(`🎯 Fetching VC preferences for user: "${userId}"...`);
+        const prefResult = await query(
+          `SELECT preferences_name, industry, criteria 
+           FROM vc_preferences 
+           WHERE user_id = $1 
+           ORDER BY updated_at DESC 
+           LIMIT 1`,
+          [userId]
+        );
+        
+        if (prefResult.rows.length > 0) {
+          const row = prefResult.rows[0];
+          const criteria = typeof row.criteria === 'string' 
+            ? JSON.parse(row.criteria) 
+            : row.criteria;
+          
+          const dealbreakerStrings = (criteria.dealbreakers || []).map((db: any) => 
+            typeof db === 'string' ? db : db.description || db.text || ''
+          ).filter((s: string) => s.length > 0);
+          
+          const patternStrings = (criteria.patterns || []).map((p: any) => 
+            typeof p === 'string' ? p : p.pattern || p.text || p.description || ''
+          ).filter((s: string) => s.length > 0);
+          
+          vcPreferencesData = {
+            preferencesName: row.preferences_name,
+            industry: row.industry,
+            dealbreakers: dealbreakerStrings,
+            positivePatterns: patternStrings,
+            investmentThesis: criteria.thesis_alignment?.strategic_priorities || criteria.thesis_alignment?.thesis_statement || '',
+            contextWeights: criteria.context_weights || [],
+            targetSectors: criteria.thesis_alignment?.target_sectors || [],
+            targetStages: criteria.thesis_alignment?.target_stages || [],
+            targetGeographies: criteria.thesis_alignment?.geography || criteria.thesis_alignment?.target_geographies || []
+          };
+          console.log(`   ✅ VC Preferences loaded: "${vcPreferencesData.preferencesName}"`);
+        }
+      } catch (prefErr) {
+        console.log(`   ℹ️  No VC preferences found - proceeding without`);
+      }
+    }
+
+    console.log(`   Parsing comparison analysis...`);
+    const analysisData = comparison.comparison_analysis;
+
+    console.log(`   Generating premium comparison PDF...`);
+
+    // Generate premium comparison PDF
+    const { generatePremiumComparisonPDF } = await import('../services/premium-comparison-pdf-generator');
+    const pdfPath = path.join(__dirname, '../../uploads', `${id}_premium_comparison.pdf`);
+    
+    await generatePremiumComparisonPDF({
+      comparisonId: comparison.id,
+      deck1Name,
+      deck2Name,
+      deck1Data: {
+        filename: deck1.filename,
+        company_name: deck1.company_name,
+        stage: deck1.stage,
+        industry: deck1.industry,
+        analysis: analysisData.deck1Analysis
+      },
+      deck2Data: {
+        filename: deck2.filename,
+        company_name: deck2.company_name,
+        stage: deck2.stage,
+        industry: deck2.industry,
+        analysis: analysisData.deck2Analysis
+      },
+      comparison: analysisData.comparison,
+      vcPreferences: vcPreferencesData,
+      createdAt: comparison.created_at
+    }, pdfPath);
+
+    console.log(`   ✅ Premium comparison PDF generated: ${pdfPath}`);
+
+    // Send PDF to client
+    const fileName = `${deck1Name}_vs_${deck2Name}_Premium_Comparison`
+      .replace(/[^a-zA-Z0-9\s-_]/g, '')
+      .replace(/\s+/g, '_') + '.pdf';
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+    
+    fileStream.on('end', () => {
+      try {
+        fs.unlinkSync(pdfPath);
+        console.log(`   ✓ Temp PDF cleaned up: ${pdfPath}`);
+      } catch (err) {
+        console.error('Error cleaning up temp PDF:', err);
+      }
+    });
+
+    fileStream.on('error', (error) => {
+      console.error('Error streaming PDF:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream PDF' });
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ [Premium Comparison] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate premium comparison report',
+      details: error.message 
+    });
   }
 });
 
