@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { flushSync } from 'react-dom';
 import {
   Upload,
   FileText,
@@ -17,6 +19,8 @@ import {
   ChevronRight,
   Trophy,
   Wand2,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { api, PitchDeck, Company } from '../services/api';
 import { VisualizationPanel } from './VisualizationPanel';
@@ -85,6 +89,19 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [vcContext, setVcContext] = useState<any>(null);
   const [showVcContextDetails, setShowVcContextDetails] = useState(false);
 
+  // Delete functionality state
+  const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
+  const [selectedComparisons, setSelectedComparisons] = useState<Set<string>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteType, setDeleteType] = useState<'deck' | 'comparison'>('deck');
+  const [deleteMode, setDeleteMode] = useState<'single' | 'bulk'>('single');
+  const [itemToDelete, setItemToDelete] = useState<string>('');
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Refresh functionality state
+  const [refreshingDecks, setRefreshingDecks] = useState(false);
+  const [refreshingComparisons, setRefreshingComparisons] = useState(false);
+
   useEffect(() => {
     loadCompanies();
     loadImportedContext();
@@ -92,6 +109,14 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     loadAnalyzedDecks();
     loadPreviousComparisons();
   }, []);
+
+  // Debug effect to track modal state changes
+  useEffect(() => {
+    console.log('🔄 showDeleteModal changed:', showDeleteModal);
+    console.log('🔄 deleteMode:', deleteMode);
+    console.log('🔄 deleteType:', deleteType);
+    console.log('🎨 COMPONENT RE-RENDERED at:', new Date().toISOString());
+  }, [showDeleteModal, deleteMode, deleteType]);
 
   const loadAnalyzedDecks = async () => {
     try {
@@ -205,6 +230,181 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     } catch (err) {
       console.error('Error loading companies:', err);
       setError('Failed to load companies');
+    }
+  };
+
+  // Delete functionality functions
+  const toggleDeckSelection = (deckId: string) => {
+    const newSelection = new Set(selectedDecks);
+    if (newSelection.has(deckId)) {
+      newSelection.delete(deckId);
+    } else {
+      newSelection.add(deckId);
+    }
+    setSelectedDecks(newSelection);
+  };
+
+  const toggleComparisonSelection = (comparisonId: string) => {
+    const newSelection = new Set(selectedComparisons);
+    if (newSelection.has(comparisonId)) {
+      newSelection.delete(comparisonId);
+    } else {
+      newSelection.add(comparisonId);
+    }
+    setSelectedComparisons(newSelection);
+  };
+
+  const selectAllDecks = () => {
+    if (selectedDecks.size === analyzedDecks.length) {
+      setSelectedDecks(new Set());
+    } else {
+      setSelectedDecks(new Set(analyzedDecks.map(deck => deck.id)));
+    }
+  };
+
+  const selectAllComparisons = () => {
+    if (selectedComparisons.size === previousComparisons.length) {
+      setSelectedComparisons(new Set());
+    } else {
+      setSelectedComparisons(new Set(previousComparisons.map(comp => comp.id)));
+    }
+  };
+
+  const handleSingleDelete = (id: string, type: 'deck' | 'comparison') => {
+    console.log('🗑️ handleSingleDelete called:', { id, type });
+    
+    // Use flushSync to force synchronous state updates and immediate re-render
+    flushSync(() => {
+      setItemToDelete(id);
+      setDeleteType(type);
+      setDeleteMode('single');
+    });
+    
+    flushSync(() => {
+      setShowDeleteModal(true);
+      console.log('✅ Single delete modal state set with flushSync');
+    });
+  };
+
+  const handleBulkDelete = (type: 'deck' | 'comparison') => {
+    console.log('🗑️ handleBulkDelete called:', type);
+    console.log('Selected decks:', selectedDecks);
+    console.log('Selected comparisons:', selectedComparisons);
+    console.log('Setting modal state...');
+    
+    // Use flushSync to force synchronous state updates and immediate re-render
+    flushSync(() => {
+      setDeleteType(type);
+      setDeleteMode('bulk');
+    });
+    
+    flushSync(() => {
+      setShowDeleteModal(true);
+      console.log('✅ Modal state set with flushSync. showDeleteModal should now be true and rendered!');
+    });
+  };
+
+  const confirmDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      if (deleteMode === 'single') {
+        // Single delete
+        console.log('🗑️ Single delete mode:', deleteType, itemToDelete);
+        const endpoint = deleteType === 'deck' ? 
+          `/decks/${itemToDelete}` : 
+          `/decks/comparisons/${itemToDelete}`;
+        
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Delete result:', result);
+      } else {
+        // Bulk delete
+        const items = deleteType === 'deck' ? 
+          Array.from(selectedDecks) : 
+          Array.from(selectedComparisons);
+        
+        console.log('🗑️ Bulk delete mode:', deleteType, 'Selected items:', items);
+        
+        if (items.length === 0) {
+          throw new Error('No items selected for deletion');
+        }
+        
+        const endpoint = deleteType === 'deck' ? 
+          '/decks/bulk' : 
+          '/decks/comparisons/bulk';
+        
+        const body = deleteType === 'deck' ? 
+          { deckIds: items } : 
+          { comparisonIds: items };
+
+        console.log('📡 Making bulk delete request to:', `${API_URL}${endpoint}`, 'Body:', body);
+
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Bulk delete result:', result);
+      }
+
+      // Refresh the appropriate list
+      if (deleteType === 'deck') {
+        await loadAnalyzedDecks();
+        setSelectedDecks(new Set());
+      } else {
+        await loadPreviousComparisons();
+        setSelectedComparisons(new Set());
+      }
+      
+      setShowDeleteModal(false);
+      setError('');
+    } catch (err: any) {
+      console.error('❌ Delete failed:', err);
+      setError(`Failed to delete ${deleteType}: ${err.message}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  // Refresh functions
+  const handleRefreshDecks = async () => {
+    setRefreshingDecks(true);
+    try {
+      await loadAnalyzedDecks();
+      setSelectedDecks(new Set()); // Clear selections after refresh
+    } catch (err: any) {
+      console.error('❌ Refresh decks failed:', err);
+      setError(`Failed to refresh decks: ${err.message}`);
+    } finally {
+      setRefreshingDecks(false);
+    }
+  };
+
+  const handleRefreshComparisons = async () => {
+    setRefreshingComparisons(true);
+    try {
+      await loadPreviousComparisons();
+      setSelectedComparisons(new Set()); // Clear selections after refresh
+    } catch (err: any) {
+      console.error('❌ Refresh comparisons failed:', err);
+      setError(`Failed to refresh comparisons: ${err.message}`);
+    } finally {
+      setRefreshingComparisons(false);
     }
   };
 
@@ -675,21 +875,93 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     }
   };
 
+  // Render delete modal at top level so it's available in all views
+  const deleteModal = showDeleteModal && createPortal(
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" 
+      onClick={(e) => e.stopPropagation()}
+      ref={(el) => {
+        if (el) console.log('🎭 MODAL DIV RENDERED IN DOM!', { showDeleteModal, deleteMode, deleteType });
+      }}
+    >
+      <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+            <Trash2 className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">
+              Confirm {deleteMode === 'single' ? 'Delete' : 'Bulk Delete'}
+            </h3>
+            <p className="text-sm text-slate-600">
+              {deleteMode === 'single' 
+                ? `Are you sure you want to delete this ${deleteType}?`
+                : `Are you sure you want to delete ${deleteType === 'deck' ? selectedDecks.size : selectedComparisons.size} selected ${deleteType}${(deleteType === 'deck' ? selectedDecks.size : selectedComparisons.size) !== 1 ? 's' : ''}?`
+              }
+            </p>
+          </div>
+        </div>
+        
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-red-800">
+            ⚠️ This action cannot be undone. {deleteType === 'deck' ? 'The pitch deck and all its analysis data will be permanently deleted.' : 'The comparison results will be permanently deleted.'}
+          </p>
+        </div>
+
+        <div className="flex space-x-3">
+          <button
+            onClick={() => setShowDeleteModal(false)}
+            disabled={bulkDeleting}
+            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={confirmDelete}
+            disabled={bulkDeleting}
+            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+          >
+            {bulkDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Deleting...</span>
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                <span>
+                  Delete {deleteMode === 'bulk' ? `${deleteType === 'deck' ? selectedDecks.size : selectedComparisons.size} ` : ''}
+                  {deleteType === 'deck' ? 'Deck' : 'Comparison'}{deleteMode === 'bulk' && (deleteType === 'deck' ? selectedDecks.size : selectedComparisons.size) !== 1 ? 's' : ''}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+
   // Show wizard if enabled
   if (useWizardMode && !currentDeck) {
     return (
-      <EvaluationWizard
-        onComplete={handleWizardComplete}
-        onCancel={() => setUseWizardMode(false)}
-        userId={user?.id || crypto.randomUUID()}
-      />
+      <>
+        {deleteModal}
+        <EvaluationWizard
+          onComplete={handleWizardComplete}
+          onCancel={() => setUseWizardMode(false)}
+          userId={user?.id || crypto.randomUUID()}
+        />
+      </>
     );
   }
 
   // Show upload form if no deck uploaded yet
   if (!currentDeck) {
     return (
-      <div className="space-y-6">
+      <>
+        {deleteModal}
+        <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Deck Intelligence</h1>
@@ -1162,7 +1434,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         )}
 
         {/* Previously Analyzed Decks Section */}
-        {activeTab === 'analysis' && analyzedDecks.length > 0 && !analyzing && !uploading && (
+        {activeTab === 'analysis' && !analyzing && !uploading && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -1174,70 +1446,146 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   <p className="text-sm text-slate-600">View past analysis results</p>
                 </div>
               </div>
-              <span className="text-sm text-slate-500">{analyzedDecks.length} deck{analyzedDecks.length !== 1 ? 's' : ''}</span>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-slate-500">{analyzedDecks.length} deck{analyzedDecks.length !== 1 ? 's' : ''}</span>
+                
+                {/* Refresh Button */}
+                <button
+                  onClick={handleRefreshDecks}
+                  disabled={refreshingDecks}
+                  className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshingDecks ? 'animate-spin' : ''}`} />
+                  <span>{refreshingDecks ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+                
+                {/* Bulk Actions */}
+                {analyzedDecks.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={selectAllDecks}
+                      className="text-sm text-blue-600 hover:text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+                    >
+                      {selectedDecks.size === analyzedDecks.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    
+                    {selectedDecks.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🖱️ Bulk delete button clicked for decks');
+                          handleBulkDelete('deck');
+                        }}
+                        className="flex items-center space-x-1 text-sm text-red-600 hover:text-red-700 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Delete ({selectedDecks.size})</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {analyzedDecks.map((deck) => (
-                <div 
-                  key={deck.id} 
-                  className="bg-white rounded-lg border border-blue-200 p-4 hover:shadow-md transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h4 className="font-semibold text-slate-900">{deck.file_name}</h4>
-                        {deck.sso_score && (
-                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">
-                            {(parseFloat(deck.sso_score.toString()) * 10).toFixed(1)}/10
-                          </span>
-                        )}
+              {analyzedDecks.length > 0 ? (
+                analyzedDecks.map((deck) => (
+                  <div 
+                    key={deck.id} 
+                    className="bg-white rounded-lg border border-blue-200 p-4 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3 flex-1">
+                        {/* Selection checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={selectedDecks.has(deck.id)}
+                          onChange={() => toggleDeckSelection(deck.id)}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        />
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className="font-semibold text-slate-900">{deck.file_name}</h4>
+                            {deck.sso_score && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">
+                                {(parseFloat(deck.sso_score.toString()) * 10).toFixed(1)}/10
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center space-x-4 text-sm text-slate-600">
+                            {deck.company_name && (
+                              <span className="flex items-center space-x-1">
+                                <span>🏢</span>
+                                <span>{deck.company_name}</span>
+                              </span>
+                            )}
+                            {deck.stage && (
+                              <span className="flex items-center space-x-1">
+                                <TrendingUp className="h-3 w-3" />
+                                <span>{deck.stage}</span>
+                              </span>
+                            )}
+                            {deck.industry && (
+                              <span className="flex items-center space-x-1">
+                                <BarChart className="h-3 w-3" />
+                                <span>{deck.industry}</span>
+                              </span>
+                            )}
+                          </div>
+                          
+                          {deck.analyzed_at && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              Analyzed: {new Date(deck.analyzed_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-slate-600">
-                        {deck.company_name && (
-                          <span className="flex items-center space-x-1">
-                            <span>🏢</span>
-                            <span>{deck.company_name}</span>
-                          </span>
-                        )}
-                        {deck.stage && (
-                          <span className="flex items-center space-x-1">
-                            <TrendingUp className="h-3 w-3" />
-                            <span>{deck.stage}</span>
-                          </span>
-                        )}
-                        {deck.industry && (
-                          <span className="flex items-center space-x-1">
-                            <BarChart className="h-3 w-3" />
-                            <span>{deck.industry}</span>
-                          </span>
-                        )}
-                      </div>
-                      
-                      {deck.analyzed_at && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          Analyzed: {new Date(deck.analyzed_at).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      )}
-                    </div>
 
-                    <button
-                      onClick={() => handleShowDeckResults(deck.id)}
-                      className="ml-4 flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      <span>Show Results</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                      <div className="flex items-center space-x-2 ml-4">
+                        {/* Individual delete button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSingleDelete(deck.id, 'deck');
+                          }}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete this deck"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        
+                        {/* Show Results button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShowDeckResults(deck.id);
+                          }}
+                          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                        >
+                          <span>Show Results</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 mb-2">No analyzed decks found</p>
+                  <p className="text-sm text-slate-400">Upload and analyze a deck to see it here</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
@@ -1904,7 +2252,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         )}
 
         {/* Previously Compared Decks Section */}
-        {activeTab === 'comparison' && previousComparisons.length > 0 && !comparingDecks && !showComparisonPreview && (
+        {activeTab === 'comparison' && !comparingDecks && !showComparisonPreview && (
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -1916,56 +2264,135 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   <p className="text-sm text-slate-600">View past comparison results</p>
                 </div>
               </div>
-              <span className="text-sm text-slate-500">{previousComparisons.length} comparison{previousComparisons.length !== 1 ? 's' : ''}</span>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-slate-500">{previousComparisons.length} comparison{previousComparisons.length !== 1 ? 's' : ''}</span>
+                
+                {/* Refresh Button */}
+                <button
+                  onClick={handleRefreshComparisons}
+                  disabled={refreshingComparisons}
+                  className="flex items-center space-x-1 text-sm text-purple-600 hover:text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshingComparisons ? 'animate-spin' : ''}`} />
+                  <span>{refreshingComparisons ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+                
+                {/* Bulk Actions for Comparisons */}
+                {previousComparisons.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={selectAllComparisons}
+                      className="text-sm text-purple-600 hover:text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-50 transition-colors"
+                    >
+                      {selectedComparisons.size === previousComparisons.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    
+                    {selectedComparisons.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🖱️ Bulk delete button clicked for comparisons');
+                          handleBulkDelete('comparison');
+                        }}
+                        className="flex items-center space-x-1 text-sm text-red-600 hover:text-red-700 px-3 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Delete ({selectedComparisons.size})</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {previousComparisons.map((comparison) => (
-                <div 
-                  key={comparison.id} 
-                  className="bg-white rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h4 className="font-semibold text-slate-900">
-                          {comparison.deck1_filename} <span className="text-slate-400">vs</span> {comparison.deck2_filename}
-                        </h4>
+              {previousComparisons.length > 0 ? (
+                previousComparisons.map((comparison) => (
+                  <div 
+                    key={comparison.id} 
+                    className="bg-white rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3 flex-1">
+                        {/* Selection checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={selectedComparisons.has(comparison.id)}
+                          onChange={() => toggleComparisonSelection(comparison.id)}
+                          className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                        />
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className="font-semibold text-slate-900">
+                              {comparison.deck1_filename} <span className="text-slate-400">vs</span> {comparison.deck2_filename}
+                            </h4>
+                          </div>
+                          
+                          {comparison.analyzed_at && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              Compared: {new Date(comparison.analyzed_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      
-                      {comparison.analyzed_at && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          Compared: {new Date(comparison.analyzed_at).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      )}
-                    </div>
 
-                    <button
-                      onClick={() => handleShowComparisonResults(comparison.id)}
-                      className="ml-4 flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
-                    >
-                      <span>Show Results</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                      <div className="flex items-center space-x-2 ml-4">
+                        {/* Individual delete button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSingleDelete(comparison.id, 'comparison');
+                          }}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete this comparison"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        
+                        {/* Show Results button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShowComparisonResults(comparison.id);
+                          }}
+                          className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                        >
+                          <span>Show Results</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <BarChart className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 mb-2">No deck comparisons found</p>
+                  <p className="text-sm text-slate-400">Compare two decks to see the results here</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
 
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      {deleteModal}
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-4">
@@ -2331,6 +2758,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           </button>
         </div>
       )}
-    </div>
+      
+      </div>
+    </>
   );
 }

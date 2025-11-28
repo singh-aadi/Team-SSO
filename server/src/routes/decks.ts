@@ -2400,6 +2400,215 @@ router.get('/compare/:id/report/:format', async (req: Request, res: Response) =>
   }
 });
 
+// DELETE /api/decks/bulk - Bulk delete analyzed decks
+router.delete('/bulk', async (req: Request, res: Response) => {
+  try {
+    const { deckIds } = req.body;
+    
+    if (!deckIds || !Array.isArray(deckIds) || deckIds.length === 0) {
+      return res.status(400).json({ error: 'deckIds array is required' });
+    }
+
+    console.log(`🗑️ Bulk deleting ${deckIds.length} decks:`, deckIds);
+
+    // Validate all UUIDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const id of deckIds) {
+      if (!uuidRegex.test(id)) {
+        return res.status(400).json({ error: `Invalid deck ID format: ${id}` });
+      }
+    }
+
+    // Get file paths for cleanup
+    const filesResult = await query(
+      'SELECT file_url FROM pitch_decks WHERE id = ANY($1)',
+      [deckIds]
+    );
+
+    // Delete from database (cascading deletes handle related records)
+    const deleteResult = await query(
+      'DELETE FROM pitch_decks WHERE id = ANY($1)',
+      [deckIds]
+    );
+
+    const deletedCount = deleteResult.rowCount || 0;
+    console.log(`✅ Deleted ${deletedCount} deck records from database`);
+
+    // Clean up physical files
+    let filesDeleted = 0;
+    for (const row of filesResult.rows) {
+      if (row.file_url) {
+        const filePath = path.join(__dirname, '../../', row.file_url);
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            filesDeleted++;
+          }
+        } catch (fileError) {
+          console.warn('⚠️ Could not delete file:', fileError);
+        }
+      }
+    }
+
+    console.log(`🗑️ Deleted ${filesDeleted} physical files`);
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} deck(s)`,
+      deletedCount,
+      filesDeleted
+    });
+
+  } catch (error: any) {
+    console.error('Error bulk deleting decks:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete decks',
+      details: error.message 
+    });
+  }
+});
+
+// DELETE /api/decks/:id - Delete individual analyzed deck
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ error: 'Invalid deck ID format' });
+    }
+
+    console.log(`🗑️ Deleting deck: ${id}`);
+
+    // Get file info before deletion for cleanup
+    const fileResult = await query(
+      'SELECT file_url FROM pitch_decks WHERE id = $1',
+      [id]
+    );
+
+    // Delete from database (cascading deletes handle related records)
+    const deleteResult = await query(
+      'DELETE FROM pitch_decks WHERE id = $1',
+      [id]
+    );
+
+    if (deleteResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Deck not found' });
+    }
+
+    console.log(`✅ Deleted deck record from database`);
+
+    // Clean up physical file
+    let fileDeleted = false;
+    if (fileResult.rows[0]?.file_url) {
+      const filePath = path.join(__dirname, '../../', fileResult.rows[0].file_url);
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          fileDeleted = true;
+          console.log(`🗑️ Deleted physical file: ${filePath}`);
+        }
+      } catch (fileError) {
+        console.warn('⚠️ Could not delete file:', fileError);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Deck deleted successfully',
+      fileDeleted 
+    });
+  } catch (error: any) {
+    console.error('Error deleting deck:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete deck',
+      details: error.message 
+    });
+  }
+});
+
+// DELETE /api/decks/comparisons/bulk - Bulk delete deck comparisons
+router.delete('/comparisons/bulk', async (req: Request, res: Response) => {
+  try {
+    const { comparisonIds } = req.body;
+    
+    if (!comparisonIds || !Array.isArray(comparisonIds) || comparisonIds.length === 0) {
+      return res.status(400).json({ error: 'comparisonIds array is required' });
+    }
+
+    console.log(`🗑️ Bulk deleting ${comparisonIds.length} comparisons:`, comparisonIds);
+
+    // Validate all UUIDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const id of comparisonIds) {
+      if (!uuidRegex.test(id)) {
+        return res.status(400).json({ error: `Invalid comparison ID format: ${id}` });
+      }
+    }
+
+    // Delete from database
+    const deleteResult = await query(
+      'DELETE FROM deck_comparisons WHERE id = ANY($1)',
+      [comparisonIds]
+    );
+
+    const deletedCount = deleteResult.rowCount || 0;
+    console.log(`✅ Deleted ${deletedCount} comparison records from database`);
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} comparison(s)`,
+      deletedCount
+    });
+
+  } catch (error: any) {
+    console.error('Error bulk deleting comparisons:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete comparisons',
+      details: error.message 
+    });
+  }
+});
+
+// DELETE /api/decks/comparisons/:id - Delete individual comparison
+router.delete('/comparisons/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ error: 'Invalid comparison ID format' });
+    }
+
+    console.log(`🗑️ Deleting comparison: ${id}`);
+
+    // Delete from database
+    const deleteResult = await query(
+      'DELETE FROM deck_comparisons WHERE id = $1',
+      [id]
+    );
+
+    if (deleteResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Comparison not found' });
+    }
+
+    console.log(`✅ Deleted comparison record from database`);
+
+    res.json({ 
+      success: true, 
+      message: 'Comparison deleted successfully' 
+    });
+  } catch (error: any) {
+    console.error('Error deleting comparison:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete comparison',
+      details: error.message 
+    });
+  }
+});
+
 // Deprecated: old PDF-only route (kept for backward compatibility)
 router.get('/compare/:id/report', async (req: Request, res: Response) => {
   // Redirect to PDF format
