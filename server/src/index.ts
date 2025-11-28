@@ -21,6 +21,7 @@ import vcAgentRoutes from './routes/vcAgent';
 import radarRoutes from './routes/radar';
 import settingsRoutes from './routes/settings';
 import gmailRoutes from './routes/gmail';
+import notionRoutes from './routes/notion';
 
 
 const app: Express = express();
@@ -94,6 +95,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/radar', radarRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/gmail', gmailRoutes);
+app.use('/api/notion', notionRoutes);
 
 
 // 404 handler

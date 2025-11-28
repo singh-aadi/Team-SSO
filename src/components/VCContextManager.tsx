@@ -3,6 +3,7 @@ import { Upload, FileText, Trash2, Sparkles, AlertCircle, CheckCircle, XCircle, 
 import { vcContextApi, ContextItem, ContextSummary } from '../services/vcContextApi';
 import { useNavigate, useParams } from 'react-router';
 import GmailImport from './GmailImport';
+import NotionImport from './NotionImport';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -31,6 +32,7 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
   const [availableDecks, setAvailableDecks] = useState<any[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string>('');
   const [showGmailImport, setShowGmailImport] = useState(false);
+  const [showNotionImport, setShowNotionImport] = useState(false);
 
   // Load available decks if no deckId provided
   useEffect(() => {
@@ -368,17 +370,16 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
 
             {/* Notion */}
             <button
-              onClick={() => setError('Notion integration coming soon! For now, export pages as PDF or Markdown.')}
-              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 transition-colors group"
+              onClick={() => setShowNotionImport(true)}
+              className="flex items-center space-x-3 p-4 border-2 border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
             >
-              <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-slate-100">
-                <BookOpen className="h-5 w-5 text-slate-700" />
+              <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-blue-100">
+                <BookOpen className="h-5 w-5 text-slate-700 group-hover:text-blue-600" />
               </div>
               <div className="text-left flex-1">
                 <p className="font-medium text-slate-900">Notion</p>
                 <p className="text-xs text-slate-500">Import pages & databases</p>
               </div>
-              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Coming Soon</span>
             </button>
 
             {/* Obsidian */}
@@ -686,6 +687,36 @@ export function VCContextManager({ deckId: propDeckId, companyName = 'Unknown Co
             }
           }}
           onClose={() => setShowGmailImport(false)}
+        />
+      )}
+
+      {/* Notion Import Modal */}
+      {showNotionImport && (
+        <NotionImport
+          onImport={async (importedItems) => {
+            const currentDeckId = deckId || selectedDeckId;
+            if (!currentDeckId) {
+              setError('Please select a deck first');
+              return;
+            }
+            
+            try {
+              // Add each imported Notion page as context
+              for (const item of importedItems) {
+                await vcContextApi.addContext(currentDeckId, {
+                  source: item.source,
+                  content: item.content,
+                  type: 'notion_page',
+                  importance: item.importance
+                });
+              }
+              await loadItems();
+              setShowNotionImport(false);
+            } catch (err: any) {
+              setError(err.message || 'Failed to import Notion pages');
+            }
+          }}
+          onClose={() => setShowNotionImport(false)}
         />
       )}
     </div>
