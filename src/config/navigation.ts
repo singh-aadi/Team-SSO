@@ -8,7 +8,9 @@ import {
   Briefcase,
   Sliders,
   Radar,
-  BarChart3
+  BarChart3,
+  Activity,
+  MessageSquare
 } from 'lucide-react';
 
 export interface NavItem {
@@ -92,6 +94,18 @@ export const VC_NAV: NavItem[] = [
     label: 'Sector Benchmarking',
     icon: BarChart3,
     description: 'Compare against top 10 companies per sector with AI-powered insights'
+  },
+  {
+    path: '/vc-lens',
+    label: 'VC Lens',
+    icon: Activity,
+    description: 'Track pitch deck versions and score evolution over time'
+  },
+  {
+    path: '/vc-chat',
+    label: 'VC Chat',
+    icon: MessageSquare,
+    description: 'Ask questions about companies using natural language AI'
   },
   {
     path: '/vc-journey',

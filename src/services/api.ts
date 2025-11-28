@@ -465,6 +465,69 @@ class ApiService {
       return { status: 'offline', message: 'Backend is not available' };
     }
   }
+
+  // VC Lens - Track pitch deck versions over time
+  async getVCLensCompanies(): Promise<any> {
+    const response = await fetch(`${API_URL}/decks/vc-lens`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch VC Lens data');
+    }
+
+    return response.json();
+  }
+
+  async getVCLensHistory(filename: string): Promise<any> {
+    const encodedFilename = encodeURIComponent(filename);
+    const response = await fetch(`${API_URL}/decks/vc-lens/${encodedFilename}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch version history');
+    }
+
+    return response.json();
+  }
+
+  // ============================================================================
+  // VC CHAT - Conversational queries about pitch deck data
+  // ============================================================================
+
+  async chatQuery(question: string): Promise<any> {
+    const response = await fetch(`${API_URL}/chat/query`, {
+      method: 'POST',
+      headers: {
+        ...this.getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ question })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to process query');
+    }
+
+    return response.json();
+  }
+
+  async getChatHistory(): Promise<any> {
+    const response = await fetch(`${API_URL}/chat/history`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch chat history');
+    }
+
+    return response.json();
+  }
 }
 
 export const api = new ApiService();

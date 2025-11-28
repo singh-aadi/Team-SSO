@@ -22,6 +22,7 @@ import radarRoutes from './routes/radar';
 import settingsRoutes from './routes/settings';
 import gmailRoutes from './routes/gmail';
 import notionRoutes from './routes/notion';
+import chatRoutes from './routes/chat';
 
 
 const app: Express = express();
@@ -96,6 +97,7 @@ app.use('/api/radar', radarRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/gmail', gmailRoutes);
 app.use('/api/notion', notionRoutes);
+app.use('/api/chat', chatRoutes);
 
 
 // 404 handler

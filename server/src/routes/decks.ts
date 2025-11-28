@@ -1373,6 +1373,213 @@ router.get('/comparisons/recent', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// VC LENS FEATURE - Track pitch deck versions over time
+// ============================================================================
+
+// GET /api/decks/vc-lens - Get list of all analyzed filenames with version counts
+router.get('/vc-lens', async (req: Request, res: Response) => {
+  try {
+    console.log('📊 [VC Lens] Fetching all analyzed pitch decks...');
+
+    const query_text = `
+      SELECT 
+        filename,
+        COUNT(*) as version_count,
+        MIN(analyzed_at) as first_analysis,
+        MAX(analyzed_at) as last_analysis,
+        ARRAY_AGG(sso_score ORDER BY analyzed_at) as score_history,
+        MIN(sso_score) as min_score,
+        MAX(sso_score) as max_score,
+        ARRAY_AGG(id ORDER BY analyzed_at) as deck_ids
+      FROM pitch_decks
+      WHERE sso_score IS NOT NULL
+        AND analysis_status = 'completed'
+      GROUP BY filename
+      ORDER BY last_analysis DESC, version_count DESC
+    `;
+
+    const result = await query(query_text);
+
+    // Extract clean company names for display
+    const companies = result.rows.map(row => {
+      const cleanName = row.filename
+        .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '')
+        .replace(/[-_()]/g, ' ')
+        .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd|may|june|july|aug|sep|oct|nov|dec|\d{4})\b/gi, '')
+        .trim();
+
+      const scoreChange = row.version_count > 1 
+        ? ((row.score_history[row.score_history.length - 1] - row.score_history[0]) / row.score_history[0] * 100)
+        : 0;
+
+      return {
+        filename: row.filename,
+        displayName: cleanName || row.filename,
+        versionCount: parseInt(row.version_count),
+        firstAnalysis: row.first_analysis,
+        lastAnalysis: row.last_analysis,
+        scoreHistory: row.score_history.map((s: any) => parseFloat(s.toString())),
+        minScore: parseFloat(row.min_score),
+        maxScore: parseFloat(row.max_score),
+        scoreChange: parseFloat(scoreChange.toFixed(2)),
+        trend: scoreChange > 0 ? 'improving' : scoreChange < 0 ? 'declining' : 'stable',
+        hasHistory: row.version_count > 1
+      };
+    });
+
+    console.log(`✅ [VC Lens] Found ${companies.length} unique pitch decks`);
+    console.log(`   - With version history: ${companies.filter(c => c.hasHistory).length}`);
+    console.log(`   - Single version: ${companies.filter(c => !c.hasHistory).length}`);
+
+    res.json({
+      success: true,
+      companies,
+      summary: {
+        total: companies.length,
+        withHistory: companies.filter(c => c.hasHistory).length,
+        improving: companies.filter(c => c.trend === 'improving').length,
+        declining: companies.filter(c => c.trend === 'declining').length
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ [VC Lens] Error fetching companies:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch VC Lens data',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/decks/vc-lens/:filename - Get detailed version history for a specific deck
+router.get('/vc-lens/:filename', async (req: Request, res: Response) => {
+  try {
+    const filename = decodeURIComponent(req.params.filename);
+    console.log(`📊 [VC Lens] Fetching version history for: "${filename}"`);
+
+    // Get all versions of this deck
+    const decksQuery = `
+      SELECT 
+        pd.id,
+        pd.filename,
+        pd.sso_score,
+        pd.analyzed_at,
+        pd.created_at,
+        pd.dual_pdf_analysis,
+        pd.extracted_metrics,
+        pd.sector,
+        pd.web_enrichment
+      FROM pitch_decks pd
+      WHERE pd.filename = $1
+        AND pd.sso_score IS NOT NULL
+        AND pd.analysis_status = 'completed'
+      ORDER BY pd.analyzed_at ASC
+    `;
+
+    const decksResult = await query(decksQuery, [filename]);
+
+    if (decksResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No analyzed versions found for this deck'
+      });
+    }
+
+    // Get section scores for each version
+    const versionsWithSections = await Promise.all(
+      decksResult.rows.map(async (deck) => {
+        const sectionsQuery = `
+          SELECT 
+            section_name,
+            section_score,
+            strengths,
+            improvements
+          FROM deck_analysis
+          WHERE deck_id = $1
+          ORDER BY section_name
+        `;
+
+        const sectionsResult = await query(sectionsQuery, [deck.id]);
+
+        return {
+          id: deck.id,
+          version: decksResult.rows.indexOf(deck) + 1,
+          analyzedAt: deck.analyzed_at,
+          createdAt: deck.created_at,
+          overallScore: parseFloat(deck.sso_score),
+          sector: deck.sector,
+          sections: sectionsResult.rows.map(s => ({
+            name: s.section_name,
+            score: parseFloat(s.section_score),
+            strengths: s.strengths,
+            improvements: s.improvements
+          })),
+          extractedMetrics: deck.extracted_metrics,
+          webEnrichment: deck.web_enrichment,
+          analysis: deck.dual_pdf_analysis
+        };
+      })
+    );
+
+    // Calculate trends and changes
+    const firstVersion = versionsWithSections[0];
+    const lastVersion = versionsWithSections[versionsWithSections.length - 1];
+
+    const overallChange = lastVersion.overallScore - firstVersion.overallScore;
+    const overallChangePercent = (overallChange / firstVersion.overallScore * 100).toFixed(2);
+
+    // Section changes
+    const sectionChanges = firstVersion.sections.map(firstSection => {
+      const lastSection = lastVersion.sections.find(s => s.name === firstSection.name);
+      if (!lastSection) return null;
+
+      const change = lastSection.score - firstSection.score;
+      return {
+        name: firstSection.name,
+        firstScore: firstSection.score,
+        lastScore: lastSection.score,
+        change,
+        changePercent: ((change / firstSection.score) * 100).toFixed(2),
+        trend: change > 0 ? 'improved' : change < 0 ? 'declined' : 'stable'
+      };
+    }).filter(Boolean);
+
+    // Extract clean company name
+    const displayName = filename
+      .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '')
+      .replace(/[-_()]/g, ' ')
+      .replace(/\b(pitch|deck|presentation|slide|v\d+|final|draft|inr|usd|may|june|july|aug|sep|oct|nov|dec|\d{4})\b/gi, '')
+      .trim();
+
+    console.log(`✅ [VC Lens] Found ${versionsWithSections.length} versions`);
+    console.log(`   Overall change: ${overallChangePercent}%`);
+
+    res.json({
+      success: true,
+      filename,
+      displayName: displayName || filename,
+      versionCount: versionsWithSections.length,
+      versions: versionsWithSections,
+      summary: {
+        firstAnalysis: firstVersion.analyzedAt,
+        lastAnalysis: lastVersion.analyzedAt,
+        overallChange: parseFloat(overallChange.toFixed(4)),
+        overallChangePercent: parseFloat(overallChangePercent),
+        trend: overallChange > 0 ? 'improving' : overallChange < 0 ? 'declining' : 'stable',
+        sectionChanges
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ [VC Lens] Error fetching version history:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch version history',
+      details: error.message 
+    });
+  }
+});
+
 // GET /api/decks/:id - Get deck details with analysis
 router.get('/:id', async (req: Request, res: Response) => {
   try {

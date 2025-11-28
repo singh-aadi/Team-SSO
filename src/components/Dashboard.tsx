@@ -13,7 +13,10 @@ import {
   Sparkles,
   Clock,
   Construction,
-  BookOpen
+  BookOpen,
+  Activity,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -226,6 +229,9 @@ export function Dashboard({ userType }: DashboardProps) {
           })}
         </div>
       </div>
+
+      {/* VC Lens Stats - VC Only */}
+      {userType === 'vc' && <VCLensStats />}
 
       {/* Supporting Features */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -447,6 +453,122 @@ export function Dashboard({ userType }: DashboardProps) {
       {/* SSO Watermark */}
       <div className="text-center py-4">
         <p className="text-xs text-slate-400">Powered by Team SSO - Startup Scout & Optioneers</p>
+      </div>
+    </div>
+  );
+}
+
+// VC Lens Stats Component
+function VCLensStats() {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState<{
+    totalCompanies: number;
+    withHistory: number;
+    improving: number;
+    declining: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await api.getVCLensCompanies();
+        const companies = response.companies || [];
+        
+        setStats({
+          totalCompanies: companies.length,
+          withHistory: companies.filter((c: any) => c.hasHistory).length,
+          improving: companies.filter((c: any) => c.trend === 'improving').length,
+          declining: companies.filter((c: any) => c.trend === 'declining').length,
+        });
+      } catch (error) {
+        console.error('Error fetching VC Lens stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
+        <div className="animate-pulse">
+          <div className="h-6 bg-slate-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-slate-100 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats || stats.totalCompanies === 0) {
+    return null; // Don't show if no data
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+            <Activity className="w-6 h-6 text-blue-600" />
+            VC Lens
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">Track pitch deck evolution over time</p>
+        </div>
+        <button
+          onClick={() => navigate('/vc-lens')}
+          className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+        >
+          View All
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-700 font-medium">Total Companies</p>
+              <p className="text-3xl font-bold text-blue-900 mt-1">{stats.totalCompanies}</p>
+            </div>
+            <FileText className="w-8 h-8 text-blue-600 opacity-80" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-purple-700 font-medium">With History</p>
+              <p className="text-3xl font-bold text-purple-900 mt-1">{stats.withHistory}</p>
+            </div>
+            <Clock className="w-8 h-8 text-purple-600 opacity-80" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-700 font-medium">Improving</p>
+              <p className="text-3xl font-bold text-green-900 mt-1">{stats.improving}</p>
+            </div>
+            <TrendingUp className="w-8 h-8 text-green-600 opacity-80" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-red-700 font-medium">Declining</p>
+              <p className="text-3xl font-bold text-red-900 mt-1">{stats.declining}</p>
+            </div>
+            <TrendingDown className="w-8 h-8 text-red-600 opacity-80" />
+          </div>
+        </div>
       </div>
     </div>
   );

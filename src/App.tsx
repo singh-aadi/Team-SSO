@@ -21,6 +21,8 @@ import { CommunicationAnalysis } from './components/CommunicationAnalysis';
 import { VCMode } from './components/VCMode';
 import { StartupRadar } from './components/StartupRadar';
 import { RoleSelectionModal } from './components/RoleSelectionModal';
+import VCLens from './components/VCLens';
+import VCChat from './pages/VCChat';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -98,6 +100,8 @@ function MainLayout() {
             <Route path="/risk-assessment" element={<RiskAnalysis />} />
             <Route path="/communication" element={<CommunicationAnalysis />} />
             <Route path="/vc-mode" element={<VCMode />} />
+            <Route path="/vc-lens" element={<VCLens />} />
+            <Route path="/vc-chat" element={<VCChat />} />
           </Routes>
         </main>
       </div>
