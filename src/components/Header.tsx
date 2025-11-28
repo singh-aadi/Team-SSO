@@ -62,9 +62,6 @@ export function Header() {
               <p className="text-xs text-slate-600">Startup Scout & Optioneers</p>
             </div>
           </div>
-          <div className="hidden sm:block">
-            <p className="text-sm text-slate-600 ml-6">Smarter Decisions, Stronger Startups.</p>
-          </div>
         </div>
         
         <div className="flex items-center space-x-4">

@@ -31,14 +31,21 @@ interface Company {
   filename: string;
   displayName: string;
   versionCount: number;
-  firstAnalysis: string;
+  firstAnalysis: string | null;
   lastAnalysis: string;
   scoreHistory: number[];
-  minScore: number;
-  maxScore: number;
+  minScore: number | null;
+  maxScore: number | null;
   scoreChange: number;
   trend: 'improving' | 'declining' | 'stable';
   hasHistory: boolean;
+  source?: 'pitch_deck' | 'radar';
+  needsDeck?: boolean;
+  radarId?: string;
+  headline?: string;
+  description?: string;
+  category?: string;
+  fundingStage?: string;
 }
 
 interface Version {
@@ -148,7 +155,7 @@ export default function VCLens() {
   // Company List View
   if (!selectedCompany) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 p-3">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -181,23 +188,49 @@ export default function VCLens() {
               {companies.map((company) => (
                 <div
                   key={company.filename}
-                  onClick={() => fetchVersionHistory(company.filename)}
-                  className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer p-6"
+                  onClick={() => !company.needsDeck && fetchVersionHistory(company.filename)}
+                  className={`bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 ${
+                    company.needsDeck ? 'border-2 border-amber-300 cursor-default' : 'cursor-pointer'
+                  }`}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 text-lg mb-1 line-clamp-2">
-                        {company.displayName}
-                      </h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900 text-lg line-clamp-2">
+                          {company.displayName}
+                        </h3>
+                        {company.needsDeck && (
+                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 whitespace-nowrap">
+                            Pitch Deck Needed
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500">
-                        {company.versionCount} version{company.versionCount > 1 ? 's' : ''}
+                        {company.needsDeck 
+                          ? `From Startup Radar • ${company.category || 'N/A'}` 
+                          : `${company.versionCount} version${company.versionCount > 1 ? 's' : ''}`
+                        }
                       </p>
                     </div>
-                    {getTrendIcon(company.trend)}
+                    {!company.needsDeck && getTrendIcon(company.trend)}
                   </div>
 
+                  {/* Radar Company Info */}
+                  {company.needsDeck && (
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                        {company.headline || company.description}
+                      </p>
+                      {company.fundingStage && (
+                        <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-purple-50 text-purple-700">
+                          {company.fundingStage}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Score History Sparkline */}
-                  {company.hasHistory && (
+                  {company.hasHistory && !company.needsDeck && (
                     <div className="mb-4">
                       <ResponsiveContainer width="100%" height={60}>
                         <LineChart data={company.scoreHistory.map((score, idx) => ({ score: score * 100, version: idx + 1 }))}>
@@ -213,25 +246,30 @@ export default function VCLens() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500">Score Range</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {formatScore(company.minScore)} - {formatScore(company.maxScore)}
-                      </p>
-                    </div>
-
-                    {company.hasHistory && (
-                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${getTrendColor(company.trend)}`}>
-                        {company.scoreChange > 0 ? '+' : ''}{company.scoreChange.toFixed(1)}%
+                  {!company.needsDeck && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500">Score Range</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {formatScore(company.minScore)} - {formatScore(company.maxScore)}
+                        </p>
                       </div>
-                    )}
-                  </div>
+
+                      {company.hasHistory && (
+                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${getTrendColor(company.trend)}`}>
+                          {company.scoreChange > 0 ? '+' : ''}{company.scoreChange.toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="flex items-center text-xs text-gray-500">
                       <Calendar className="w-3 h-3 mr-1" />
-                      Last: {formatDate(company.lastAnalysis)}
+                      {company.needsDeck 
+                        ? `Added: ${formatDate(company.lastAnalysis)}`
+                        : `Last: ${formatDate(company.lastAnalysis)}`
+                      }
                     </div>
                   </div>
                 </div>
@@ -295,7 +333,7 @@ export default function VCLens() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">

@@ -8,7 +8,9 @@ import {
   ChevronUp,
   ExternalLink,
   Trash2,
-  Loader2
+  Loader2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -39,6 +41,7 @@ interface RadarDataItem {
   image_url: string | null;
   published_date: string;
   scraped_at: string;
+  vc_lens: boolean;
 }
 
 export function StartupRadar() {
@@ -190,6 +193,26 @@ export function StartupRadar() {
       }
     } catch (error) {
       console.error('Error deleting entry:', error);
+    }
+  };
+
+  // Toggle VC Lens tracking
+  const handleToggleVCLens = async (entryId: string, currentValue: boolean) => {
+    try {
+      const response = await fetch(`${API_URL}/radar/data/${entryId}/vc-lens`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vc_lens: !currentValue })
+      });
+
+      if (response.ok) {
+        console.log(`VC Lens tracking ${!currentValue ? 'enabled' : 'disabled'} for entry`);
+        fetchRadarData(); // Refresh to show updated state
+      } else {
+        console.error('Failed to toggle VC Lens tracking');
+      }
+    } catch (error) {
+      console.error('Error toggling VC Lens tracking:', error);
     }
   };
 
@@ -576,13 +599,26 @@ export function StartupRadar() {
                         {item.category}
                       </span>
                       {!bulkDeleteMode && (
-                        <button
-                          onClick={() => handleDeleteEntry(item.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete entry"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleToggleVCLens(item.id, item.vc_lens)}
+                            className={`p-1.5 rounded transition-colors ${
+                              item.vc_lens
+                                ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                                : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                            }`}
+                            title={item.vc_lens ? 'Remove from VC Lens' : 'Track in VC Lens'}
+                          >
+                            {item.vc_lens ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEntry(item.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete entry"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

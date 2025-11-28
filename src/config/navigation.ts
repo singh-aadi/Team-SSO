@@ -8,9 +8,7 @@ import {
   Briefcase,
   Sliders,
   Radar,
-  BarChart3,
-  Activity,
-  MessageSquare
+  BarChart3
 } from 'lucide-react';
 
 export interface NavItem {
@@ -96,30 +94,10 @@ export const VC_NAV: NavItem[] = [
     description: 'Compare against top 10 companies per sector with AI-powered insights'
   },
   {
-    path: '/vc-lens',
-    label: 'VC Lens',
-    icon: Activity,
-    description: 'Track pitch deck versions and score evolution over time'
-  },
-  {
-    path: '/vc-chat',
-    label: 'VC Chat',
-    icon: MessageSquare,
-    description: 'Ask questions about companies using natural language AI'
-  },
-  {
     path: '/vc-journey',
     label: 'VC Journey',
     icon: Briefcase,
-    description: 'Track your entire deal flow from sourcing to investment. Manage pipeline stages, communicate with founders, and collaborate with your team on investment decisions.',
-    isWIP: true,
-    upcomingFeatures: [
-      'Visual deal pipeline with drag-and-drop',
-      'Founder communication hub',
-      'Investment committee workflows',
-      'Portfolio company tracking',
-      'Automated follow-up reminders'
-    ]
+    description: 'Track pitch deck evolution and analyze companies with AI'
   }
 ];
 

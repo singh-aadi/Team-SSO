@@ -301,6 +301,37 @@ router.get('/categories', async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /api/radar/data/:id/vc-lens - Toggle VC Lens tracking for a radar entry
+router.patch('/data/:id/vc-lens', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { vc_lens } = req.body;
+
+    if (typeof vc_lens !== 'boolean') {
+      return res.status(400).json({ error: 'vc_lens must be a boolean value' });
+    }
+
+    const result = await query(
+      'UPDATE radar_data SET vc_lens = $1 WHERE id = $2 RETURNING *',
+      [vc_lens, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Radar data entry not found' });
+    }
+
+    console.log(`✅ VC Lens tracking ${vc_lens ? 'enabled' : 'disabled'} for ${result.rows[0].company_name}`);
+
+    res.json({ 
+      message: `VC Lens tracking ${vc_lens ? 'enabled' : 'disabled'} successfully`,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error toggling VC Lens tracking:', error);
+    res.status(500).json({ error: 'Failed to toggle VC Lens tracking' });
+  }
+});
+
 // DELETE /api/radar/data/:id - Delete a radar data entry
 router.delete('/data/:id', async (req: Request, res: Response) => {
   try {

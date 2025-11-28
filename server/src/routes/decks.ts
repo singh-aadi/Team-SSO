@@ -1377,12 +1377,13 @@ router.get('/comparisons/recent', async (req: Request, res: Response) => {
 // VC LENS FEATURE - Track pitch deck versions over time
 // ============================================================================
 
-// GET /api/decks/vc-lens - Get list of all analyzed filenames with version counts
+// GET /api/decks/vc-lens - Get list of all analyzed filenames with version counts + radar companies
 router.get('/vc-lens', async (req: Request, res: Response) => {
   try {
-    console.log('📊 [VC Lens] Fetching all analyzed pitch decks...');
+    console.log('📊 [VC Lens] Fetching all analyzed pitch decks and radar companies...');
 
-    const query_text = `
+    // Query 1: Get pitch decks with analysis
+    const pitchDecksQuery = `
       SELECT 
         filename,
         COUNT(*) as version_count,
@@ -1399,10 +1400,27 @@ router.get('/vc-lens', async (req: Request, res: Response) => {
       ORDER BY last_analysis DESC, version_count DESC
     `;
 
-    const result = await query(query_text);
+    const pitchDecksResult = await query(pitchDecksQuery);
 
-    // Extract clean company names for display
-    const companies = result.rows.map(row => {
+    // Query 2: Get radar companies marked for VC Lens
+    const radarQuery = `
+      SELECT 
+        id,
+        company_name,
+        headline,
+        description,
+        category,
+        funding_stage,
+        scraped_at
+      FROM radar_data
+      WHERE vc_lens = TRUE
+      ORDER BY scraped_at DESC
+    `;
+
+    const radarResult = await query(radarQuery);
+
+    // Process pitch deck companies
+    const pitchDeckCompanies = pitchDecksResult.rows.map(row => {
       const cleanName = row.filename
         .replace(/\.(pdf|ppt|pptx|docx|doc)$/i, '')
         .replace(/[-_()]/g, ' ')
@@ -1424,22 +1442,52 @@ router.get('/vc-lens', async (req: Request, res: Response) => {
         maxScore: parseFloat(row.max_score),
         scoreChange: parseFloat(scoreChange.toFixed(2)),
         trend: scoreChange > 0 ? 'improving' : scoreChange < 0 ? 'declining' : 'stable',
-        hasHistory: row.version_count > 1
+        hasHistory: row.version_count > 1,
+        source: 'pitch_deck',
+        needsDeck: false
       };
     });
 
-    console.log(`✅ [VC Lens] Found ${companies.length} unique pitch decks`);
-    console.log(`   - With version history: ${companies.filter(c => c.hasHistory).length}`);
-    console.log(`   - Single version: ${companies.filter(c => !c.hasHistory).length}`);
+    // Process radar companies (need pitch deck)
+    const radarCompanies = radarResult.rows.map(row => ({
+      filename: `radar_${row.id}`,
+      displayName: row.company_name,
+      versionCount: 0,
+      firstAnalysis: null,
+      lastAnalysis: row.scraped_at,
+      scoreHistory: [],
+      minScore: null,
+      maxScore: null,
+      scoreChange: 0,
+      trend: 'stable',
+      hasHistory: false,
+      source: 'radar',
+      needsDeck: true,
+      radarId: row.id,
+      headline: row.headline,
+      description: row.description,
+      category: row.category,
+      fundingStage: row.funding_stage
+    }));
+
+    // Combine both lists (radar companies first for visibility)
+    const companies = [...radarCompanies, ...pitchDeckCompanies];
+
+    console.log(`✅ [VC Lens] Found ${companies.length} total companies`);
+    console.log(`   - Pitch decks with analysis: ${pitchDeckCompanies.length}`);
+    console.log(`   - Radar companies (need deck): ${radarCompanies.length}`);
+    console.log(`   - With version history: ${pitchDeckCompanies.filter(c => c.hasHistory).length}`);
 
     res.json({
       success: true,
       companies,
       summary: {
         total: companies.length,
-        withHistory: companies.filter(c => c.hasHistory).length,
-        improving: companies.filter(c => c.trend === 'improving').length,
-        declining: companies.filter(c => c.trend === 'declining').length
+        pitchDecks: pitchDeckCompanies.length,
+        radarCompanies: radarCompanies.length,
+        withHistory: pitchDeckCompanies.filter(c => c.hasHistory).length,
+        improving: pitchDeckCompanies.filter(c => c.trend === 'improving').length,
+        declining: pitchDeckCompanies.filter(c => c.trend === 'declining').length
       }
     });
   } catch (error: any) {

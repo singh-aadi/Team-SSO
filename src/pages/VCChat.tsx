@@ -47,7 +47,10 @@ export default function VCChat() {
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll if there's more than the initial message
+    if (messages.length > 1) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   useEffect(() => {
