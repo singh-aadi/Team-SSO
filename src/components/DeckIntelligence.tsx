@@ -13,6 +13,8 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Trophy,
   Wand2,
 } from 'lucide-react';
@@ -97,6 +99,24 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       setAnalyzedDecks(decks);
     } catch (err) {
       console.error('Error loading analyzed decks:', err);
+    }
+  };
+
+  const handleShowDeckResults = async (deckId: string) => {
+    try {
+      setAnalyzing(true);
+      setError('');
+      console.log('📂 Loading deck results for:', deckId);
+      
+      const deck = await api.getDeck(deckId);
+      console.log('✅ Deck loaded:', deck);
+      
+      setCurrentDeck(deck);
+      setAnalyzing(false);
+    } catch (err: any) {
+      console.error('❌ Failed to load deck:', err);
+      setError(err.message || 'Failed to load deck results');
+      setAnalyzing(false);
     }
   };
 
@@ -525,6 +545,8 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             setError('Analysis failed. Please try again.');
           } else {
             console.log('✓ Analysis data:', deck.analysis);
+            // Refresh the analyzed decks list to include the newly completed analysis
+            loadAnalyzedDecks();
           }
         }
 
@@ -1053,6 +1075,87 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             </div>
           </div>
         </div>
+        )}
+
+        {/* Previously Analyzed Decks Section */}
+        {activeTab === 'analysis' && analyzedDecks.length > 0 && !currentDeck && !analyzing && !uploading && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-blue-600 rounded-lg p-2">
+                  <FileText className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Previously Analyzed Decks</h3>
+                  <p className="text-sm text-slate-600">View past analysis results</p>
+                </div>
+              </div>
+              <span className="text-sm text-slate-500">{analyzedDecks.length} deck{analyzedDecks.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {analyzedDecks.map((deck) => (
+                <div 
+                  key={deck.id} 
+                  className="bg-white rounded-lg border border-blue-200 p-4 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h4 className="font-semibold text-slate-900">{deck.file_name}</h4>
+                        {deck.sso_score && (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">
+                            {(parseFloat(deck.sso_score.toString()) * 10).toFixed(1)}/10
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center space-x-4 text-sm text-slate-600">
+                        {deck.company_name && (
+                          <span className="flex items-center space-x-1">
+                            <span>🏢</span>
+                            <span>{deck.company_name}</span>
+                          </span>
+                        )}
+                        {deck.stage && (
+                          <span className="flex items-center space-x-1">
+                            <TrendingUp className="h-3 w-3" />
+                            <span>{deck.stage}</span>
+                          </span>
+                        )}
+                        {deck.industry && (
+                          <span className="flex items-center space-x-1">
+                            <BarChart className="h-3 w-3" />
+                            <span>{deck.industry}</span>
+                          </span>
+                        )}
+                      </div>
+                      
+                      {deck.analyzed_at && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Analyzed: {new Date(deck.analyzed_at).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleShowDeckResults(deck.id)}
+                      className="ml-4 flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      <span>Show Results</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Tab Content - Comparison Tab */}
@@ -1752,11 +1855,28 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Deck Intelligence</h1>
-          <p className="text-slate-600 mt-1">
-            {analyzing ? 'Analyzing your deck...' : `Analysis for: "${currentDeck.file_name}"`}
-          </p>
+        <div className="flex-1">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => {
+                setCurrentDeck(null);
+                setAnalyzing(false);
+                setError('');
+              }}
+              className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 transition-colors"
+              title="Back to upload / deck list"
+            >
+              <ChevronLeft className="h-5 w-5" />
+              <span className="font-medium">Back</span>
+            </button>
+            <div className="h-6 w-px bg-slate-300"></div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Deck Intelligence</h1>
+              <p className="text-slate-600 mt-1">
+                {analyzing ? 'Analyzing your deck...' : `Analysis for: "${currentDeck.file_name}"`}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

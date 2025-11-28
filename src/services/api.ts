@@ -52,6 +52,8 @@ export interface PitchDeck {
   version?: string;
   uploaded_by: string;
   uploaded_at: string;
+  analyzed_at?: string;
+  sso_score?: number;
   status: 'pending' | 'processing' | 'analyzing' | 'completed' | 'analyzed' | 'failed';
   analysis?: DeckAnalysis;
 }

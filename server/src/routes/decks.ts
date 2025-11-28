@@ -453,7 +453,18 @@ router.post('/upload-dual', upload.fields([
 
     const deckFile = files.deck[0];
     const checklistFile = files.checklist[0];
-    const { company_id, uploaded_by, additional_context, industry, stage } = req.body;
+    let { company_id, uploaded_by, additional_context, industry, stage } = req.body;
+    
+    // Validate company_id is a valid UUID, otherwise set to null
+    const isValidUUID = (uuid: string): boolean => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(uuid);
+    };
+    
+    if (company_id && !isValidUUID(company_id)) {
+      console.log(`⚠️ Invalid company_id format: "${company_id}", setting to null`);
+      company_id = null;
+    }
     
     console.log('📝 Upload metadata:', {
       company_id,
