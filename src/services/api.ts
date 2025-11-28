@@ -418,6 +418,27 @@ class ApiService {
     return response.json();
   }
 
+  async compareMixedDecks(analyzedDeckId: string, uploadedDeck: File, uploadedDeckPosition: 'deck1' | 'deck2', userId?: string): Promise<{ id: string; message: string; decks: any }> {
+    const formData = new FormData();
+    formData.append('uploadedDeck', uploadedDeck);
+    formData.append('analyzedDeckId', analyzedDeckId);
+    formData.append('uploadedDeckPosition', uploadedDeckPosition);
+    if (userId) formData.append('user_id', userId);
+
+    const response = await fetch(`${API_URL}/decks/compare-mixed`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to compare mixed decks');
+    }
+
+    return response.json();
+  }
+
   // Health Check
   async healthCheck(): Promise<{ status: string; message: string }> {
     try {

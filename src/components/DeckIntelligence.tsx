@@ -61,6 +61,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
   const [deck1Mode, setDeck1Mode] = useState<'analyzed' | 'upload'>('analyzed');
   const [deck2Mode, setDeck2Mode] = useState<'analyzed' | 'upload'>('analyzed');
   const [analyzedDecks, setAnalyzedDecks] = useState<PitchDeck[]>([]);
+  const [previousComparisons, setPreviousComparisons] = useState<any[]>([]);
   const [selectedDeck1Id, setSelectedDeck1Id] = useState<string>('');
   const [selectedDeck2Id, setSelectedDeck2Id] = useState<string>('');
 
@@ -89,6 +90,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
     loadImportedContext();
     loadVCContext();
     loadAnalyzedDecks();
+    loadPreviousComparisons();
   }, []);
 
   const loadAnalyzedDecks = async () => {
@@ -99,6 +101,41 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
       setAnalyzedDecks(decks);
     } catch (err) {
       console.error('Error loading analyzed decks:', err);
+    }
+  };
+
+  const loadPreviousComparisons = async () => {
+    try {
+      const response = await fetch(`${API_URL}/decks/comparisons/recent?limit=20`);
+      const data = await response.json();
+      console.log('✅ Loaded previous comparisons:', data.comparisons);
+      // Filter only completed comparisons
+      const completed = data.comparisons.filter((comp: any) => comp.analysis_status === 'completed');
+      setPreviousComparisons(completed);
+    } catch (err) {
+      console.error('Error loading previous comparisons:', err);
+    }
+  };
+
+  const handleShowComparisonResults = async (comparisonId: string) => {
+    try {
+      setComparingDecks(true);
+      setError('');
+      console.log('📂 Loading comparison results for:', comparisonId);
+      
+      const response = await fetch(`${API_URL}/decks/compare/${comparisonId}`);
+      const comparison = await response.json();
+      
+      if (comparison.analysis_status === 'completed' && comparison.comparison_analysis) {
+        setComparisonPreview(comparison.comparison_analysis);
+        setCompletedComparisonId(comparisonId);
+        setShowComparisonPreview(true);
+      }
+    } catch (err) {
+      console.error('Error loading comparison:', err);
+      setError('Failed to load comparison results');
+    } finally {
+      setComparingDecks(false);
     }
   };
 
@@ -284,11 +321,34 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           break;
 
         case 'analyzed-upload':
+          // Deck 1 is analyzed, Deck 2 is uploaded
+          if (!selectedDeck1Id || !comparisonDeck2) {
+            setError('Please select an analyzed deck and upload the second deck');
+            setComparingDecks(false);
+            return;
+          }
+          
+          setComparisonStage('📤 Processing mixed comparison...');
+          console.log('📊 Mixed comparison: Analyzed deck 1 vs Uploaded deck 2');
+          
+          result = await api.compareMixedDecks(selectedDeck1Id, comparisonDeck2, 'deck2', userId);
+          console.log('✅ Mixed comparison started:', result);
+          break;
+
         case 'upload-analyzed':
-          // Mixed scenario - not yet implemented
-          setError('Mixed comparison (analyzed + upload) is not yet supported. Please select both from analyzed decks or upload both files.');
-          setComparingDecks(false);
-          return;
+          // Deck 1 is uploaded, Deck 2 is analyzed
+          if (!comparisonDeck1 || !selectedDeck2Id) {
+            setError('Please upload the first deck and select an analyzed deck');
+            setComparingDecks(false);
+            return;
+          }
+          
+          setComparisonStage('📤 Processing mixed comparison...');
+          console.log('📊 Mixed comparison: Uploaded deck 1 vs Analyzed deck 2');
+          
+          result = await api.compareMixedDecks(selectedDeck2Id, comparisonDeck1, 'deck1', userId);
+          console.log('✅ Mixed comparison started:', result);
+          break;
 
         default:
           setError('Invalid comparison scenario');
@@ -329,6 +389,27 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
           setComparisonConfidence(70);
         } else if (attempts <= 25) {
           setComparisonStage('📊 Identifying key differences...');
+          setComparisonConfidence(85);
+        } else {
+          setComparisonStage('✨ Generating recommendations...');
+          setComparisonConfidence(95);
+        }
+      } else if (scenario === 'analyzed-upload' || scenario === 'upload-analyzed') {
+        // Mixed scenario: One analyzed + one uploaded
+        if (attempts <= 5) {
+          setComparisonStage('📤 Uploading new pitch deck...');
+          setComparisonConfidence(15);
+        } else if (attempts <= 15) {
+          setComparisonStage('📄 Extracting text from uploaded deck...');
+          setComparisonConfidence(35);
+        } else if (attempts <= 30) {
+          setComparisonStage('🔍 Loading analyzed deck data...');
+          setComparisonConfidence(50);
+        } else if (attempts <= 60) {
+          setComparisonStage('⚖️ Running comparative AI analysis...');
+          setComparisonConfidence(75);
+        } else if (attempts <= 90) {
+          setComparisonStage('🌐 Validating with web search...');
           setComparisonConfidence(85);
         } else {
           setComparisonStage('✨ Generating recommendations...');
@@ -393,6 +474,9 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
             
             setComparisonPreview(analysisResult);
             setShowComparisonPreview(true);
+            
+            // Refresh the previous comparisons list
+            loadPreviousComparisons();
             
             // Don't auto-download, log success message
             console.log('Comparison analysis complete! You can now download the report in your preferred format.');
@@ -1078,7 +1162,7 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         )}
 
         {/* Previously Analyzed Decks Section */}
-        {activeTab === 'analysis' && analyzedDecks.length > 0 && !currentDeck && !analyzing && !uploading && (
+        {activeTab === 'analysis' && analyzedDecks.length > 0 && !analyzing && !uploading && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -1161,38 +1245,10 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
         {/* Tab Content - Comparison Tab */}
         {activeTab === 'comparison' && (
           <div className="bg-white rounded-xl border-2 border-slate-200 p-8">
-            {!showComparisonUpload ? (
-              <div className="text-center">
-                <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Compare Pitch Decks</h3>
-                <p className="text-slate-600 mb-6">
-                  Upload two pitch decks to get AI-powered side-by-side comparative analysis
-                </p>
-                <button
-                  onClick={() => setShowComparisonUpload(true)}
-                  className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-all"
-                >
-                  Start Comparison
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Compare Two Pitch Decks</h3>
-                    <p className="text-sm text-slate-600 mt-1">Upload both decks for side-by-side comparison</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowComparisonUpload(false);
-                      setComparisonDeck1(null);
-                      setComparisonDeck2(null);
-                      setError('');
-                    }}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+            <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Compare Two Pitch Decks</h3>
+                  <p className="text-sm text-slate-600 mt-1">Upload both decks for side-by-side comparison</p>
                 </div>
 
                 {error && (
@@ -1844,7 +1900,63 @@ export function DeckIntelligence({ userType }: DeckIntelligenceProps) {
                   </div>
                 )}
               </div>
-            )}
+          </div>
+        )}
+
+        {/* Previously Compared Decks Section */}
+        {activeTab === 'comparison' && previousComparisons.length > 0 && !comparingDecks && !showComparisonPreview && (
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-purple-600 rounded-lg p-2">
+                  <BarChart className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Previously Compared Decks</h3>
+                  <p className="text-sm text-slate-600">View past comparison results</p>
+                </div>
+              </div>
+              <span className="text-sm text-slate-500">{previousComparisons.length} comparison{previousComparisons.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {previousComparisons.map((comparison) => (
+                <div 
+                  key={comparison.id} 
+                  className="bg-white rounded-lg border border-purple-200 p-4 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h4 className="font-semibold text-slate-900">
+                          {comparison.deck1_filename} <span className="text-slate-400">vs</span> {comparison.deck2_filename}
+                        </h4>
+                      </div>
+                      
+                      {comparison.analyzed_at && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Compared: {new Date(comparison.analyzed_at).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleShowComparisonResults(comparison.id)}
+                      className="ml-4 flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    >
+                      <span>Show Results</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

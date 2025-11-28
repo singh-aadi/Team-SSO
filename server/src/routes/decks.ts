@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
-import { analyzeDualPDFs, analyzePitchDeckFromPDF, analyzePitchDeckWithGrounding } from '../services/ai-enhanced';
+import { analyzeDualPDFs, analyzePitchDeckFromPDF, analyzePitchDeckWithGrounding, extractTextFromPDF } from '../services/ai-enhanced';
+import { compareAnalyzedDecks } from '../services/vertex-ai';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -421,6 +423,312 @@ router.post('/compare-analyzed', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error comparing analyzed decks:', error);
     res.status(500).json({ error: 'Failed to compare analyzed decks', details: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// POST /api/decks/compare-mixed - Compare one analyzed deck with one uploaded file
+router.post('/compare-mixed', upload.single('uploadedDeck'), async (req: Request, res: Response) => {
+  try {
+    const { analyzedDeckId, uploadedDeckPosition, user_id } = req.body;
+    const uploadedFile = req.file;
+
+    console.log('\n📊 [Mixed Comparison] Starting comparison...');
+    console.log('   Analyzed Deck ID:', analyzedDeckId);
+    console.log('   Uploaded Deck Position:', uploadedDeckPosition); // 'deck1' or 'deck2'
+    console.log('   Uploaded File:', uploadedFile?.originalname);
+
+    if (!analyzedDeckId || !uploadedFile || !uploadedDeckPosition) {
+      return res.status(400).json({ 
+        error: 'Missing required parameters: analyzedDeckId, uploadedDeck file, and uploadedDeckPosition' 
+      });
+    }
+
+    if (!['deck1', 'deck2'].includes(uploadedDeckPosition)) {
+      return res.status(400).json({ 
+        error: 'uploadedDeckPosition must be either "deck1" or "deck2"' 
+      });
+    }
+
+    // Validate analyzedDeckId is a valid UUID
+    const isValidUUID = (uuid: string): boolean => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(uuid);
+    };
+
+    if (!isValidUUID(analyzedDeckId)) {
+      return res.status(400).json({ error: 'Invalid deck ID format' });
+    }
+
+    // Validate user_id if provided
+    const validUserId = user_id && isValidUUID(user_id) ? user_id : null;
+
+    // Fetch the analyzed deck from database
+    const analyzedDeckResult = await query(`
+      SELECT d.*, c.name as company_name, c.stage, c.industry
+      FROM pitch_decks d
+      LEFT JOIN companies c ON d.company_id = c.id
+      WHERE d.id = $1 AND d.analysis_status = 'completed'
+    `, [analyzedDeckId]);
+
+    if (analyzedDeckResult.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Analyzed deck not found or analysis not completed' 
+      });
+    }
+
+    const analyzedDeck = analyzedDeckResult.rows[0];
+    console.log('   ✓ Found analyzed deck:', analyzedDeck.filename);
+
+    // Create comparison record
+    const comparisonId = crypto.randomUUID();
+    
+    // Determine which deck is which based on position
+    const deck1Id = uploadedDeckPosition === 'deck1' ? null : analyzedDeckId;
+    const deck2Id = uploadedDeckPosition === 'deck2' ? null : analyzedDeckId;
+    const deck1Filename = uploadedDeckPosition === 'deck1' ? uploadedFile.originalname : analyzedDeck.filename;
+    const deck2Filename = uploadedDeckPosition === 'deck2' ? uploadedFile.originalname : analyzedDeck.filename;
+
+    await query(`
+      INSERT INTO deck_comparisons 
+      (id, deck1_id, deck2_id, user_id, comparison_type, deck1_filename, deck2_filename, analysis_status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      comparisonId,
+      deck1Id,
+      deck2Id,
+      validUserId,
+      'mixed',
+      deck1Filename,
+      deck2Filename,
+      'processing'
+    ]);
+
+    console.log('   ✓ Comparison record created:', comparisonId);
+
+    // Process the comparison in the background
+    setImmediate(async () => {
+      try {
+        console.log('\n🔄 [Mixed Comparison] Background processing started...');
+
+        // Step 1: Analyze the uploaded file first
+        console.log('   🧠 Analyzing uploaded file with AI...');
+        const uploadedFilePath = path.join(__dirname, '../../uploads', uploadedFile.filename);
+        
+        let uploadedAnalysis;
+        try {
+          uploadedAnalysis = await analyzePitchDeckFromPDF(uploadedFilePath, 'Uploaded Deck');
+          console.log(`   ✓ Analysis complete for uploaded file`);
+        } catch (textError) {
+          console.warn('   ⚠️ Standard analysis failed, trying with visual analysis...');
+          // If text extraction fails, try with visual analysis (for image-based PDFs)
+          const { analyzeDualPDFs } = await import('../services/ai-enhanced');
+          const dualAnalysis = await analyzeDualPDFs(uploadedFilePath, null, 'Uploaded Deck', '', '', {}, null);
+          uploadedAnalysis = {
+            analysis: dualAnalysis.analysis,
+            sections: dualAnalysis.sections
+          };
+          console.log(`   ✓ Visual analysis complete for uploaded file`);
+        }
+
+        // Get analyzed deck data
+        const analyzedDeckData = {
+          deckId: analyzedDeck.id,
+          filename: analyzedDeck.filename,
+          companyName: analyzedDeck.company_name || '',
+          stage: analyzedDeck.stage || '',
+          industry: analyzedDeck.industry || '',
+          analyzedAt: analyzedDeck.analyzed_at || new Date().toISOString(),
+          extractedText: analyzedDeck.dual_pdf_analysis?.extracted_text || '',
+          sections: analyzedDeck.dual_pdf_analysis?.sections || [],
+          overallAnalysis: analyzedDeck.dual_pdf_analysis?.overall || {
+            ssoScore: 0,
+            problemScore: 0,
+            solutionScore: 0,
+            marketScore: 0,
+            tractionScore: 0,
+            teamScore: 0,
+            financialsScore: 0,
+            overallScore: 0,
+            strengths: [],
+            weaknesses: [],
+            keyInsights: [],
+            recommendation: ''
+          }
+        };
+
+        // Create analyzed deck structure for uploaded file
+        const uploadedDeckData = {
+          deckId: 'uploaded-' + comparisonId,
+          filename: uploadedFile.originalname,
+          companyName: 'Uploaded Deck',
+          stage: '',
+          industry: '',
+          analyzedAt: new Date().toISOString(),
+          sections: uploadedAnalysis.sections.map(section => ({
+            sectionName: section.sectionName,
+            sectionScore: section.sectionScore,
+            feedback: section.feedback,
+            strengths: section.strengths || [],
+            improvements: section.improvements || []
+          })),
+          overallAnalysis: {
+            ssoScore: uploadedAnalysis.analysis.overallScore / 100, // Convert to 0-1 scale
+            problemScore: uploadedAnalysis.analysis.problemScore,
+            solutionScore: uploadedAnalysis.analysis.solutionScore,
+            marketScore: uploadedAnalysis.analysis.marketScore,
+            tractionScore: uploadedAnalysis.analysis.tractionScore,
+            teamScore: uploadedAnalysis.analysis.teamScore,
+            financialsScore: uploadedAnalysis.analysis.financialsScore,
+            overallScore: uploadedAnalysis.analysis.overallScore,
+            strengths: uploadedAnalysis.analysis.strengths || [],
+            weaknesses: uploadedAnalysis.analysis.weaknesses || [],
+            keyInsights: uploadedAnalysis.analysis.keyInsights || [],
+            recommendation: uploadedAnalysis.analysis.recommendation || ''
+          }
+        };
+
+        // Prepare data for comparison based on position
+        const deck1Data = uploadedDeckPosition === 'deck1' ? uploadedDeckData : analyzedDeckData;
+        const deck2Data = uploadedDeckPosition === 'deck2' ? uploadedDeckData : analyzedDeckData;
+
+        console.log('   🔄 Running final AI comparison between both decks...');
+        const comparisonAnalysis = await compareAnalyzedDecks(deck1Data, deck2Data);
+        console.log('   ✓ AI comparison complete');
+
+        // Build result structure
+        const comparisonResult = {
+          deck1Analysis: uploadedDeckPosition === 'deck1' ? {
+            summary: comparisonAnalysis.deck1Summary || 'Analysis based on uploaded document',
+            strengths: [],
+            weaknesses: [],
+            recommendation: '',
+            analysis: {
+              overallScore: 0,
+              problemScore: 0,
+              solutionScore: 0,
+              marketScore: 0,
+              tractionScore: 0,
+              teamScore: 0,
+              financialsScore: 0
+            }
+          } : {
+            summary: deck1Data.overallAnalysis.executiveSummary,
+            strengths: deck1Data.overallAnalysis.strengths,
+            weaknesses: deck1Data.overallAnalysis.weaknesses,
+            recommendation: deck1Data.overallAnalysis.recommendation,
+            analysis: {
+              overallScore: deck1Data.overallAnalysis.overallScore,
+              problemScore: deck1Data.overallAnalysis.problemScore,
+              solutionScore: deck1Data.overallAnalysis.solutionScore,
+              marketScore: deck1Data.overallAnalysis.marketScore,
+              tractionScore: deck1Data.overallAnalysis.tractionScore,
+              teamScore: deck1Data.overallAnalysis.teamScore,
+              financialsScore: deck1Data.overallAnalysis.financialsScore
+            }
+          },
+          deck2Analysis: uploadedDeckPosition === 'deck2' ? {
+            summary: comparisonAnalysis.deck2Summary || 'Analysis based on uploaded document',
+            strengths: [],
+            weaknesses: [],
+            recommendation: '',
+            analysis: {
+              overallScore: 0,
+              problemScore: 0,
+              solutionScore: 0,
+              marketScore: 0,
+              tractionScore: 0,
+              teamScore: 0,
+              financialsScore: 0
+            }
+          } : {
+            summary: deck2Data.overallAnalysis.executiveSummary,
+            strengths: deck2Data.overallAnalysis.strengths,
+            weaknesses: deck2Data.overallAnalysis.weaknesses,
+            recommendation: deck2Data.overallAnalysis.recommendation,
+            analysis: {
+              overallScore: deck2Data.overallAnalysis.overallScore,
+              problemScore: deck2Data.overallAnalysis.problemScore,
+              solutionScore: deck2Data.overallAnalysis.solutionScore,
+              marketScore: deck2Data.overallAnalysis.marketScore,
+              tractionScore: deck2Data.overallAnalysis.tractionScore,
+              teamScore: deck2Data.overallAnalysis.teamScore,
+              financialsScore: deck2Data.overallAnalysis.financialsScore
+            }
+          },
+          comparison: {
+            summary: comparisonAnalysis.executiveSummary,
+            winnerOverall: comparisonAnalysis.overallWinner,
+            categoryWinners: {
+              team: comparisonAnalysis.categoryComparison.team.winner,
+              market: comparisonAnalysis.categoryComparison.market.winner,
+              product: comparisonAnalysis.categoryComparison.solution.winner,
+              traction: comparisonAnalysis.categoryComparison.traction.winner,
+              financials: comparisonAnalysis.categoryComparison.financials.winner
+            },
+            strengths: {
+              deck1: comparisonAnalysis.categoryComparison.team.deck1Strengths?.concat(
+                comparisonAnalysis.categoryComparison.market.deck1Strengths || []
+              ) || [],
+              deck2: comparisonAnalysis.categoryComparison.team.deck2Strengths?.concat(
+                comparisonAnalysis.categoryComparison.market.deck2Strengths || []
+              ) || []
+            },
+            weaknesses: {
+              deck1: comparisonAnalysis.categoryComparison.team.deck1Weaknesses?.concat(
+                comparisonAnalysis.categoryComparison.market.deck1Weaknesses || []
+              ) || [],
+              deck2: comparisonAnalysis.categoryComparison.team.deck2Weaknesses?.concat(
+                comparisonAnalysis.categoryComparison.market.deck2Weaknesses || []
+              ) || []
+            },
+            recommendations: {
+              deck1: comparisonAnalysis.actionableRecommendations?.deck1 || [],
+              deck2: comparisonAnalysis.actionableRecommendations?.deck2 || []
+            },
+            keyDifferences: comparisonAnalysis.keyDifferentiators || []
+          }
+        };
+
+        // Store results
+        await query(`
+          UPDATE deck_comparisons 
+          SET comparison_analysis = $1, analysis_status = $2, analyzed_at = CURRENT_TIMESTAMP
+          WHERE id = $3
+        `, [JSON.stringify(comparisonResult), 'completed', comparisonId]);
+
+        console.log('   ✅ Mixed comparison completed and stored');
+
+        // Clean up uploaded file
+        try {
+          fs.unlinkSync(uploadedFilePath);
+          console.log('   ✓ Cleaned up uploaded file');
+        } catch (err) {
+          console.error('   ⚠️ Failed to clean up file:', err);
+        }
+      } catch (error) {
+        console.error('❌ [Mixed Comparison] Background processing failed:', error);
+        await query(`
+          UPDATE deck_comparisons 
+          SET analysis_status = $1
+          WHERE id = $2
+        `, ['failed', comparisonId]);
+      }
+    });
+
+    res.status(201).json({
+      id: comparisonId,
+      message: 'Mixed comparison started!',
+      decks: {
+        deck1: deck1Filename,
+        deck2: deck2Filename
+      }
+    });
+  } catch (error) {
+    console.error('Error in mixed comparison:', error);
+    res.status(500).json({ 
+      error: 'Failed to start mixed comparison', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
   }
 });
 
@@ -964,14 +1272,14 @@ router.get('/comparisons/recent', async (req: Request, res: Response) => {
 
     let queryText = `
       SELECT id, deck1_filename, deck2_filename, analysis_status, 
-             created_at, analyzed_at, uploaded_by
+             created_at, analyzed_at, user_id
       FROM deck_comparisons 
     `;
 
     const params: any[] = [];
     
     if (userId) {
-      queryText += ` WHERE uploaded_by = $1`;
+      queryText += ` WHERE user_id = $1`;
       params.push(userId);
       queryText += ` ORDER BY created_at DESC LIMIT $2`;
       params.push(limit);
