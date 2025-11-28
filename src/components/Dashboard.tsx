@@ -1,459 +1,167 @@
 import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { 
-  Upload, 
   FileText,
-  Target,
-  GitCompare,
-  Download,
   ArrowRight,
   Radar,
-  Sliders,
-  ChevronRight,
-  Sparkles,
   Clock,
-  Construction,
-  BookOpen,
   Activity,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  GitCompare
 } from 'lucide-react';
 import { api } from '../services/api';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 interface DashboardProps {
   userType: 'founder' | 'vc';
 }
 
 export function Dashboard({ userType }: DashboardProps) {
-  const navigate = useNavigate();
-  const [recentComparisons, setRecentComparisons] = useState<any[]>([]);
-  const [recentAnalyses, setRecentAnalyses] = useState<any[]>([]);
-  const [loadingComparisons, setLoadingComparisons] = useState(false);
-  const [loadingAnalyses, setLoadingAnalyses] = useState(false);
-
-  // Fetch recent comparisons for VCs
-  useEffect(() => {
-    const fetchComparisons = async () => {
-      if (userType !== 'vc') return;
-      
-      setLoadingComparisons(true);
-      try {
-        const comparisons = await api.getRecentComparisons(undefined, 5);
-        setRecentComparisons(comparisons);
-      } catch (error) {
-        console.error('Error fetching comparisons:', error);
-      } finally {
-        setLoadingComparisons(false);
-      }
-    };
-
-    fetchComparisons();
-  }, [userType]);
-
-  // Fetch recent analyses for Founders
-  useEffect(() => {
-    const fetchAnalyses = async () => {
-      if (userType !== 'founder') return;
-      
-      setLoadingAnalyses(true);
-      try {
-        const analyses = await api.getRecentAnalyses(undefined, 5);
-        setRecentAnalyses(analyses);
-      } catch (error) {
-        console.error('Error fetching analyses:', error);
-      } finally {
-        setLoadingAnalyses(false);
-      }
-    };
-
-    fetchAnalyses();
-  }, [userType]);
-
-  // VC Dashboard Journey Steps
-  const vcJourneySteps = [
-    {
-      number: 1,
-      title: 'Analyze Pitch Deck',
-      description: 'Upload startup pitch deck and get AI-powered analysis with SSO Score™',
-      icon: FileText,
-      action: () => navigate('/decks'),
-      color: 'blue',
-      status: 'ready'
-    },
-    {
-      number: 2,
-      title: 'Compare Reports',
-      description: 'Side-by-side comparison of multiple startup analyses',
-      icon: GitCompare,
-      action: () => navigate('/decks'),
-      color: 'teal',
-      status: 'ready',
-      subtext: 'Compare deal opportunities'
-    },
-    {
-      number: 3,
-      title: 'Discover Startups',
-      description: 'Browse curated startups and track emerging opportunities',
-      icon: Radar,
-      action: () => navigate('/startup-radar'),
-      color: 'purple',
-      status: 'ready'
-    },
-    {
-      number: 4,
-      title: 'VC Context & Mode',
-      description: 'Deep-dive analysis and custom evaluation frameworks',
-      icon: Sliders,
-      action: () => navigate('/vc-mode'),
-      color: 'indigo',
-      status: 'ready'
-    }
-  ];
-
-  // Founder Dashboard Journey Steps
-  const founderJourneySteps = [
-    {
-      number: 1,
-      title: 'Upload Pitch Deck',
-      description: 'Get instant AI feedback and SSO Readiness Score™',
-      icon: Upload,
-      action: () => navigate('/decks'),
-      color: 'blue',
-      status: 'ready'
-    },
-    {
-      number: 2,
-      title: 'View Report',
-      description: 'Detailed analysis with strengths, gaps, and recommendations',
-      icon: FileText,
-      action: () => navigate('/decks'),
-      color: 'teal',
-      status: 'ready'
-    },
-    {
-      number: 3,
-      title: 'Track Your Journey',
-      description: 'Monitor fundraising milestones and progress',
-      icon: Target,
-      action: () => navigate('/founder-journey'),
-      color: 'purple',
-      status: 'ready'
-    }
-  ];
-
-  const journeySteps = userType === 'vc' ? vcJourneySteps : founderJourneySteps;
-
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">
-            {userType === 'vc' ? 'VC Dashboard' : 'Founder Dashboard'}
-          </h1>
-          <p className="text-slate-600 mt-1 text-lg">
-            {userType === 'founder' 
-              ? 'Your journey to successful fundraising starts here' 
-              : 'Your deal flow analysis and portfolio management hub'}
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <div className="text-right">
-            <p className="text-sm font-medium text-slate-700">SSO Platform v2.1</p>
-            <p className="text-xs text-slate-500">by Team SSO</p>
-          </div>
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
-            <Sparkles className="h-6 w-6 text-white" />
-          </div>
-        </div>
+      {/* Welcome Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-teal-600 rounded-2xl p-8 text-white shadow-lg">
+        <h1 className="text-4xl font-bold mb-2">
+          Welcome back, LVX! 👋
+        </h1>
       </div>
 
-      {/* Your Journey Section */}
-      <div className="bg-gradient-to-br from-blue-50 to-teal-50 rounded-xl p-8 border border-blue-100">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
-            <Target className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">
-              {userType === 'vc' ? 'Your Deal Flow Journey' : 'Your Fundraising Journey'}
-            </h2>
-            <p className="text-slate-600">
-              {userType === 'vc' 
-                ? 'Follow this workflow to analyze and compare startup opportunities' 
-                : 'Follow these steps to prepare and improve your pitch'}
-            </p>
-          </div>
-        </div>
+      {/* Startup Radar Preview - VC Only */}
+      {userType === 'vc' && <StartupRadarPreview />}
 
-        {/* Journey Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {journeySteps.map((step, index) => {
-            const Icon = step.icon;
-            const colorClasses: any = {
-              blue: 'from-blue-600 to-blue-700',
-              teal: 'from-teal-600 to-teal-700',
-              purple: 'from-purple-600 to-purple-700',
-              indigo: 'from-indigo-600 to-indigo-700'
-            };
-            
-            return (
-              <button
-                key={index}
-                onClick={step.action}
-                className="group bg-white rounded-xl p-6 text-left transition-all hover:shadow-xl border-2 border-transparent hover:border-blue-200"
-              >
-                <div className="flex items-start space-x-4">
-                  <div className={`flex-shrink-0 w-12 h-12 bg-gradient-to-br ${colorClasses[step.color]} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <Icon className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                        Step {step.number}
-                      </span>
-                      <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1 group-hover:text-blue-600 transition-colors">
-                      {step.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* Deck Intelligence Summary - VC Only */}
+      {userType === 'vc' && <DeckIntelligenceSummary />}
 
       {/* VC Lens Stats - VC Only */}
       {userType === 'vc' && <VCLensStats />}
-
-      {/* Supporting Features */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* SSO Glossary */}
-        <button
-          onClick={() => navigate('/glossary')}
-          className="group bg-white rounded-xl p-6 text-left border-2 border-slate-200 hover:border-orange-300 hover:shadow-lg transition-all"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                <BookOpen className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600 transition-colors">
-                  SSO Glossary™
-                </h3>
-                <p className="text-xs text-slate-500">AI-Powered Knowledge Agent</p>
-              </div>
-            </div>
-            <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all" />
-          </div>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            AI-powered glossary with PhD-level insights on 200+ startup metrics, benchmarks, and investment frameworks. Get instant clarification on terminology.
-          </p>
-        </button>
-
-        {/* Industry Benchmarks - WIP */}
-        <div className="relative bg-slate-50 rounded-xl p-6 border-2 border-dashed border-slate-300">
-          <div className="absolute top-3 right-3">
-            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full flex items-center space-x-1">
-              <Construction className="h-3 w-3" />
-              <span>WIP</span>
-            </span>
-          </div>
-          <div className="flex items-start space-x-3 mb-4">
-            <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center">
-              <Construction className="h-5 w-5 text-slate-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-500">
-                Industry Benchmarks
-              </h3>
-              <p className="text-xs text-slate-400">Coming Soon</p>
-            </div>
-          </div>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            Compare startup metrics against industry standards and competitors. Deep market analysis and competitive positioning insights.
-          </p>
-        </div>
-      </div>
-
-      {/* Recent Activity - Moved to Bottom */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-slate-600" />
-              <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
-            </div>
-            <span className="text-xs text-slate-500">Last 7 days</span>
-          </div>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {/* Recent Analyses for Founders */}
-          {userType === 'founder' && recentAnalyses.length > 0 && (
-            <>
-              {recentAnalyses.map((analysis) => {
-                const isCompleted = analysis.analysis_status === 'completed';
-                const isProcessing = analysis.analysis_status === 'processing' || analysis.analysis_status === 'analyzing';
-                const isFailed = analysis.analysis_status === 'failed';
-                
-                return (
-                  <div key={analysis.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className={`w-3 h-3 rounded-full ${
-                        isCompleted ? 'bg-green-500' :
-                        isProcessing ? 'bg-blue-500 animate-pulse' : 
-                        isFailed ? 'bg-red-500' : 'bg-orange-500'
-                      }`}></div>
-                      <FileText className="h-5 w-5 text-slate-400" />
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900">
-                          Deck analyzed: "{analysis.filename}"
-                          {analysis.company_name && <span className="text-slate-600"> - {analysis.company_name}</span>}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          {isCompleted && analysis.sso_score 
-                            ? `SSO Score™: ${analysis.sso_score}/10`
-                            : isProcessing ? 'Analyzing...' :
-                            isFailed ? (analysis.error_message || 'Analysis failed') : 'Pending analysis'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <p className="text-sm text-slate-500">
-                        {new Date(analysis.created_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                      {isCompleted && (
-                        <button
-                          onClick={() => navigate(`/decks/${analysis.id}`)}
-                          className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                        >
-                          View
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {/* Recent Comparisons for VCs */}
-          {userType === 'vc' && recentComparisons.length > 0 && (
-            <>
-              {recentComparisons.map((comparison) => {
-                const isCompleted = comparison.analysis_status === 'completed';
-                const isProcessing = comparison.analysis_status === 'processing';
-                const isFailed = comparison.analysis_status === 'failed';
-                
-                return (
-                  <div key={comparison.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className={`w-3 h-3 rounded-full ${
-                        isCompleted ? 'bg-green-500' :
-                        isProcessing ? 'bg-blue-500 animate-pulse' : 
-                        isFailed ? 'bg-red-500' : 'bg-orange-500'
-                      }`}></div>
-                      <GitCompare className="h-5 w-5 text-slate-400" />
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900">
-                          Deck comparison: "{comparison.deck1_filename}" vs "{comparison.deck2_filename}"
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          {isCompleted ? 'Analysis completed' : 
-                           isProcessing ? 'Processing...' :
-                           isFailed ? (comparison.error_message || 'Analysis failed') : 'Pending analysis'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <p className="text-sm text-slate-500">
-                        {new Date(comparison.created_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                      {isCompleted && (
-                        <a
-                          href={`${API_URL}/decks/compare/${comparison.id}/report/pdf`}
-                          download
-                          className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                        >
-                          <Download className="h-4 w-4" />
-                          <span>PDF</span>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {/* Empty state for founders with no analyses */}
-          {userType === 'founder' && !loadingAnalyses && recentAnalyses.length === 0 && (
-            <div className="px-6 py-8 text-center">
-              <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 mb-1">No recent deck analyses</p>
-              <p className="text-sm text-slate-400">
-                Upload your pitch deck in the{' '}
-                <button 
-                  onClick={() => navigate('/decks')}
-                  className="text-blue-600 hover:underline"
-                >
-                  Upload Pitch Deck
-                </button>
-                {' '}section to get started
-              </p>
-            </div>
-          )}
-
-          {/* Empty state for VCs with no comparisons */}
-          {userType === 'vc' && !loadingComparisons && recentComparisons.length === 0 && (
-            <div className="px-6 py-8 text-center">
-              <GitCompare className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 mb-1">No recent deck comparisons</p>
-              <p className="text-sm text-slate-400">
-                Upload two decks in the{' '}
-                <button 
-                  onClick={() => navigate('/decks')}
-                  className="text-blue-600 hover:underline"
-                >
-                  Deck Intelligence
-                </button>
-                {' '}section to compare them
-              </p>
-            </div>
-          )}
-
-          {/* Loading states */}
-          {(loadingComparisons || loadingAnalyses) && (
-            <div className="px-6 py-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-slate-500 mt-3">Loading recent activity...</p>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* SSO Watermark */}
       <div className="text-center py-4">
         <p className="text-xs text-slate-400">Powered by Team SSO - Startup Scout & Optioneers</p>
       </div>
+    </div>
+  );
+}
+
+// Deck Intelligence Summary Component
+function DeckIntelligenceSummary() {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState<{
+    totalAnalyzed: number;
+    totalComparisons: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/decks/stats/intelligence`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setStats({
+            totalAnalyzed: data.totalAnalyzed || 0,
+            totalComparisons: data.totalComparisons || 0
+          });
+        } else {
+          setStats({
+            totalAnalyzed: 0,
+            totalComparisons: 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching deck intelligence stats:', error);
+        // Set fallback data on error
+        setStats({
+          totalAnalyzed: 0,
+          totalComparisons: 0
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
+        <div className="animate-pulse">
+          <div className="h-6 bg-slate-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-24 bg-slate-100 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Always show component, even with no stats
+  const safeStats = stats || {
+    totalAnalyzed: 0,
+    totalComparisons: 0
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-blue-600" />
+            Deck Intelligence
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">AI-powered pitch deck analysis & comparison</p>
+        </div>
+        <button
+          onClick={() => navigate('/decks')}
+          className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+        >
+          Analyze Deck
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {safeStats.totalAnalyzed === 0 && safeStats.totalComparisons === 0 ? (
+        <div className="text-center py-8 text-slate-500">
+          <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>No decks analyzed yet. Upload your first pitch deck!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-700 font-medium">Decks Analyzed</p>
+              <p className="text-3xl font-bold text-blue-900 mt-1">{safeStats.totalAnalyzed}</p>
+            </div>
+            <FileText className="w-8 h-8 text-blue-600 opacity-80" />
+          </div>
+          <p className="text-xs text-blue-600 mt-3">
+            {safeStats.totalAnalyzed === 1 ? '1 pitch deck evaluated' : `${safeStats.totalAnalyzed} pitch decks evaluated`}
+          </p>
+        </div>
+
+        <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-teal-700 font-medium">Decks Compared</p>
+              <p className="text-3xl font-bold text-teal-900 mt-1">{safeStats.totalComparisons}</p>
+            </div>
+            <GitCompare className="w-8 h-8 text-teal-600 opacity-80" />
+          </div>
+          <p className="text-xs text-teal-600 mt-3">
+            {safeStats.totalComparisons === 1 ? '1 comparison made' : `${safeStats.totalComparisons} comparisons made`}
+          </p>
+        </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -483,6 +191,13 @@ function VCLensStats() {
         });
       } catch (error) {
         console.error('Error fetching VC Lens stats:', error);
+        // Set fallback data on error
+        setStats({
+          totalCompanies: 0,
+          withHistory: 0,
+          improving: 0,
+          declining: 0
+        });
       } finally {
         setLoading(false);
       }
@@ -506,9 +221,13 @@ function VCLensStats() {
     );
   }
 
-  if (!stats || stats.totalCompanies === 0) {
-    return null; // Don't show if no data
-  }
+  // Always show component with safe fallback values
+  const safeStats = stats || {
+    totalCompanies: 0,
+    withHistory: 0,
+    improving: 0,
+    declining: 0
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
@@ -529,12 +248,18 @@ function VCLensStats() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {safeStats.totalCompanies === 0 ? (
+        <div className="text-center py-8 text-slate-500">
+          <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>No pitch deck versions tracked yet. Upload multiple versions of the same deck to track evolution!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-blue-700 font-medium">Total Companies</p>
-              <p className="text-3xl font-bold text-blue-900 mt-1">{stats.totalCompanies}</p>
+              <p className="text-3xl font-bold text-blue-900 mt-1">{safeStats.totalCompanies}</p>
             </div>
             <FileText className="w-8 h-8 text-blue-600 opacity-80" />
           </div>
@@ -544,7 +269,7 @@ function VCLensStats() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-purple-700 font-medium">With History</p>
-              <p className="text-3xl font-bold text-purple-900 mt-1">{stats.withHistory}</p>
+              <p className="text-3xl font-bold text-purple-900 mt-1">{safeStats.withHistory}</p>
             </div>
             <Clock className="w-8 h-8 text-purple-600 opacity-80" />
           </div>
@@ -554,7 +279,7 @@ function VCLensStats() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-green-700 font-medium">Improving</p>
-              <p className="text-3xl font-bold text-green-900 mt-1">{stats.improving}</p>
+              <p className="text-3xl font-bold text-green-900 mt-1">{safeStats.improving}</p>
             </div>
             <TrendingUp className="w-8 h-8 text-green-600 opacity-80" />
           </div>
@@ -564,12 +289,139 @@ function VCLensStats() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-red-700 font-medium">Declining</p>
-              <p className="text-3xl font-bold text-red-900 mt-1">{stats.declining}</p>
+              <p className="text-3xl font-bold text-red-900 mt-1">{safeStats.declining}</p>
             </div>
             <TrendingDown className="w-8 h-8 text-red-600 opacity-80" />
           </div>
         </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Startup Radar Preview Component - Top 4 Sectors
+function StartupRadarPreview() {
+  const navigate = useNavigate();
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSectors = async () => {
+      try {
+        // Fetch top 4 sectors with most startups
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/decks/stats/sectors?limit=4`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📊 [StartupRadar] Received sectors data:', data);
+          console.log('📊 [StartupRadar] Number of sectors:', data?.length);
+          setSectors(data || []);
+        } else {
+          console.error('📊 [StartupRadar] Response not ok:', response.status);
+          setSectors([]);
+        }
+      } catch (error) {
+        console.error('📊 [StartupRadar] Error fetching sectors:', error);
+        setSectors([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSectors();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
+        <div className="animate-pulse">
+          <div className="h-6 bg-slate-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-slate-100 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
       </div>
+    );
+  }
+
+  // Color schemes for top sectors
+  const sectorColors = [
+    { from: 'from-purple-50', to: 'to-purple-100', text: 'text-purple-900', icon: 'text-purple-600', border: 'border-purple-200' },
+    { from: 'from-blue-50', to: 'to-blue-100', text: 'text-blue-900', icon: 'text-blue-600', border: 'border-blue-200' },
+    { from: 'from-teal-50', to: 'to-teal-100', text: 'text-teal-900', icon: 'text-teal-600', border: 'border-teal-200' },
+    { from: 'from-pink-50', to: 'to-pink-100', text: 'text-pink-900', icon: 'text-pink-600', border: 'border-pink-200' }
+  ];
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+            <Radar className="w-6 h-6 text-purple-600" />
+            Startup Radar
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">Top sectors by startup count</p>
+        </div>
+        <button
+          onClick={() => navigate('/startup-radar')}
+          className="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center gap-1"
+        >
+          View All
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {sectors.length === 0 ? (
+        <div className="text-center py-8 text-slate-500">
+          <Radar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>No startups analyzed yet. Upload a deck to get started!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {sectors.map((sector, index) => {
+          const colors = sectorColors[index] || sectorColors[0];
+          const startupCount = parseInt(sector.startup_count) || 0;
+          
+          console.log('🎯 [Sector Card]', {
+            sector: sector.sector,
+            count: sector.startup_count,
+            parsedCount: startupCount,
+            index
+          });
+          
+          return (
+            <div
+              key={`${sector.sector}-${index}`}
+              className={`bg-gradient-to-br ${colors.from} ${colors.to} rounded-lg p-5 border-2 ${colors.border} hover:shadow-md transition-all`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className={`w-10 h-10 rounded-full bg-white flex items-center justify-center ${colors.icon}`}>
+                  <Radar className="w-5 h-5" />
+                </div>
+                <div className={`text-3xl font-bold ${colors.text}`}>
+                  {startupCount}
+                </div>
+              </div>
+              
+              <h3 className={`font-semibold ${colors.text} text-base line-clamp-2 min-h-[2.5rem]`}>
+                {sector.sector || 'Unknown Sector'}
+              </h3>
+              
+              <p className="text-xs text-slate-600 mt-2">
+                {startupCount === 1 ? '1 startup' : `${startupCount} startups`}
+              </p>
+            </div>
+          );
+        })}
+        </div>
+      )}
     </div>
   );
 }

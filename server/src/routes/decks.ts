@@ -1580,6 +1580,116 @@ router.get('/vc-lens/:filename', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/decks/analyzed - Get recently analyzed decks
+router.get('/analyzed', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    console.log('📊 [GET /analyzed] Fetching recently analyzed decks, limit:', limit);
+
+    const result = await query(`
+      SELECT 
+        id,
+        filename,
+        file_url,
+        analyzed_at,
+        sso_score,
+        dual_pdf_analysis,
+        analysis_status,
+        company_id
+      FROM pitch_decks
+      WHERE analysis_status = 'completed'
+        AND analyzed_at IS NOT NULL
+      ORDER BY analyzed_at DESC
+      LIMIT $1
+    `, [limit]);
+
+    console.log('✅ [GET /analyzed] Found', result.rows.length, 'analyzed decks');
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('❌ [GET /analyzed] Database error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch analyzed decks',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/decks/stats/sectors - Get top sectors with most startups
+router.get('/stats/sectors', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 4;
+    
+    console.log('🎯 [GET /stats/sectors] Fetching top sectors from Market Intel (radar_data), limit:', limit);
+
+    // Query radar_data table (Market Intel / Startup Radar) to get top sectors
+    const result = await query(`
+      SELECT 
+        COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') as sector,
+        COUNT(*)::INTEGER as startup_count
+      FROM radar_data
+      WHERE category IS NOT NULL
+        AND TRIM(category) != ''
+      GROUP BY category
+      ORDER BY startup_count DESC
+      LIMIT $1
+    `, [limit]);
+
+    console.log('✅ [GET /stats/sectors] Found', result.rows.length, 'sectors from Market Intel');
+    if (result.rows.length > 0) {
+      console.log('📊 [GET /stats/sectors] Sectors:', 
+        result.rows.map(r => `${r.sector}: ${r.startup_count}`).join(', '));
+    }
+    
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('❌ [GET /stats/sectors] Database error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch sector stats',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/decks/stats/intelligence - Get deck intelligence stats (analyzed count + comparisons)
+router.get('/stats/intelligence', async (req: Request, res: Response) => {
+  try {
+    console.log('📊 [GET /stats/intelligence] Fetching deck intelligence stats');
+
+    // Get total analyzed decks count
+    const analyzedResult = await query(`
+      SELECT COUNT(*) as total
+      FROM pitch_decks
+      WHERE analysis_status = 'completed'
+        AND analyzed_at IS NOT NULL
+    `);
+
+    // Get total comparisons count
+    const comparisonsResult = await query(`
+      SELECT COUNT(*) as total
+      FROM deck_comparisons
+      WHERE analysis_status = 'completed'
+    `);
+
+    const stats = {
+      totalAnalyzed: parseInt(analyzedResult.rows[0]?.total || '0'),
+      totalComparisons: parseInt(comparisonsResult.rows[0]?.total || '0')
+    };
+
+    console.log('✅ [GET /stats/intelligence] Stats:', stats);
+    res.json(stats);
+  } catch (error: any) {
+    console.error('❌ [GET /stats/intelligence] Database error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch intelligence stats',
+      details: error.message 
+    });
+  }
+});
+
 // GET /api/decks/:id - Get deck details with analysis
 router.get('/:id', async (req: Request, res: Response) => {
   try {
