@@ -116,18 +116,28 @@ export async function generatePremiumPDF(
         doc.x = leftMargin; // Reset x position
       };
 
-      const drawInfoBox = (title: string, content: string, icon: string = '') => {
-        checkPageBreak(70);
+      const drawInfoBox = (title: string, content: string, icon: string = '', align: 'left' | 'center' = 'left') => {
+        checkPageBreak(100);
         const boxY = doc.y;
-        const boxHeight = 60;
         
-        doc.roundedRect(doc.x, boxY, doc.page.width - 120, boxHeight, 5)
+        // Calculate dynamic height based on content length
+        const contentLines = Math.ceil(content.length / 100);
+        const boxHeight = Math.max(60, 40 + (contentLines * 12));
+        
+        const boxWidth = doc.page.width - 120;
+        const boxX = align === 'center' ? (doc.page.width - boxWidth) / 2 : doc.x;
+        
+        doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 5)
            .fillAndStroke(COLORS.background, COLORS.border);
         
+        const textX = boxX + 15;
+        const titleY = boxY + 12;
+        const contentY = boxY + 30;
+        
         doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.primary)
-           .text(title, doc.x + 15, boxY + 12);
+           .text(title, textX, titleY, { width: boxWidth - 30, align: align === 'center' ? 'center' : 'left' });
         doc.fontSize(9).font('Helvetica').fillColor(COLORS.text)
-           .text(content, doc.x + 15, boxY + 30, { width: doc.page.width - 150 });
+           .text(content, textX, contentY, { width: boxWidth - 30, align: align === 'center' ? 'center' : 'left' });
         
         doc.y = boxY + boxHeight + 10;
       };
@@ -283,7 +293,6 @@ export async function generatePremiumPDF(
         { section: 'Funding History & Financials', page: 8 },
         { section: 'Sector Classification & Analysis', page: 10 },
         { section: 'Core Investment Metrics', page: 12 },
-        { section: 'Industry-Specific KPIs', page: 16 },
         { section: 'Competitive Landscape', page: 18 },
         { section: 'Risk Assessment', page: 20 },
         { section: 'Growth Opportunities', page: 22 },
@@ -407,9 +416,9 @@ export async function generatePremiumPDF(
       
       // Problem & Solution Section
       drawSubheader('Problem & Solution');
-      drawInfoBox('Problem Addressed', data.coreMetrics.problemSolution.painPointAddressed);
-      drawInfoBox('Solution Innovation', data.coreMetrics.problemSolution.solutionInnovation);
-      drawInfoBox('Unique Value Proposition', data.coreMetrics.problemSolution.uniqueValueProp);
+      drawInfoBox('Problem Addressed', data.coreMetrics.problemSolution.painPointAddressed, '', 'center');
+      drawInfoBox('Solution Innovation', data.coreMetrics.problemSolution.solutionInnovation, '', 'center');
+      drawInfoBox('Unique Value Proposition', data.coreMetrics.problemSolution.uniqueValueProp, '', 'center');
 
       // ============================================================
       // PAGE 6-7: FOUNDER PROFILES
@@ -587,7 +596,8 @@ export async function generatePremiumPDF(
       
       // B. Market Opportunity Analysis
       checkPageBreak(220);
-      drawSubheader('B. Market Opportunity Analysis');
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.text).text('B. Market Opportunity Analysis', leftMargin, doc.y);
+      doc.moveDown(0.5);
       drawScoreBar('', data.coreMetrics.marketOpportunity.score, 280);
       doc.moveDown(0.5);
       drawMetricsTable([
@@ -597,7 +607,7 @@ export async function generatePremiumPDF(
         { criteria: 'Growth Rate', description: 'Market expansion trajectory', assessment: data.coreMetrics.marketOpportunity.marketGrowthRate },
       ]);
       doc.moveDown(0.5);
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Market Trends:');
+      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Market Trends:', leftMargin, doc.y);
       drawBulletList(data.coreMetrics.marketOpportunity.marketTrends);
       doc.moveDown(1);
       
@@ -613,13 +623,14 @@ export async function generatePremiumPDF(
         { criteria: 'Growth Rate', description: 'Month-over-month or year-over-year growth', assessment: data.coreMetrics.traction.growthRate },
       ]);
       doc.moveDown(0.5);
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Key Milestones:');
+      doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.text).text('Key Milestones:', leftMargin, doc.y);
       drawBulletList(data.coreMetrics.traction.milestones);
       doc.moveDown(1);
       
       // D. Team & Execution Capability
       checkPageBreak(200);
-      drawSubheader('D. Team & Execution Capability');
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.text).text('D. Team & Execution Capability', leftMargin, doc.y);
+      doc.moveDown(0.5);
       drawScoreBar('', data.coreMetrics.team.score, 280);
       doc.moveDown(0.5);
       drawMetricsTable([
@@ -659,56 +670,6 @@ export async function generatePremiumPDF(
         { criteria: 'Funding Needs', description: 'Capital requirements', assessment: data.coreMetrics.financials.fundingNeeds },
       ]);
       doc.moveDown(1);
-
-      // ============================================================
-      // PAGE 16-17: INDUSTRY-SPECIFIC METRICS
-      // ============================================================
-      doc.addPage();
-      drawSectionHeader('INDUSTRY-SPECIFIC KPIs');
-      
-      doc.fontSize(10).font('Helvetica').fillColor(COLORS.textLight)
-         .text(`Metrics specific to ${data.sectorClassification.primarySector} sector:`, { paragraphGap: 8 });
-      doc.moveDown(0.5);
-      
-      // Display industry-specific metrics dynamically
-      const realMetricKeys = Object.keys(data.industrySpecificMetrics).filter(key => !key.startsWith('//'));
-      
-      if (realMetricKeys.length === 0) {
-        doc.fontSize(10).font('Helvetica-Oblique').fillColor(COLORS.textLight)
-           .text('Industry-specific KPIs will be extracted from the deck and validated via web search. This section shows metrics like:', { paragraphGap: 5 });
-        doc.moveDown(0.5);
-        
-        // Show examples based on sector
-        const sector = data.sectorClassification.primarySector.toLowerCase();
-        const exampleMetrics: Record<string, string[]> = {
-          'healthcare': ['Regulatory Approvals', 'Clinical Validation', 'Reimbursement Strategy', 'Data Privacy Compliance'],
-          'saas': ['ARR/MRR', 'Churn Rate', 'Net Promoter Score', 'LTV:CAC Ratio'],
-          'fintech': ['Licenses', 'Assets Under Management', 'Transaction Volume', 'Fraud Rate'],
-          'ecommerce': ['GMV', 'Average Order Value', 'Conversion Rate', 'Repeat Purchase Rate'],
-          'ai': ['Model Accuracy', 'Dataset Size', 'Inference Speed', 'Compute Costs']
-        };
-        
-        const relevantMetrics = exampleMetrics[sector] || ['Revenue Growth', 'User Metrics', 'Unit Economics', 'Key Performance Indicators'];
-        drawBulletList(relevantMetrics);
-      } else {
-        realMetricKeys.forEach(key => {
-          checkPageBreak(100);
-          drawSubheader(key.replace(/([A-Z_])/g, ' $1').trim());
-          
-          const metrics = data.industrySpecificMetrics[key];
-          if (typeof metrics === 'object') {
-            Object.keys(metrics).forEach(metricKey => {
-              if (!metricKey.startsWith('//')) {
-                drawKeyValuePair(
-                  metricKey.replace(/([A-Z_])/g, ' $1').trim(),
-                  String(metrics[metricKey])
-                );
-              }
-            });
-          }
-          doc.moveDown(1);
-        });
-      }
 
       // ============================================================
       // PAGE 18-19: COMPETITIVE LANDSCAPE
@@ -892,16 +853,16 @@ export async function generatePremiumPDF(
          .lineWidth(3)
          .fillAndStroke(recBgColor, recBorderColor);
       
-      // Recommendation label - center aligned
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(recBorderColor)
+      // Recommendation label - center aligned with consistent font size
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(recBorderColor)
          .text('FINAL RECOMMENDATION', recBoxX, recBoxY + 15, { 
            width: recBoxWidth, 
            align: 'center' 
          });
       
-      // Recommendation action - center aligned, larger font
-      doc.fontSize(16).font('Helvetica-Bold').fillColor(recBorderColor)
-         .text(data.investmentThesis.recommendedAction, recBoxX, recBoxY + 42, { 
+      // Recommendation action - center aligned with consistent font size
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(recBorderColor)
+         .text(data.investmentThesis.recommendedAction, recBoxX, recBoxY + 45, { 
            width: recBoxWidth, 
            align: 'center' 
          });

@@ -522,7 +522,7 @@ router.post('/compare-mixed', upload.single('uploadedDeck'), async (req: Request
           console.warn('   ⚠️ Standard analysis failed, trying with visual analysis...');
           // If text extraction fails, try with visual analysis (for image-based PDFs)
           const { analyzeDualPDFs } = await import('../services/ai-enhanced');
-          const dualAnalysis = await analyzeDualPDFs(uploadedFilePath, null, 'Uploaded Deck', '', '', {}, null);
+          const dualAnalysis = await analyzeDualPDFs(uploadedFilePath, '', 'Uploaded Deck');
           uploadedAnalysis = {
             analysis: dualAnalysis.analysis,
             sections: dualAnalysis.sections
@@ -598,10 +598,10 @@ router.post('/compare-mixed', upload.single('uploadedDeck'), async (req: Request
         // Build result structure
         const comparisonResult = {
           deck1Analysis: uploadedDeckPosition === 'deck1' ? {
-            summary: comparisonAnalysis.deck1Summary || 'Analysis based on uploaded document',
-            strengths: [],
-            weaknesses: [],
-            recommendation: '',
+            summary: comparisonAnalysis.executiveSummary || 'Analysis based on uploaded document',
+            strengths: comparisonAnalysis.strengthsComparison?.deck1Advantages || [],
+            weaknesses: comparisonAnalysis.weaknessesComparison?.deck1Concerns || [],
+            recommendation: comparisonAnalysis.recommendations?.deck1?.[0] || '',
             analysis: {
               overallScore: 0,
               problemScore: 0,
@@ -627,10 +627,10 @@ router.post('/compare-mixed', upload.single('uploadedDeck'), async (req: Request
             }
           },
           deck2Analysis: uploadedDeckPosition === 'deck2' ? {
-            summary: comparisonAnalysis.deck2Summary || 'Analysis based on uploaded document',
-            strengths: [],
-            weaknesses: [],
-            recommendation: '',
+            summary: comparisonAnalysis.executiveSummary || 'Analysis based on uploaded document',
+            strengths: comparisonAnalysis.strengthsComparison?.deck2Advantages || [],
+            weaknesses: comparisonAnalysis.weaknessesComparison?.deck2Concerns || [],
+            recommendation: comparisonAnalysis.recommendations?.deck2?.[0] || '',
             analysis: {
               overallScore: 0,
               problemScore: 0,
@@ -666,24 +666,16 @@ router.post('/compare-mixed', upload.single('uploadedDeck'), async (req: Request
               financials: comparisonAnalysis.categoryComparison.financials.winner
             },
             strengths: {
-              deck1: comparisonAnalysis.categoryComparison.team.deck1Strengths?.concat(
-                comparisonAnalysis.categoryComparison.market.deck1Strengths || []
-              ) || [],
-              deck2: comparisonAnalysis.categoryComparison.team.deck2Strengths?.concat(
-                comparisonAnalysis.categoryComparison.market.deck2Strengths || []
-              ) || []
+              deck1: comparisonAnalysis.strengthsComparison?.deck1Advantages || [],
+              deck2: comparisonAnalysis.strengthsComparison?.deck2Advantages || []
             },
             weaknesses: {
-              deck1: comparisonAnalysis.categoryComparison.team.deck1Weaknesses?.concat(
-                comparisonAnalysis.categoryComparison.market.deck1Weaknesses || []
-              ) || [],
-              deck2: comparisonAnalysis.categoryComparison.team.deck2Weaknesses?.concat(
-                comparisonAnalysis.categoryComparison.market.deck2Weaknesses || []
-              ) || []
+              deck1: comparisonAnalysis.weaknessesComparison?.deck1Concerns || [],
+              deck2: comparisonAnalysis.weaknessesComparison?.deck2Concerns || []
             },
             recommendations: {
-              deck1: comparisonAnalysis.actionableRecommendations?.deck1 || [],
-              deck2: comparisonAnalysis.actionableRecommendations?.deck2 || []
+              deck1: comparisonAnalysis.recommendations?.deck1 || [],
+              deck2: comparisonAnalysis.recommendations?.deck2 || []
             },
             keyDifferences: comparisonAnalysis.keyDifferentiators || []
           }

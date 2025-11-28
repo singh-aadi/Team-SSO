@@ -97,11 +97,11 @@ class NotionService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json() as { error?: string };
       throw new Error(`Notion OAuth failed: ${error.error || 'Unknown error'}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; workspace_name?: string; workspace_icon?: string };
     
     return {
       access_token: data.access_token,
@@ -156,8 +156,8 @@ class NotionService {
         if (result.object === 'page') {
           const page = await this.parsePage(result);
           pages.push(page);
-        } else if (result.object === 'database') {
-          databases.push(this.parseDatabase(result));
+        } else if ((result as any).object === 'database') {
+          databases.push(this.parseDatabase(result as any));
         }
       }
 
@@ -372,7 +372,7 @@ class NotionService {
     try {
       console.log(`📊 Querying Notion database: ${databaseId}`);
 
-      const response: any = await this.notionClient.databases.query({
+      const response: any = await (this.notionClient as any).databases.query({
         database_id: databaseId,
         filter: filters,
         page_size: 100
