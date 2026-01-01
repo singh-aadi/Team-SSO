@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Notion Authorization</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .container {
+      text-align: center;
+      background: white;
+      padding: 3rem;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    h1 {
+      color: #333;
+      margin: 0 0 1rem;
+    }
+    p {
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <h1>Notion Authorization</h1>
+    <p>Processing authorization... This window will close automatically.</p>
+  </div>
+
+  <script>
+    // Extract authorization code from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
+
+    if (error) {
+      // Send error to parent window
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'NOTION_AUTH_ERROR',
+          error: error
+        }, '*');
+      }
+      setTimeout(() => window.close(), 2000);
+    } else if (code) {
+      // Send code to parent window
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'NOTION_AUTH_SUCCESS',
+          code: code
+        }, '*');
+      }
+      // Close window after a short delay
+      setTimeout(() => window.close(), 1000);
+    } else {
+      document.querySelector('p').textContent = 'Authorization failed. Please try again.';
+      setTimeout(() => window.close(), 3000);
+    }
+  </script>
+</body>
+</html>
