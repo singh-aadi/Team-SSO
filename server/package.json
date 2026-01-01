@@ -1,7 +1,7 @@
 {
-  "name": "startup-scout-server",
-  "version": "1.0.0",
-  "description": "Backend API for Startup Scout & Optioneers",
+  "name": "team-sso-server",
+  "version": "2.0.0",
+  "description": "Backend API for Team-SSO - AI-Powered Pitch Deck Analysis Platform",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -13,10 +13,13 @@
   },
   "keywords": [
     "vc",
-    "startup",
-    "api"
+    "venture-capital",
+    "pitch-deck",
+    "ai-analysis",
+    "google-gemini",
+    "startup"
   ],
-  "author": "LetsVenture",
+  "author": "Team-SSO",
   "license": "MIT",
   "dependencies": {
     "@google-cloud/speech": "^7.2.1",

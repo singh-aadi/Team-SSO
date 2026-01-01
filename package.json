@@ -1,7 +1,8 @@
 {
-  "name": "startup-scout-optioneers",
+  "name": "team-sso",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "AI-Powered Pitch Deck Analysis Platform for Venture Capitalists - Google AI Analyst Hackathon 2025 Top 10 Finalist",
   "type": "module",
   "scripts": {
     "dev": "vite",

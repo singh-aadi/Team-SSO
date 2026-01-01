@@ -1,425 +1,249 @@
-# 🚀 Team-SSO Features
+# Team-SSO Features
 
-## Overview
-Team-SSO is an AI-powered pitch deck analysis platform that helps venture capitalists evaluate startup investment opportunities using Google's Gemini AI with grounding capabilities.
+Comprehensive feature list for the AI-powered pitch deck analysis platform.
 
 ---
 
-## ✅ Core Features
+## Core Analysis Features
 
-### 1. **PDF Pitch Deck Analysis**
-**Status**: ✅ Production Ready
+### 1. Pitch Deck Analysis
+**Status**: Production Ready
 
-Upload pitch deck PDFs and receive comprehensive AI-powered analysis including:
-- Problem & Solution evaluation (scored 0-100)
-- Market Opportunity assessment
-- Traction & Growth metrics
-- Team & Execution capabilities
+Upload pitch deck PDFs and receive AI-powered analysis across 6 dimensions:
+- Problem & Solution (0-100 score)
+- Market Opportunity
+- Traction & Growth
+- Team & Execution
 - Business Model & Unit Economics
 - Financials & Use of Funds
-- Overall SSO Score (0-100)
 
-**Technologies**: 
-- Google Gemini 1.5 Flash/Pro
-- PDF.js for text extraction
-- PostgreSQL for data storage
+**Output**: Overall SSO Score (0-100) with investment recommendation
+- 80-100: STRONG_YES
+- 60-79: YES
+- 40-59: NEEDS_MORE_INFO
+- 0-39: NO
 
-**API Endpoint**: `POST /api/decks/upload`
-
----
-
-### 2. **Enhanced PDF Report Generation**
-**Status**: ✅ Production Ready
-
-Generate investor-grade PDF reports with:
-- **Executive Summary** with AI-generated company introduction
-- **Company Overview** with specific product details and metrics
-- **Detailed Section Analysis** (6 key areas with scores, feedback, strengths, improvements)
-- **Risk Analysis** with probability assessments
-- **Key Insights & Recommendations**
-- **VC Context Integration** (uploaded notes/emails)
-- **Web Enrichment Data** (if grounding enabled)
-- **Industry Benchmarking** (company vs peers)
-
-**Features**:
-- Company name extracted from filename (priority over database)
-- AI-generated introduction with retry mechanism for generic text detection
-- Visual charts and benchmarking tables
-- Professional formatting with branding
-
-**API Endpoint**: `GET /api/decks/:id/report/enhanced`
-
-**Documentation**: See `docs/features/ENHANCED_PDF.md`
+**Technology**: Google Gemini 1.5 Flash/Pro
 
 ---
 
-### 3. **Audio Transcription & Analysis**
-**Status**: ✅ Production Ready
+### 2. Enhanced PDF Reports
+**Status**: Production Ready
 
-Upload audio recordings (.mp3, .wav, .m4a, .ogg) of:
-- Investor meetings
-- Founder pitches
-- Due diligence calls
+Generate investor-grade 10-15 page reports with:
+- Executive summary with AI-generated company introduction
+- Company overview with product details and metrics
+- Detailed section analysis (6 areas with scores, feedback, strengths, improvements)
+- Risk analysis with probability assessments
+- Key insights and recommendations
+- VC context integration (if uploaded)
+- Industry benchmarking comparisons
 
-**Capabilities**:
-- Automatic transcription using Google Gemini Audio API
-- Combined analysis with pitch deck data
-- Supports files up to 100MB
-- Extracts key discussion points and commitments
-
-**Technologies**: Google Gemini Audio Processing
-
-**API Endpoint**: `POST /api/decks/upload` (multipart with audio files)
-
-**Documentation**: See `docs/archive/AUDIO_TRANSCRIPTION_COMPLETE.md`
+**Technology**: PDFKit with professional formatting
 
 ---
 
-### 4. **PowerPoint Extraction**
-**Status**: ✅ Production Ready
+### 3. Multimodal Analysis
+**Status**: Production Ready
 
-Upload .pptx presentations for analysis:
-- Extracts text from all slides
-- Processes embedded notes
-- Handles files up to 100MB
-- Combined analysis with PDF decks
+Support for multiple file formats:
+- **PDF** - Primary pitch deck format
+- **Audio** (.mp3, .wav, .m4a, .ogg) - Investor meetings, founder pitches
+- **PowerPoint** (.pptx) - Presentation files
 
-**Technologies**: 
-- Google Gemini Multimodal
-- Native PPTX processing (no external libraries)
+All formats support up to 100MB file size.
 
-**API Endpoint**: `POST /api/decks/upload`
-
-**Documentation**: See `docs/archive/POWERPOINT_100MB_COMPLETE.md`
+**Technology**: Google Gemini Multimodal API
 
 ---
 
-### 5. **VC Context & Notes**
-**Status**: ✅ Production Ready
+### 4. VC Context Integration
+**Status**: Production Ready
 
-Upload supporting documents for richer analysis:
+Upload supporting documents for enriched analysis:
 - Investment committee notes
 - Email exchanges with founders
 - Due diligence reports
 - Internal memos
 
-**Features**:
-- Stored per-company in database
-- Referenced during AI analysis (grounding)
-- Displayed in enhanced PDF reports
-- Export functionality for sharing
+Context is stored per-company and referenced during AI analysis. Exported with reports.
 
-**Database**: `vc_context` table with company_id FK
-
-**API Endpoints**: 
-- `POST /api/vc-context` (upload)
-- `GET /api/vc-context/:companyId` (retrieve)
-- `GET /api/vc-context/:companyId/export` (download as .txt)
-
-**Documentation**: See `docs/features/VC_CONTEXT_BUILD.md`
+**API Endpoints**:
+- `POST /api/vc-context` - Upload
+- `GET /api/vc-context/:companyId` - Retrieve
+- `GET /api/vc-context/:companyId/export` - Download
 
 ---
 
-### 6. **Dual PDF Comparison**
-**Status**: ✅ Production Ready
+### 5. Dual PDF Comparison
+**Status**: Production Ready
 
-Upload two versions of the same pitch deck:
-- Compares original vs updated versions
-- Identifies changes, improvements, gaps
+Compare two versions of the same pitch deck:
+- Identifies changes, improvements, and gaps
 - Side-by-side analysis
+- Tracks deck evolution over funding rounds
 - Generates comparison report
 
 **Use Cases**:
-- Track founder iteration on feedback
+- Monitor founder iteration on feedback
 - Validate improvements after due diligence
-- Monitor deck evolution over funding rounds
-
-**API Endpoint**: `POST /api/decks/upload` (with `isDualUpload=true`)
-
-**Documentation**: See `docs/features/DUAL_PDF_ANALYSIS.md`
+- Track changes across multiple versions
 
 ---
 
-### 7. **Company Benchmarking**
-**Status**: ✅ Production Ready
+### 6. Industry Benchmarking
+**Status**: Production Ready
 
-Compare company metrics against industry peers:
-- **Stage-based comparisons** (Seed, Series A, Series B)
-- **Industry-specific benchmarks** (SaaS, FinTech, HealthTech, etc.)
-- **Key metrics**: Revenue, Growth Rate, Burn Rate, Customer Acquisition Cost, Gross Margin
-- Visual charts and tables in enhanced PDF
+Compare startups against industry peers:
+- Stage-based comparisons (Seed, Series A, Series B)
+- Industry-specific metrics (SaaS, FinTech, HealthTech, etc.)
+- Key metrics: Revenue, Growth Rate, Burn Rate, CAC, Gross Margin
+- Visual charts and tables in reports
 
-**Data Source**: 
-- Curated database of 100+ companies across industries and stages
-- Real market data from successful startups
-
-**Database**: `companies` table with stage and industry categorization
+**Data**: Curated database of 100+ companies
 
 ---
 
-### 8. **Real-Time Progress Indicator**
-**Status**: ✅ Production Ready
+### 7. Grounding & Web Search
+**Status**: Production Ready (Optional)
 
-Compact progress display during analysis:
-- Shows current processing step
-- Estimated time remaining
-- File processing status
-- Smooth animations
-
-**Implementation**: 
-- Frontend: Compact circular progress (top-right)
-- Backend: Event-driven status updates
-- WebSocket-ready architecture
-
-**Documentation**: See `docs/archive/COMPACT_PROGRESS_COMPLETE.md`
-
----
-
-### 9. **Google Grounding with Web Search**
-**Status**: ✅ Production Ready (Optional)
-
-Enhance AI analysis with real-time web data:
+Enhance analysis with real-time web data:
 - Fact-checks claims against live sources
 - Provides source attribution with URLs
 - Validates market size and traction claims
 - Shows confidence levels for grounded facts
 
-**Configuration**: 
-```typescript
-// Enable in server/src/services/aiAnalyzer.ts
-grounding: {
-  googleSearchRetrieval: {
-    dynamicRetrievalConfig: {
-      mode: 'MODE_DYNAMIC',
-      dynamicThreshold: 0.7
-    }
-  }
-}
-```
-
 **Note**: Requires Vertex AI (not standard Gemini API)
 
-**Documentation**: See `docs/archive/VERTEX_AI_COMPLETE.md`
+---
+
+### 8. Real-Time Progress
+**Status**: Production Ready
+
+Live analysis updates with:
+- Current processing step
+- Estimated time remaining
+- File processing status
+- Smooth animations
 
 ---
 
-## 🏗️ Architecture
+## Tech Stack
 
-### Tech Stack
-**Frontend**:
+**Frontend**
 - React 18 + TypeScript
 - Vite (build tool)
-- TailwindCSS (styling)
-- React Router (navigation)
+- TailwindCSS + Shadcn/UI
+- React Router v6
 
-**Backend**:
-- Node.js + Express
-- TypeScript
-- PostgreSQL (database)
-- Google Gemini AI (analysis)
-- PDFKit (report generation)
+**Backend**
+- Node.js + Express + TypeScript
+- PostgreSQL (Cloud SQL)
+- Google Gemini AI
+- PDFKit
 
-**Infrastructure**:
-- Google Cloud Run (deployment)
-- Google Secret Manager (credentials)
-- Cloud SQL (PostgreSQL)
-- Vercel (frontend hosting)
+**Infrastructure**
+- Google Cloud Run
+- Google Cloud SQL
+- Google Secret Manager
+- Vercel (frontend)
 
 ---
 
-## 📊 Database Schema
+## Database Schema
 
 ### Core Tables
-1. **companies** - Company master data (name, industry, stage, benchmarks)
-2. **pitch_decks** - Uploaded decks (file_path, analysis_status, sso_score, dual_pdf_analysis)
-3. **deck_analysis** - Section-wise scores (section_name, section_score, feedback, strengths, improvements)
-4. **vc_context** - Supporting documents (company_id, content_type, text_content, file_path)
-5. **comparison_reports** - Dual PDF comparison results
 
-### Key Relationships
-- `pitch_decks.company_id` → `companies.id`
-- `deck_analysis.deck_id` → `pitch_decks.id`
-- `vc_context.company_id` → `companies.id`
+**companies** - Company master data
+- name, industry, stage, benchmarks
+
+**pitch_decks** - Uploaded decks
+- file_path, analysis_status, sso_score, dual_pdf_analysis
+
+**deck_analysis** - Section-wise scores
+- section_name, section_score, feedback, strengths, improvements
+
+**vc_context** - Supporting documents
+- company_id, content_type, text_content, file_path
+
+**comparison_reports** - Dual PDF comparison results
 
 ---
 
-## 🎯 AI Analysis Sections
+## Analysis Dimensions
 
-All pitch decks are evaluated across **6 critical dimensions**:
+All pitch decks are evaluated across 6 critical dimensions:
 
-1. **Problem & Solution** (Score: 0-100)
+1. **Problem & Solution**
    - Problem clarity and market pain
    - Solution uniqueness and feasibility
    - Product-market fit indicators
 
-2. **Market Opportunity** (Score: 0-100)
+2. **Market Opportunity**
    - Total Addressable Market (TAM)
    - Serviceable Obtainable Market (SOM)
    - Market growth trends
    - Competitive landscape
 
-3. **Traction & Growth** (Score: 0-100)
+3. **Traction & Growth**
    - User/customer metrics
    - Revenue growth
-   - Key milestones achieved
+   - Key milestones
    - Retention and engagement
 
-4. **Team & Execution** (Score: 0-100)
+4. **Team & Execution**
    - Founder backgrounds
    - Relevant experience
    - Team completeness
    - Advisory support
 
-5. **Business Model & Unit Economics** (Score: 0-100)
+5. **Business Model & Unit Economics**
    - Revenue model clarity
-   - CAC (Customer Acquisition Cost)
-   - LTV (Lifetime Value)
+   - CAC and LTV
    - Gross margin
    - Path to profitability
 
-6. **Financials & Use of Funds** (Score: 0-100)
-   - Financial projections quality
+6. **Financials & Use of Funds**
+   - Financial projections
    - Burn rate and runway
    - Funding ask justification
    - Allocation strategy
 
-### Overall SSO Score
-Weighted average of all sections (0-100) with investment recommendation:
-- **80-100**: STRONG_YES - High confidence investment
-- **60-79**: YES - Promising with due diligence
-- **40-59**: NEEDS_MORE_INFO - Requires clarification
-- **0-39**: NO - Significant concerns
+---
+
+## Performance
+
+- **Analysis Time**: 30-60 seconds per deck
+- **PDF Generation**: 5-10 seconds
+- **File Size Limit**: 100MB
+- **Scalability**: Cloud Run auto-scaling (0-100+ instances)
 
 ---
 
-## 🔐 Security & Privacy
+## Security
 
-- **Authentication**: Google OAuth 2.0 (SSO)
+- **Authentication**: Google OAuth 2.0
 - **Authorization**: Role-based access control
-- **Data Storage**: Encrypted at rest (Cloud SQL)
+- **Data Encryption**: At rest (Cloud SQL)
 - **API Security**: Rate limiting, CORS protection
-- **Secrets**: Google Secret Manager (no hardcoded credentials)
-- **File Storage**: Temporary local storage with cleanup after processing
+- **Secrets**: Google Secret Manager
+- **File Storage**: Temporary with automatic cleanup
 
 ---
 
-## 📚 Documentation Structure
+## Future Enhancements
 
-```
-docs/
-├── api/                    # API documentation
-│   └── POSTMAN_TESTING.md
-├── gemini/                 # AI/Gemini specific docs
-├── setup/                  # Setup & deployment guides
-│   ├── AUTHENTICATION_SETUP.md
-│   ├── DEPLOYMENT.md
-│   └── GOOGLE_CLOUD_SETUP.md
-├── features/               # Feature-specific docs
-│   ├── DEEP_ANALYSIS.md
-│   ├── DUAL_PDF_ANALYSIS.md
-│   ├── ENHANCED_PDF.md
-│   ├── GEMINI_PROMPTS.md
-│   └── VC_CONTEXT_BUILD.md
-└── archive/                # Historical docs & completed features
-    └── ... (20+ files)
-```
+- Real-time collaboration (multiple VCs)
+- Custom scoring weights
+- Excel export with detailed data
+- CRM integrations
+- Email notifications
+- Mobile app (iOS/Android)
+- Deck versioning with change tracking
 
 ---
 
-## 🚀 Quick Start
-
-See **README.md** for:
-- Prerequisites
-- Environment setup
-- Installation steps
-- Running locally
-- Deployment instructions
-
----
-
-## 🎨 UI/UX Highlights
-
-- **Dashboard**: Overview of all uploaded decks with scores
-- **Upload Interface**: Drag-and-drop with multi-file support
-- **Analysis View**: Real-time progress with detailed results
-- **Report Downloads**: One-click PDF generation
-- **Responsive Design**: Desktop and mobile optimized
-- **Dark Mode**: (Future enhancement)
-
----
-
-## 📈 Performance
-
-- **Analysis Time**: ~30-60 seconds per deck (Gemini 1.5 Flash)
-- **PDF Generation**: ~5-10 seconds for enhanced reports
-- **File Size Limits**: 100MB (PDFs, audio, PowerPoint)
-- **Concurrent Users**: Scales with Cloud Run (0-100+ instances)
-
----
-
-## 🛠️ Development
-
-### Local Development
-```bash
-# Frontend
-npm run dev          # Port 5173
-
-# Backend
-cd server
-npm run dev          # Port 3000
-```
-
-### Build & Deploy
-```bash
-# Frontend
-npm run build        # Outputs to dist/
-
-# Backend
-cd server
-npm run build        # Compiles TypeScript to dist/
-gcloud run deploy    # Deploy to Cloud Run
-```
-
----
-
-## 🐛 Known Issues
-
-1. **Company Name Database Mismatch**: 
-   - Fixed by extracting from filename (priority over database)
-   - See `docs/archive/CHAINLINK_FINANCE_FIX.md`
-
-2. **Generic AI Introductions**: 
-   - Implemented retry mechanism with generic phrase detection
-   - See `docs/archive/AGGRESSIVE_AI_PROMPT.md`
-
-3. **Gemini Model Version**: 
-   - Standard API uses `gemini-1.5-flash`
-   - Vertex AI uses `models/gemini-1.5-flash-002`
-   - Configure based on deployment method
-
----
-
-## 🔮 Future Enhancements
-
-- [ ] Real-time collaboration (multiple VCs reviewing same deck)
-- [ ] Custom scoring weights (adjust importance of each section)
-- [ ] Export to Excel with detailed data
-- [ ] Integration with CRM systems
-- [ ] Email notifications for analysis completion
-- [ ] Deck versioning with change tracking
-- [ ] Mobile app (iOS/Android)
-
----
-
-## 📞 Support
-
-For technical issues or feature requests:
-- GitHub Issues: [singh-aadi/Team-SSO](https://github.com/singh-aadi/Team-SSO)
-- Documentation: See `docs/` folder
-- API Testing: Import `docs/api/POSTMAN_TESTING.md` collection
-
----
-
-**Last Updated**: October 25, 2025  
-**Version**: 2.0.0  
-**License**: MIT
+For detailed documentation, see:
+- [README.md](./README.md) - Setup and installation
+- [docs/](./docs/) - Complete documentation
+- [QUICK_LOGIN_GUIDE.md](./QUICK_LOGIN_GUIDE.md) - Authentication guide

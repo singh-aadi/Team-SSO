@@ -1,90 +1,75 @@
-# 🔑 Quick Login Guide - Pre-Configured Roles
+# Quick Login Guide
 
-## ✅ Ready-to-Use Credentials
-
-Your authentication is now configured to **skip the role selection modal** and directly access the application with pre-assigned roles!
+Pre-configured test credentials for development and testing.
 
 ---
 
-## 🎯 **For VC Mode (Venture Capital)**
+## Test Credentials
 
-Use these credentials to access the platform as a VC:
-
+### VC Mode (Venture Capital)
 ```
 Email: vc@startup-scout.com
 Password: vc123
 Role: VC (pre-configured)
 ```
 
-**Features you'll see:**
-- Deal flow analysis
-- Portfolio company tracking
-- Investment metrics
-- Market intelligence
-- Competitive analysis
+**Access**: Deal flow analysis, portfolio tracking, investment metrics
 
----
-
-## 🚀 **For Founder Mode (Startup)**
-
-Use these credentials to access the platform as a Founder:
-
+### Founder Mode (Startup)
 ```
 Email: founder@startup-scout.com
 Password: founder123
 Role: Founder (pre-configured)
 ```
 
-**Features you'll see:**
-- Pitch deck intelligence
-- Fundraising tools
-- Benchmark engine
-- Market validation
-- Growth metrics
+**Access**: Pitch deck intelligence, fundraising tools, benchmark engine
 
 ---
 
-## 🌐 **Google Sign-In (Optional)**
+## Google OAuth
 
-You can still use Google OAuth to sign in. When you sign in with your Google account, you'll be automatically assigned the **VC role** by default.
+Google Sign-In is available and defaults to **VC role**.
+
+To use:
+1. Click "Sign in with Google"
+2. Select your Google account
+3. Grant necessary permissions
+4. Redirects to VC dashboard
 
 ---
 
-## 🔄 **Switching Roles**
+## Switching Roles
 
 To switch between VC and Founder mode:
-1. Log out using the sidebar
-2. Log back in with the other credential set
-3. You'll be taken directly to the dashboard with the new role
+1. Log out from sidebar
+2. Log in with different credentials
+3. Access dashboard with new role
 
 ---
 
-## 🛠️ **What Changed?**
+## Authentication Flow
 
-- ✅ Role selection modal is now **bypassed**
-- ✅ Credentials have **pre-configured roles**
-- ✅ Direct access to dashboard after login
-- ✅ No more getting stuck on role selection
-- ✅ Google OAuth defaults to VC role
-
----
-
-## 📝 **Testing Checklist**
-
-- [ ] Log in with VC credentials → Should see VC dashboard
-- [ ] Log out and log in with Founder credentials → Should see Founder dashboard
-- [ ] Try Google Sign-In → Should default to VC mode
-- [ ] Navigate through different features in each role
-- [ ] Verify no role selection modal appears
+1. **Login** - Email/password or Google OAuth
+2. **Role Assignment** - Automatic (no modal)
+3. **Dashboard Redirect** - Role-specific interface
+4. **Session Management** - JWT token stored in localStorage
 
 ---
 
-## 🐛 **Still Having Issues?**
+## Troubleshooting
 
-If you need to clear your browser state:
-1. Open browser DevTools (F12)
-2. Go to Application → Local Storage
-3. Clear `user` key
-4. Refresh the page and log in again
+**Clear Browser State**:
+1. Open DevTools (F12)
+2. Application → Local Storage
+3. Clear `user` and `auth_token` keys
+4. Refresh and log in again
 
-Enjoy testing! 🎉
+**Common Issues**:
+- Stuck on login? Clear localStorage
+- Role not loading? Check network tab for API errors
+- OAuth redirect failing? Verify GOOGLE_CLIENT_ID in .env
+
+---
+
+For production deployment, configure OAuth credentials in Google Cloud Console.
+See [docs/AUTHENTICATION_SETUP.md](./docs/AUTHENTICATION_SETUP.md) for details.

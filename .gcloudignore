@@ -1,0 +1,13 @@
+# Ignore node_modules to speed up Cloud Build upload
+node_modules/
+.git/
+.env
+.env.local
+.vscode/
+*.log
+dist/
+.cache/
+coverage/
+
+# Keep server node_modules since backend build needs it
+!server/node_modules

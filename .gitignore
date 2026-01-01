@@ -22,7 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment Variables
 .env
+.env.local
+server/.env
+server/.env.local
+.env.development
+
+# Service Account Keys (CRITICAL - Never commit!)
+service-account-key.json
+server/service-account-key.json
+**/service-account-key.json
+
+# Temporary/Test Files
 server/check-preferences.js
 server/migrate-008.js
 server/save-current-user-prefs.js
