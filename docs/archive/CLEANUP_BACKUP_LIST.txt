@@ -1,0 +1,17 @@
+﻿FILES TO DELETE (Safe - Not Used):
+======================================
+Root Level:
+  - src/App-debug.tsx
+  - src/App-original.tsx  
+  - src/App-simple.tsx
+  - CLEANUP_COMPLETE.md
+  - CLEANUP_PLAN.md
+  - frontend/ (entire old folder)
+
+Server Level:
+  - server/fix-db-direct.js
+  - server/fix-production-data.sql
+  - server/run-migration-004.js
+  - server/test-server.js
+
+Total: ~10 files/folders

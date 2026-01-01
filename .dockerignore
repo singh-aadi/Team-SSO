@@ -1,0 +1,27 @@
+# Frontend .dockerignore
+node_modules
+dist
+.git
+.gitignore
+.env.local
+.env.development
+.DS_Store
+*.log
+npm-debug.log*
+coverage
+.vscode
+.idea
+*.md
+!README.md
+
+# Backend folder
+server
+
+# Scripts
+scripts
+
+# Documentation
+docs
+
+# SQL files
+sql

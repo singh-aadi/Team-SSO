@@ -1,0 +1,47 @@
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/team-sso-backend:latest'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    
+  # Step 2: Push the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/team-sso-backend:latest'
+    
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'team-sso-backend'
+      - '--image=gcr.io/$PROJECT_ID/team-sso-backend:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--add-cloudsql-instances=projectsso-473108:us-central1:team-sso-db'
+      - '--update-env-vars=NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=projectsso-473108:us-central1:team-sso-db,INSTANCE_UNIX_SOCKET=/cloudsql/projectsso-473108:us-central1:team-sso-db,DB_NAME=teamsso_db,DB_USER=postgres,FRONTEND_URL=https://team-sso.vercel.app'
+      - '--update-secrets=DB_PASSWORD=DB_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest'
+      - '--max-instances=10'
+      - '--min-instances=0'
+      - '--memory=1Gi'
+      - '--cpu=1'
+      - '--timeout=300'
+      - '--service-account=team-SSO-backend-sa@projectsso-473108.iam.gserviceaccount.com'
+
+# Store images in Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/team-sso-backend:latest'
+
+# Build configuration
+timeout: 1200s
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
